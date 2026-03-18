@@ -5,39 +5,42 @@ const features = [
   {
     icon: Search,
     title: 'Google Maps Scraping',
-    description: 'Extract business data in seconds. Get addresses, phone numbers, and more automatically.',
+    description: 'Wydobądź dane biznesowe w sekundy. Adresy, telefony i więcej automatycznie.',
   },
   {
     icon: Mail,
     title: 'Email Finder',
-    description: 'Find verified email addresses for each lead. No manual research needed.',
+    description: 'Znajdź zweryfikowane adresy email dla każdego leada. Zero ręcznej pracy.',
   },
   {
     icon: Sparkles,
-    title: 'AI Personalization',
-    description: 'Each message crafted by AI based on business profile and your goals.',
+    title: 'AI Personalizacja',
+    description: 'Każda wiadomość tworzona przez AI na podstawie profilu firmy i Twoich celów.',
   },
   {
     icon: Zap,
-    title: 'Instant Results',
-    description: 'Get hundreds of leads in seconds. No waiting, no manual work.',
+    title: 'Natychmiastowe wyniki',
+    description: 'Setki leadów w sekundy. Bez czekania, bez ręcznej pracy.',
   },
   {
     icon: Target,
-    title: 'Precision Targeting',
-    description: 'Filter by industry, location, and more. Find exactly who you need.',
+    title: 'Precyzyjne targetowanie',
+    description: 'Filtruj po branży, lokalizacji i więcej. Znajdź dokładnie kogo potrzebujesz.',
   },
   {
     icon: TrendingUp,
-    title: 'Scale Your Outreach',
-    description: 'From 3 to 500+ leads. Scale without hiring more people.',
+    title: 'Skaluj outreach',
+    description: 'Od 3 do 500+ leadów. Skaluj bez zatrudniania nowych osób.',
   },
 ];
 
 export function Features() {
   return (
-    <div id="features" className="relative bg-black py-24 border-t border-white/10">
-      <div className="max-w-7xl mx-auto px-6">
+    <div id="features" className="relative bg-[#0a0a0a] py-24 border-t border-white/10">
+      {/* Subtle background pattern */}
+      <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.015)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.015)_1px,transparent_1px)] bg-[size:64px_64px] opacity-50" />
+      
+      <div className="relative max-w-7xl mx-auto px-6">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -46,12 +49,12 @@ export function Features() {
           className="text-center mb-16"
         >
           <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">
-            Everything you need.
+            Wszystko, czego potrzebujesz.
             <br />
-            <span className="text-gray-500">Nothing you don't.</span>
+            <span className="text-gray-500">Nic zbędnego.</span>
           </h2>
           <p className="text-xl text-gray-400 max-w-2xl mx-auto">
-            Stop wasting time on manual prospecting. Let automation do the work.
+            Przestań tracić czas na manualne prospecting. Pozwól automatyzacji zrobić robotę.
           </p>
         </motion.div>
 
@@ -88,10 +91,10 @@ export function Features() {
         >
           <div className="inline-block bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 p-12">
             <h3 className="text-3xl font-bold text-white mb-4">
-              Ready to find your next 500 clients?
+              Gotowy znaleźć kolejnych 500 klientów?
             </h3>
             <p className="text-gray-400 mb-8 max-w-md mx-auto">
-              Start for free. No credit card required. 3 real leads instantly.
+              Zacznij za darmo. Bez karty kredytowej. 3 prawdziwe leady natychmiast.
             </p>
             <button
               onClick={() => {
@@ -99,7 +102,7 @@ export function Features() {
               }}
               className="px-8 py-4 bg-white text-black rounded-xl font-medium hover:bg-gray-200 transition-all text-lg shadow-2xl shadow-white/20"
             >
-              Get started for free
+              Zacznij za darmo
             </button>
           </div>
         </motion.div>
