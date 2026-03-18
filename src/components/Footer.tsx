@@ -117,7 +117,7 @@ export function Footer() {
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
             <p className="text-sm text-gray-400">
               © 2026 ZEC. All rights reserved.
-            </p>
+            </p> 
             <div className="flex items-center gap-6 text-sm">
               <a href="#" className="text-gray-400 hover:text-white transition-colors">
                 Status

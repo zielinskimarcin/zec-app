@@ -22,52 +22,91 @@ export function Hero() {
   const [isSearching, setIsSearching] = useState(false);
   const [leads, setLeads] = useState<Lead[]>([]);
 
-  const handleSearch = () => {
+  const handleSearch = async () => {
     if (!industry.trim() || !city.trim()) return;
 
     setIsSearching(true);
     setLeads([]);
 
-    setTimeout(() => {
-      const realLeads: Lead[] = [
-        {
-          id: 1,
-          name: 'Atelier Kowalski',
-          description: 'Nowoczesna pracownia architektoniczna specjalizująca się w projektach minimalistycznych budynków mieszkalnych i biurowych. Zdobywca nagrody Architekt Roku 2024.',
-          industry: 'Architektura',
-          city: 'Warszawa',
-          email: 'kontakt@atelier-kowalski.pl',
-          website: 'www.atelier-kowalski.pl',
-          message: 'Cześć! Widziałem Twoje projekty i jestem pod wrażeniem minimalistycznego podejścia do architektury. Pracuję nad nowym projektem deweloperskim w centrum Warszawy i szukam partnera, który pomoże nam stworzyć coś wyjątkowego. Czy mógłbyś znaleźć 15 minut w tym tygodniu na szybką rozmowę?',
-          isBlurred: false,
-        },
-        {
-          id: 2,
-          name: 'Studio Nowak Design',
-          description: 'Butikowa pracownia projektowa oferująca kompleksowe usługi architektoniczne dla klientów komercyjnych. Eksperci w sustainable design i LEED certification.',
-          industry: 'Architektura',
-          city: 'Warszawa',
-          email: 'biuro@nowak-design.pl',
-          website: 'www.nowak-design.pl',
-          message: 'Dzień dobry! Szukamy architekta z doświadczeniem w zrównoważonym budownictwie dla naszego nowego projektu biurowego. Widzę, że specjalizujecie się w sustainable design - dokładnie tego potrzebujemy. Czy bylibyście zainteresowani współpracą? Chętnie opowiem więcej szczegółów.',
-          isBlurred: false,
-        },
-        {
-          id: 3,
-          name: 'Wiśniewski Architects',
-          description: 'Międzynarodowa pracownia architektoniczna z 15-letnim doświadczeniem. Realizujemy projekty od concept do execution w Polsce, Niemczech i Francji.',
-          industry: 'Architektura',
-          city: 'Warszawa',
-          email: 'hello@wisniewski-arch.com',
-          website: 'www.wisniewski-architects.com',
-          message: 'Hi! Interesuje nas współpraca przy dużym projekcie mieszkaniowym w Warszawie (200+ jednostek). Potrzebujemy doświadczonego partnera, który pomoże nam z local regulations i execution. Czy moglibyśmy umówić się na call w przyszłym tygodniu, żeby omówić szczegóły?',
-          isBlurred: false,
-        },
-      ];
+    try {
+      const webhookUrl = import.meta.env.VITE_N8N_WEBHOOK_URL;
+      
+      if (!webhookUrl) {
+        throw new Error("Brak adresu webhooka (VITE_N8N_WEBHOOK_URL) w pliku .env");
+      }
 
-      setLeads(realLeads);
+      const response = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ industry, city }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Błąd serwera: ${response.status}`);
+      }
+
+      // 1. Pobieramy surową odpowiedź
+      const rawData = await response.json();
+      console.log("SUROWA ODPOWIEDŹ Z N8N:", rawData);
+
+      // 2. N8n często zwraca webhooki jako tablicę itemów (np. [ { output: "..." } ])
+      const dataObject = Array.isArray(rawData) ? rawData[0] : rawData;
+
+      // 3. Szukamy klucza "output" lub bierzemy cały obiekt
+      let jsonContent = dataObject.output || dataObject;
+
+      // 4. Jeśli n8n zwróciło JSON-a w formie tekstu (string), musimy go naprawić
+      let parsedData = jsonContent;
+      if (typeof jsonContent === 'string') {
+        try {
+          // Usuwamy na twardo ewentualne znaczniki markdown (```json i ```)
+          const cleanedString = jsonContent
+            .replace(/```json/gi, '')
+            .replace(/```/g, '')
+            .trim();
+          
+          parsedData = JSON.parse(cleanedString);
+        } catch (e) {
+          console.error("Nie udało się sparsować tekstu na obiekt JSON:", e);
+        }
+      }
+
+      // 5. Wyciągamy tablicę 'leads'
+      let fetchedLeads = [];
+      if (parsedData && Array.isArray(parsedData.leads)) {
+        fetchedLeads = parsedData.leads;
+      } else if (Array.isArray(parsedData)) {
+        fetchedLeads = parsedData;
+      } else {
+        console.error("Zrozumiany obiekt:", parsedData);
+        throw new Error("W odpowiedzi nie znaleziono prawidłowej tablicy leadów.");
+      }
+
+      // 6. Mapujemy prawdziwe wyniki z n8n
+      const realLeads: Lead[] = fetchedLeads.map((lead: any, index: number) => ({
+        id: index + 1,
+        name: lead.name || 'Nieznana firma',
+        description: lead.description || 'Brak opisu',
+        industry: lead.industry || industry,
+        city: lead.city || city,
+        email: lead.email || 'brak@email.pl',
+        website: lead.website || 'brak-strony.pl',
+        message: lead.message || 'Propozycja współpracy...',
+        isBlurred: false,
+      }));
+
+      // 7. W nowym interfejsie mamy ładnie zakodowany blur na dole ekranu, 
+      // więc pokazujemy tylko pierwsze 3 leady jako darmową próbkę.
+      setLeads(realLeads.slice(0, 3));
+
+    } catch (error) {
+      console.error("Błąd podczas pobierania leadów:", error);
+      alert("Ups! Nie udało się przetworzyć danych. Sprawdź konsolę (F12) po szczegóły.");
+    } finally {
       setIsSearching(false);
-    }, 1500);
+    }
   };
 
   return (
@@ -253,7 +292,7 @@ export function Hero() {
                                   <div className="h-4 rounded w-32 bg-white/10" />
                                 </div>
                               </div>
-                            </div>
+                            </div> 
                           ))}
                         </div>
 
@@ -275,9 +314,9 @@ export function Hero() {
                               Zdobądź dostęp do 500+ zweryfikowanych leadów z personalizowanymi wiadomościami AI
                             </p>
 
-                            <button className="w-full px-8 py-4 rounded-lg text-base font-semibold transition-all bg-white text-black hover:bg-gray-100">
+                            <Link to="/pricing" className="block w-full px-8 py-4 rounded-lg text-base font-semibold transition-all bg-white text-black hover:bg-gray-100">
                               Upgrade do Premium
-                            </button>
+                            </Link>
 
                             <p className="text-gray-500 text-sm mt-4">
                               Bez zobowiązań • Anuluj kiedy chcesz
