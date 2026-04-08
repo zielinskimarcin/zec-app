@@ -1,34 +1,17 @@
-import * as React from "react"
-import { Check, ChevronsUpDown } from "lucide-react"
-
-// ŚCIEŻKI WZGLĘDNE - ZERO ALIASÓW
-import { cn } from "../lib/utils"
-import { Button } from "./ui/button"
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "./ui/command"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "./ui/popover"
+import { useState, useRef, useEffect } from 'react';
+import { Check, ChevronsUpDown } from 'lucide-react';
 
 interface Option {
-  value: string
-  label: string
+  value: string;
+  label: string;
 }
 
 interface SearchComboboxProps {
-  options: Option[]
-  value: string
-  onChange: (value: string) => void
-  placeholder: string
-  searchPlaceholder?: string
+  options: Option[];
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  searchPlaceholder?: string;
 }
 
 export function SearchCombobox({
@@ -38,60 +21,91 @@ export function SearchCombobox({
   placeholder,
   searchPlaceholder = "Szukaj...",
 }: SearchComboboxProps) {
-  const [open, setOpen] = React.useState(false)
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  // Zamknięcie listy po kliknięciu gdziekolwiek indziej na stronie
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Filtrowanie opcji na podstawie tego, co wpisze użytkownik
+  const filteredOptions = options.filter(option =>
+    option.label.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const selectedOption = options.find(opt => opt.value === value);
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          role="combobox"
-          aria-expanded={open}
-          className="w-full px-4 py-6 justify-between rounded-lg transition-all font-normal bg-white/5 border border-white/10 text-white hover:bg-white/10 hover:text-white focus:ring-2 focus:ring-white/20 focus:border-white/20"
-        >
-          {value
-            ? options.find((option) => option.value === value)?.label
-            : <span className="text-gray-500">{placeholder}</span>}
-          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent 
-        className="w-[--radix-popover-trigger-width] p-0 bg-[#0f0f0f] border border-white/10 rounded-lg shadow-xl" 
-        align="start"
+    <div ref={wrapperRef} className="relative w-full">
+      {/* Główny przycisk inputu */}
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full flex items-center justify-between px-4 py-3 h-[48px] md:h-[50px] rounded-lg transition-all bg-white/5 border border-white/10 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/20"
       >
-        <Command className="bg-transparent text-white">
-          <CommandInput 
-            placeholder={searchPlaceholder} 
-            className="text-white placeholder:text-gray-500 border-none focus:ring-0" 
-          />
-          <CommandList className="max-h-[300px] overflow-y-auto">
-            <CommandEmpty className="py-6 text-center text-sm text-gray-500">
-              Nie znaleziono.
-            </CommandEmpty>
-            <CommandGroup>
-              {options.map((option) => (
-                <CommandItem
+        <span className={selectedOption ? "text-white" : "text-gray-500"}>
+          {selectedOption ? selectedOption.label : placeholder}
+        </span>
+        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50 text-gray-400" />
+      </button>
+
+      {/* Rozwijana lista z wynikami */}
+      {isOpen && (
+        <div className="absolute z-50 w-full mt-2 bg-[#0f0f0f] border border-white/10 rounded-lg shadow-xl overflow-hidden">
+          
+          {/* Pole wyszukiwania "w stylu Google" */}
+          <div className="p-2 border-b border-white/10">
+            <input
+              type="text"
+              className="w-full bg-transparent text-white placeholder-gray-500 border-none focus:outline-none focus:ring-0 px-2 py-1 text-sm"
+              placeholder={searchPlaceholder}
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              autoFocus
+            />
+          </div>
+
+          {/* Wyniki */}
+          <ul className="max-h-60 overflow-y-auto py-1 custom-scrollbar">
+            {filteredOptions.length === 0 ? (
+              <li className="px-4 py-3 text-sm text-gray-500 text-center">
+                Nie znaleziono.
+              </li>
+            ) : (
+              filteredOptions.map((option) => (
+                <li
                   key={option.value}
-                  value={option.label}
-                  onSelect={() => {
-                    onChange(option.value === value ? "" : option.value)
-                    setOpen(false)
+                  onClick={() => {
+                    onChange(option.value === value ? "" : option.value);
+                    setIsOpen(false);
+                    setSearchTerm("");
                   }}
-                  className="cursor-pointer text-gray-300 hover:text-white hover:bg-white/10 aria-selected:bg-white/10 aria-selected:text-white"
+                  className={`flex items-center px-4 py-2 text-sm cursor-pointer transition-colors ${
+                    value === option.value 
+                      ? "bg-white/10 text-white" 
+                      : "text-gray-300 hover:bg-white/5 hover:text-white"
+                  }`}
                 >
                   <Check
-                    className={cn(
-                      "mr-2 h-4 w-4",
+                    className={`mr-2 h-4 w-4 ${
                       value === option.value ? "opacity-100 text-white" : "opacity-0"
-                    )}
+                    }`}
                   />
                   {option.label}
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
-  )
+                </li>
+              ))
+            )}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
 }
