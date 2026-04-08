@@ -1,7 +1,9 @@
 import * as React from "react"
 import { Check, ChevronsUpDown } from "lucide-react"
-import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
+
+// ŚCIEŻKI WZGLĘDNE - ZERO ALIASÓW
+import { cn } from "../lib/utils"
+import { Button } from "./ui/button"
 import {
   Command,
   CommandEmpty,
@@ -9,12 +11,12 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
-} from "@/components/ui/command"
+} from "./ui/command"
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "@/components/ui/popover"
+} from "./ui/popover"
 
 interface Option {
   value: string
@@ -45,7 +47,6 @@ export function SearchCombobox({
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          // Poniżej Twoje oryginalne style z Hero.tsx zaadaptowane pod przycisk
           className="w-full px-4 py-6 justify-between rounded-lg transition-all font-normal bg-white/5 border border-white/10 text-white hover:bg-white/10 hover:text-white focus:ring-2 focus:ring-white/20 focus:border-white/20"
         >
           {value
@@ -91,6 +92,6 @@ export function SearchCombobox({
           </CommandList>
         </Command>
       </PopoverContent>
-    </Popover>  
+    </Popover>
   )
 }
