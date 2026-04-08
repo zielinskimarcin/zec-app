@@ -7,7 +7,7 @@ import { LeadRow } from './LeadRow';
 // IMPORTY NOWYCH KOMPONENTÓW I DANYCH
 // Upewnij się, że ścieżki (@/...) zgadzają się z Twoim projektem!
 import { SearchCombobox } from './SearchCombobox'; 
-import { INDUSTRIES, CITIES } from '@/data/searchOptions';
+import { INDUSTRIES, CITIES } from '../data/searchOptions';
 
 interface Lead {
   id: number;
