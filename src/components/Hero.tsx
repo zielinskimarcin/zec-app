@@ -4,6 +4,11 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Sparkles, Search, Loader2 } from 'lucide-react';
 import { LeadRow } from './LeadRow';
 
+// IMPORTY NOWYCH KOMPONENTÓW I DANYCH
+// Upewnij się, że ścieżki (@/...) zgadzają się z Twoim projektem!
+import { SearchCombobox } from '@/components/ui/SearchCombobox'; 
+import { INDUSTRIES, CITIES } from '@/data/searchOptions';
+
 interface Lead {
   id: number;
   name: string;
@@ -23,7 +28,7 @@ export function Hero() {
   const [leads, setLeads] = useState<Lead[]>([]);
 
   const handleSearch = async () => {
-    if (!industry.trim() || !city.trim()) return;
+    if (!industry || !city) return;
 
     setIsSearching(true);
     setLeads([]);
@@ -35,33 +40,31 @@ export function Hero() {
         throw new Error("Brak adresu webhooka (VITE_N8N_WEBHOOK_URL) w pliku .env");
       }
 
+      // Wysyłamy do backendu etykiety (np. "Architekt"), żeby AI miało ładny tekst
+      const selectedIndustryLabel = INDUSTRIES.find(i => i.value === industry)?.label || industry;
+      const selectedCityLabel = CITIES.find(c => c.value === city)?.label || city;
+
       const response = await fetch(webhookUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ industry, city }),
+        body: JSON.stringify({ industry: selectedIndustryLabel, city: selectedCityLabel }),
       });
 
       if (!response.ok) {
         throw new Error(`Błąd serwera: ${response.status}`);
       }
 
-      // 1. Pobieramy surową odpowiedź
       const rawData = await response.json();
       console.log("SUROWA ODPOWIEDŹ Z N8N:", rawData);
 
-      // 2. N8n często zwraca webhooki jako tablicę itemów (np. [ { output: "..." } ])
       const dataObject = Array.isArray(rawData) ? rawData[0] : rawData;
-
-      // 3. Szukamy klucza "output" lub bierzemy cały obiekt
       let jsonContent = dataObject.output || dataObject;
 
-      // 4. Jeśli n8n zwróciło JSON-a w formie tekstu (string), musimy go naprawić
       let parsedData = jsonContent;
       if (typeof jsonContent === 'string') {
         try {
-          // Usuwamy na twardo ewentualne znaczniki markdown (```json i ```)
           const cleanedString = jsonContent
             .replace(/```json/gi, '')
             .replace(/```/g, '')
@@ -73,7 +76,6 @@ export function Hero() {
         }
       }
 
-      // 5. Wyciągamy tablicę 'leads'
       let fetchedLeads = [];
       if (parsedData && Array.isArray(parsedData.leads)) {
         fetchedLeads = parsedData.leads;
@@ -84,21 +86,18 @@ export function Hero() {
         throw new Error("W odpowiedzi nie znaleziono prawidłowej tablicy leadów.");
       }
 
-      // 6. Mapujemy prawdziwe wyniki z n8n
       const realLeads: Lead[] = fetchedLeads.map((lead: any, index: number) => ({
         id: index + 1,
         name: lead.name || 'Nieznana firma',
         description: lead.description || 'Brak opisu',
-        industry: lead.industry || industry,
-        city: lead.city || city,
+        industry: lead.industry || selectedIndustryLabel,
+        city: lead.city || selectedCityLabel,
         email: lead.email || 'brak@email.pl',
         website: lead.website || 'brak-strony.pl',
         message: lead.message || 'Propozycja współpracy...',
         isBlurred: false,
       }));
 
-      // 7. W nowym interfejsie mamy ładnie zakodowany blur na dole ekranu, 
-      // więc pokazujemy tylko pierwsze 3 leady jako darmową próbkę.
       setLeads(realLeads.slice(0, 3));
 
     } catch (error) {
@@ -181,19 +180,21 @@ export function Hero() {
             
             {/* Main container */}
             <div className="relative bg-[#0f0f0f] border border-[#1f1f1f] rounded-2xl">
-              {/* Search Section */}
+              
+              {/* ZMODYFIKOWANA SEKCJA WYSZUKIWANIA */}
               <div className="p-6 md:p-8 border-b border-white/10">
-                <div className="flex flex-col md:flex-row gap-3">
+                <div className="flex flex-col md:flex-row gap-4">
+                  
                   <div className="flex-1">
                     <label className="block text-sm text-gray-400 mb-2 font-medium">
                       Branża
                     </label>
-                    <input
-                      type="text"
+                    <SearchCombobox
+                      options={INDUSTRIES}
                       value={industry}
-                      onChange={(e) => setIndustry(e.target.value)}
-                      placeholder="np. architekt"
-                      className="w-full px-4 py-3 rounded-lg transition-all focus:outline-none focus:ring-2 bg-white/5 border border-white/10 text-white placeholder-gray-500 focus:ring-white/20 focus:border-white/20"
+                      onChange={setIndustry}
+                      placeholder="Wybierz z listy..."
+                      searchPlaceholder="Wpisz branżę (np. Architekt)"
                     />
                   </div>
 
@@ -201,20 +202,20 @@ export function Hero() {
                     <label className="block text-sm text-gray-400 mb-2 font-medium">
                       Miasto
                     </label>
-                    <input
-                      type="text"
+                    <SearchCombobox
+                      options={CITIES}
                       value={city}
-                      onChange={(e) => setCity(e.target.value)}
-                      placeholder="np. Warszawa"
-                      className="w-full px-4 py-3 rounded-lg transition-all focus:outline-none focus:ring-2 bg-white/5 border border-white/10 text-white placeholder-gray-500 focus:ring-white/20 focus:border-white/20"
+                      onChange={setCity}
+                      placeholder="Wybierz lokalizację..."
+                      searchPlaceholder="Wpisz miasto..."
                     />
                   </div>
 
                   <div className="flex items-end">
                     <button
                       onClick={handleSearch}
-                      disabled={isSearching || !industry.trim() || !city.trim()}
-                      className="w-full md:w-auto px-8 py-3 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-medium bg-white text-black hover:bg-gray-200 shadow-lg shadow-white/10"
+                      disabled={isSearching || !industry || !city}
+                      className="w-full md:w-auto h-[48px] md:h-[50px] px-8 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-medium bg-white text-black hover:bg-gray-200 shadow-lg shadow-white/10"
                     >
                       {isSearching ? (
                         <>
@@ -231,6 +232,7 @@ export function Hero() {
                   </div>
                 </div>
               </div>
+              {/* KONIEC ZMODYFIKOWANEJ SEKCJI WYSZUKIWANIA */}
 
               {/* Results Area */}
               <div className="bg-black/20 backdrop-blur-sm" style={{ height: '500px', overflowY: 'auto' }}>
@@ -268,7 +270,7 @@ export function Hero() {
                       ))}
                     </AnimatePresence>
 
-                    {/* Premium Blur Overlay - shows after 3 free leads */}
+                    {/* Premium Blur Overlay */}
                     {leads.length > 0 && (
                       <motion.div
                         initial={{ opacity: 0, y: 20 }}
