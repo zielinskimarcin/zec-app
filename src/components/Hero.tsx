@@ -4,9 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Sparkles, Search, Loader2 } from 'lucide-react';
 import { LeadRow } from './LeadRow';
 
-// IMPORTY NOWYCH KOMPONENTÓW I DANYCH
-// Upewnij się, że ścieżki (@/...) zgadzają się z Twoim projektem!
-import { SearchCombobox } from './SearchCombobox'; 
+import { SearchCombobox } from './SearchCombobox';
 import { INDUSTRIES, CITIES } from '../data/searchOptions';
 
 interface Lead {
@@ -19,6 +17,51 @@ interface Lead {
   website: string;
   message: string;
   isBlurred: boolean;
+}
+
+interface N8NLead {
+  nazwa?: string;
+  email?: string;
+  strona?: string;
+  opis?: string;
+  message?: string;
+  name?: string;
+  website?: string;
+  description?: string;
+  industry?: string;
+  city?: string;
+}
+
+interface N8NResponse {
+  success?: boolean;
+  miasto?: string;
+  branza?: string;
+  count?: number;
+  leads?: N8NLead[];
+  formatted?: string;
+  uwaga?: string;
+  output?: unknown;
+}
+
+function extractJsonFromText(text: string) {
+  const cleaned = text
+    .replace(/```json/gi, '')
+    .replace(/```/g, '')
+    .trim();
+
+  try {
+    return JSON.parse(cleaned);
+  } catch {
+    const firstBrace = cleaned.indexOf('{');
+    const lastBrace = cleaned.lastIndexOf('}');
+
+    if (firstBrace !== -1 && lastBrace !== -1) {
+      const possibleJson = cleaned.slice(firstBrace, lastBrace + 1);
+      return JSON.parse(possibleJson);
+    }
+
+    throw new Error('Nie udało się sparsować odpowiedzi jako JSON.');
+  }
 }
 
 export function Hero() {
@@ -35,74 +78,73 @@ export function Hero() {
 
     try {
       const webhookUrl = import.meta.env.VITE_N8N_WEBHOOK_URL;
-      
+
       if (!webhookUrl) {
-        throw new Error("Brak adresu webhooka (VITE_N8N_WEBHOOK_URL) w pliku .env");
+        throw new Error('Brak adresu webhooka (VITE_N8N_WEBHOOK_URL) w pliku .env');
       }
 
-      // Wysyłamy do backendu etykiety (np. "Architekt"), żeby AI miało ładny tekst
-      const selectedIndustryLabel = INDUSTRIES.find(i => i.value === industry)?.label || industry;
-      const selectedCityLabel = CITIES.find(c => c.value === city)?.label || city;
+      const selectedIndustryLabel =
+        INDUSTRIES.find((i) => i.value === industry)?.label || industry;
+      const selectedCityLabel =
+        CITIES.find((c) => c.value === city)?.label || city;
 
       const response = await fetch(webhookUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ industry: selectedIndustryLabel, city: selectedCityLabel }),
+        body: JSON.stringify({
+          industry: selectedIndustryLabel,
+          city: selectedCityLabel,
+        }),
       });
 
       if (!response.ok) {
         throw new Error(`Błąd serwera: ${response.status}`);
       }
 
-      const rawData = await response.json();
-      console.log("SUROWA ODPOWIEDŹ Z N8N:", rawData);
+      const responseText = await response.text();
+      console.log('SUROWA ODPOWIEDŹ Z N8N:', responseText);
 
-      const dataObject = Array.isArray(rawData) ? rawData[0] : rawData;
-      let jsonContent = dataObject.output || dataObject;
+      let parsedResponse: N8NResponse;
 
-      let parsedData = jsonContent;
-      if (typeof jsonContent === 'string') {
-        try {
-          const cleanedString = jsonContent
-            .replace(/```json/gi, '')
-            .replace(/```/g, '')
-            .trim();
-          
-          parsedData = JSON.parse(cleanedString);
-        } catch (e) {
-          console.error("Nie udało się sparsować tekstu na obiekt JSON:", e);
-        }
+      try {
+        parsedResponse = extractJsonFromText(responseText);
+      } catch (parseError) {
+        console.error('Nie udało się sparsować odpowiedzi:', parseError);
+        throw new Error('Webhook zwrócił odpowiedź w nieobsługiwanym formacie.');
       }
 
-      let fetchedLeads = [];
-      if (parsedData && Array.isArray(parsedData.leads)) {
-        fetchedLeads = parsedData.leads;
-      } else if (Array.isArray(parsedData)) {
-        fetchedLeads = parsedData;
-      } else {
-        console.error("Zrozumiany obiekt:", parsedData);
-        throw new Error("W odpowiedzi nie znaleziono prawidłowej tablicy leadów.");
+      const dataObject =
+        parsedResponse && typeof parsedResponse === 'object' && 'output' in parsedResponse
+          ? (typeof parsedResponse.output === 'string'
+              ? extractJsonFromText(parsedResponse.output)
+              : parsedResponse.output)
+          : parsedResponse;
+
+      const finalData = dataObject as N8NResponse;
+
+      if (!finalData || !Array.isArray(finalData.leads)) {
+        console.error('Zrozumiany obiekt:', finalData);
+        throw new Error('W odpowiedzi nie znaleziono prawidłowej tablicy leadów.');
       }
 
-      const realLeads: Lead[] = fetchedLeads.map((lead: any, index: number) => ({
+      const realLeads: Lead[] = finalData.leads.map((lead, index) => ({
         id: index + 1,
-        name: lead.name || 'Nieznana firma',
-        description: lead.description || 'Brak opisu',
-        industry: lead.industry || selectedIndustryLabel,
-        city: lead.city || selectedCityLabel,
+        name: lead.nazwa || lead.name || 'Nieznana firma',
+        description: lead.opis || lead.description || 'Brak opisu',
+        industry: finalData.branza || lead.industry || selectedIndustryLabel,
+        city: finalData.miasto || lead.city || selectedCityLabel,
         email: lead.email || 'brak@email.pl',
-        website: lead.website || 'brak-strony.pl',
+        website: lead.strona || lead.website || 'brak-strony.pl',
         message: lead.message || 'Propozycja współpracy...',
         isBlurred: false,
       }));
 
       setLeads(realLeads.slice(0, 3));
-
     } catch (error) {
-      console.error("Błąd podczas pobierania leadów:", error);
-      alert("Ups! Nie udało się przetworzyć danych. Sprawdź konsolę (F12) po szczegóły.");
+      console.error('Błąd podczas pobierania leadów:', error);
+      alert('Ups! Nie udało się przetworzyć danych. Sprawdź konsolę (F12) po szczegóły.');
     } finally {
       setIsSearching(false);
     }
@@ -110,7 +152,6 @@ export function Hero() {
 
   return (
     <div className="relative bg-[#111111] overflow-hidden min-h-screen">
-      {/* Header */}
       <header className="absolute top-0 left-0 right-0 z-50 px-6 py-5">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2">
@@ -136,13 +177,10 @@ export function Hero() {
         </div>
       </header>
 
-      {/* Subtle grid background */}
       <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:64px_64px] [mask-image:radial-gradient(ellipse_80%_50%_at_50%_0%,#000_70%,transparent_100%)]" />
 
-      {/* Hero Content */}
       <div className="relative z-10 pt-32 pb-20">
         <div className="max-w-7xl mx-auto px-6">
-          {/* Title Section */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -155,7 +193,10 @@ export function Hero() {
               </span>
             </div>
 
-            <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold text-white mb-6 tracking-tight leading-[1.1]" style={{ fontFamily: "'Libre Baskerville', serif" }}>
+            <h1
+              className="text-5xl md:text-6xl lg:text-7xl font-bold text-white mb-6 tracking-tight leading-[1.1]"
+              style={{ fontFamily: "'Libre Baskerville', serif" }}
+            >
               Znajdź setki klientów
               <br />
               jednym kliknięciem
@@ -168,23 +209,17 @@ export function Hero() {
             </p>
           </motion.div>
 
-          {/* macOS Window */}
           <motion.div
             initial={{ opacity: 0, y: 30, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             transition={{ duration: 0.7, delay: 0.2 }}
             className="rounded-2xl overflow-hidden shadow-2xl max-w-6xl mx-auto relative"
           >
-            {/* Subtle border glow */}
             <div className="absolute -inset-[1px] bg-gradient-to-b from-white/20 to-white/5 rounded-2xl" />
-            
-            {/* Main container */}
+
             <div className="relative bg-[#0f0f0f] border border-[#1f1f1f] rounded-2xl">
-              
-              {/* ZMODYFIKOWANA SEKCJA WYSZUKIWANIA */}
               <div className="p-6 md:p-8 border-b border-white/10">
                 <div className="flex flex-col md:flex-row gap-4">
-                  
                   <div className="flex-1">
                     <label className="block text-sm text-gray-400 mb-2 font-medium">
                       Branża
@@ -194,13 +229,13 @@ export function Hero() {
                       value={industry}
                       onChange={setIndustry}
                       placeholder="np. Architekt"
-                      searchPlaceholder="np. Architekt"
+                      searchPlaceholder="Wpisz branżę (np. Architekt)"
                     />
                   </div>
 
                   <div className="flex-1">
                     <label className="block text-sm text-gray-400 mb-2 font-medium">
-                      Lokalizacja
+                      Miasto
                     </label>
                     <SearchCombobox
                       options={CITIES}
@@ -232,9 +267,7 @@ export function Hero() {
                   </div>
                 </div>
               </div>
-              {/* KONIEC ZMODYFIKOWANEJ SEKCJI WYSZUKIWANIA */}
 
-              {/* Results Area */}
               <div className="bg-black/20 backdrop-blur-sm" style={{ height: '500px', overflowY: 'auto' }}>
                 <div className="p-6 md:p-8">
                   <AnimatePresence>
@@ -251,7 +284,6 @@ export function Hero() {
                     )}
                   </AnimatePresence>
 
-                  {/* Leads List */}
                   <div className="space-y-4 relative">
                     <AnimatePresence mode="popLayout">
                       {leads.map((lead, index) => (
@@ -270,7 +302,6 @@ export function Hero() {
                       ))}
                     </AnimatePresence>
 
-                    {/* Premium Blur Overlay */}
                     {leads.length > 0 && (
                       <motion.div
                         initial={{ opacity: 0, y: 20 }}
@@ -278,7 +309,6 @@ export function Hero() {
                         transition={{ delay: 0.5 }}
                         className="relative"
                       >
-                        {/* Blurred preview cards */}
                         <div className="space-y-4 pointer-events-none select-none">
                           {[1, 2, 3, 4, 5].map((i) => (
                             <div
@@ -294,11 +324,10 @@ export function Hero() {
                                   <div className="h-4 rounded w-32 bg-white/10" />
                                 </div>
                               </div>
-                            </div> 
+                            </div>
                           ))}
                         </div>
 
-                        {/* CTA Overlay */}
                         <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-b from-transparent via-[#0a0a0a]/90 to-[#0a0a0a] backdrop-blur-md">
                           <div className="text-center px-6 py-12 max-w-md">
                             <div className="mb-6">
@@ -307,11 +336,11 @@ export function Hero() {
                                 <span className="text-gray-300 text-sm font-medium">500+ więcej leadów gotowych</span>
                               </div>
                             </div>
-                            
+
                             <h3 className="text-3xl md:text-4xl font-bold text-white mb-4 leading-tight">
                               Odblokuj pełną listę
                             </h3>
-                            
+
                             <p className="text-gray-400 text-base mb-8 leading-relaxed">
                               Zdobądź dostęp do 500+ zweryfikowanych leadów z personalizowanymi wiadomościami AI
                             </p>
@@ -329,7 +358,6 @@ export function Hero() {
                     )}
                   </div>
 
-                  {/* Loading state */}
                   {isSearching && (
                     <div className="space-y-4">
                       {[1, 2, 3].map((i) => (
@@ -351,14 +379,13 @@ export function Hero() {
                     </div>
                   )}
 
-                  {/* Empty state */}
                   {!isSearching && leads.length === 0 && (
                     <div className="text-center py-20">
                       <div className="size-16 rounded-full flex items-center justify-center mx-auto mb-4 bg-white/5">
                         <Search className="size-8 text-gray-400" />
                       </div>
                       <h3 className="text-lg font-medium mb-2 text-white">
-                        Wprowadź branżę i lokalizację
+                        Wprowadź branżę i miasto
                       </h3>
                       <p className="text-gray-400">
                         Znajdziemy setki leadów w kilka sekund
