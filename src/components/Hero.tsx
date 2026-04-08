@@ -207,7 +207,7 @@ export function Hero() {
                       value={city}
                       onChange={setCity}
                       placeholder="np. Warszawa"
-                      searchPlaceholder="Wpisz miasto..."
+                      searchPlaceholder="np. Warszawa"
                     />
                   </div>
 
