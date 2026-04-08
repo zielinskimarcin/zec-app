@@ -91,6 +91,6 @@ export function SearchCombobox({
           </CommandList>
         </Command>
       </PopoverContent>
-    </Popover>
+    </Popover>  
   )
 }
