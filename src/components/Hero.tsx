@@ -193,7 +193,7 @@ export function Hero() {
                       options={INDUSTRIES}
                       value={industry}
                       onChange={setIndustry}
-                      placeholder="Wybierz z listy..."
+                      placeholder="np. Architekt"
                       searchPlaceholder="Wpisz branżę (np. Architekt)"
                     />
                   </div>
@@ -206,7 +206,7 @@ export function Hero() {
                       options={CITIES}
                       value={city}
                       onChange={setCity}
-                      placeholder="Wybierz lokalizację..."
+                      placeholder="np. Warszawa"
                       searchPlaceholder="Wpisz miasto..."
                     />
                   </div>
