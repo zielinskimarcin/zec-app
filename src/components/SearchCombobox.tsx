@@ -11,7 +11,6 @@ interface SearchComboboxProps {
   value: string;
   onChange: (value: string) => void;
   placeholder: string;
-  searchPlaceholder?: string;
 }
 
 export function SearchCombobox({
@@ -19,13 +18,21 @@ export function SearchCombobox({
   value,
   onChange,
   placeholder,
-  searchPlaceholder = "Szukaj...",
 }: SearchComboboxProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [inputValue, setInputValue] = useState("");
   const wrapperRef = useRef<HTMLDivElement>(null);
 
-  // Zamknięcie listy po kliknięciu gdziekolwiek indziej na stronie
+  // Synchronizacja tekstu w inpucie, gdy zmieni się wartość wybrana (value)
+  useEffect(() => {
+    const selected = options.find(opt => opt.value === value);
+    if (selected) {
+      setInputValue(selected.label);
+    } else if (value === "") {
+      setInputValue("");
+    }
+  }, [value, options]);
+
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
@@ -36,67 +43,56 @@ export function SearchCombobox({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Filtrowanie opcji na podstawie tego, co wpisze użytkownik
   const filteredOptions = options.filter(option =>
-    option.label.toLowerCase().includes(searchTerm.toLowerCase())
+    option.label.toLowerCase().includes(inputValue.toLowerCase())
   );
-
-  const selectedOption = options.find(opt => opt.value === value);
 
   return (
     <div ref={wrapperRef} className="relative w-full">
-      {/* Główny przycisk inputu */}
-      <button
-        type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between px-4 py-3 h-[48px] md:h-[50px] rounded-lg transition-all bg-white/5 border border-white/10 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/20"
-      >
-        <span className={selectedOption ? "text-white" : "text-gray-500"}>
-          {selectedOption ? selectedOption.label : placeholder}
-        </span>
-        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50 text-gray-400" />
-      </button>
+      <div className="relative">
+        <input
+          type="text"
+          className="w-full px-4 py-3 h-[48px] md:h-[50px] rounded-lg transition-all bg-white/5 border border-white/10 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white/20 focus:border-white/20"
+          placeholder={placeholder}
+          value={inputValue}
+          onFocus={() => setIsOpen(true)}
+          onChange={(e) => {
+            setInputValue(e.target.value);
+            setIsOpen(true);
+            // Jeśli użytkownik ręcznie skasuje wszystko, czyścimy wybór w rodzicu
+            if (e.target.value === "") onChange("");
+          }}
+        />
+        <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+          <ChevronsUpDown className="h-4 w-4 text-gray-500" />
+        </div>
+      </div>
 
-      {/* Rozwijana lista z wynikami */}
       {isOpen && (
-        <div className="absolute z-50 w-full mt-2 bg-[#0f0f0f] border border-white/10 rounded-lg shadow-xl overflow-hidden">
-          
-          {/* Pole wyszukiwania "w stylu Google" */}
-          <div className="p-2 border-b border-white/10">
-            <input
-              type="text"
-              className="w-full bg-transparent text-white placeholder-gray-500 border-none focus:outline-none focus:ring-0 px-2 py-1 text-sm"
-              placeholder={searchPlaceholder}
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              autoFocus
-            />
-          </div>
-
-          {/* Wyniki */}
+        <div className="absolute z-50 w-full mt-2 bg-[#0f0f0f] border border-white/10 rounded-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-150">
           <ul className="max-h-60 overflow-y-auto py-1 custom-scrollbar">
             {filteredOptions.length === 0 ? (
               <li className="px-4 py-3 text-sm text-gray-500 text-center">
-                Nie znaleziono.
+                Brak wyników.
               </li>
             ) : (
               filteredOptions.map((option) => (
                 <li
                   key={option.value}
                   onClick={() => {
-                    onChange(option.value === value ? "" : option.value);
+                    onChange(option.value);
+                    setInputValue(option.label);
                     setIsOpen(false);
-                    setSearchTerm("");
                   }}
-                  className={`flex items-center px-4 py-2 text-sm cursor-pointer transition-colors ${
+                  className={`flex items-center px-4 py-2.5 text-sm cursor-pointer transition-colors ${
                     value === option.value 
                       ? "bg-white/10 text-white" 
                       : "text-gray-300 hover:bg-white/5 hover:text-white"
                   }`}
                 >
                   <Check
-                    className={`mr-2 h-4 w-4 ${
-                      value === option.value ? "opacity-100 text-white" : "opacity-0"
+                    className={`mr-2 h-4 w-4 shrink-0 ${
+                      value === option.value ? "opacity-100" : "opacity-0"
                     }`}
                   />
                   {option.label}
