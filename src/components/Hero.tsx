@@ -194,13 +194,13 @@ export function Hero() {
                       value={industry}
                       onChange={setIndustry}
                       placeholder="np. Architekt"
-                      searchPlaceholder="Wpisz branżę (np. Architekt)"
+                      searchPlaceholder="np. Architekt"
                     />
                   </div>
 
                   <div className="flex-1">
                     <label className="block text-sm text-gray-400 mb-2 font-medium">
-                      Miasto
+                      Lokalizacja
                     </label>
                     <SearchCombobox
                       options={CITIES}
@@ -358,7 +358,7 @@ export function Hero() {
                         <Search className="size-8 text-gray-400" />
                       </div>
                       <h3 className="text-lg font-medium mb-2 text-white">
-                        Wprowadź branżę i miasto
+                        Wprowadź branżę i lokalizację
                       </h3>
                       <p className="text-gray-400">
                         Znajdziemy setki leadów w kilka sekund
