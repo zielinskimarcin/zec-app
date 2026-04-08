@@ -271,7 +271,7 @@ export function Hero() {
               <div className="bg-black/20 backdrop-blur-sm" style={{ height: '500px', overflowY: 'auto' }}>
                 <div className="p-6 md:p-8">
                   <AnimatePresence>
-                    {!isSearching && leads.length > 0 && (
+                    {leads.length > 0 && (
                       <motion.div
                         initial={{ opacity: 0, y: -10 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -284,211 +284,113 @@ export function Hero() {
                     )}
                   </AnimatePresence>
 
-                  {isSearching ? (
-                    <motion.div
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03]"
-                    >
-                      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.08),transparent_45%)]" />
+                  <div className="space-y-4 relative">
+                    <AnimatePresence mode="popLayout">
+                      {leads.map((lead, index) => (
+                        <motion.div
+                          key={lead.id}
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -20 }}
+                          transition={{
+                            duration: 0.3,
+                            delay: index * 0.05,
+                          }}
+                        >
+                          <LeadRow lead={lead} dark />
+                        </motion.div>
+                      ))}
+                    </AnimatePresence>
 
+                    {leads.length > 0 && (
                       <motion.div
-                        className="absolute inset-0 opacity-40"
-                        animate={{ x: ['-100%', '100%'] }}
-                        transition={{
-                          duration: 2.2,
-                          repeat: Infinity,
-                          ease: 'linear',
-                        }}
-                        style={{
-                          background:
-                            'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.06) 50%, transparent 100%)',
-                        }}
-                      />
-
-                      <div className="relative px-6 py-12 md:px-10 md:py-16">
-                        <div className="flex flex-col items-center text-center mb-10">
-                          <motion.div
-                            animate={{ rotate: 360 }}
-                            transition={{
-                              duration: 2.4,
-                              repeat: Infinity,
-                              ease: 'linear',
-                            }}
-                            className="mb-5"
-                          >
-                            <div className="size-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center shadow-lg shadow-black/20">
-                              <Loader2 className="size-6 text-white/80" />
-                            </div>
-                          </motion.div>
-
-                          <motion.h3
-                            initial={{ opacity: 0, y: 6 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.35 }}
-                            className="text-2xl md:text-3xl font-bold text-white mb-3 tracking-tight"
-                          >
-                            Szukamy najlepszych leadów
-                          </motion.h3>
-
-                          <motion.p
-                            initial={{ opacity: 0, y: 6 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.35, delay: 0.05 }}
-                            className="text-gray-400 max-w-xl leading-relaxed"
-                          >
-                            Przeszukujemy firmy, strony internetowe i dane kontaktowe, żeby przygotować
-                            dla Ciebie pierwsze dopasowane wyniki.
-                          </motion.p>
-                        </div>
-
-                        <div className="grid gap-4">
-                          {[
-                            'Analizowanie branży i lokalizacji',
-                            'Wyszukiwanie firm i stron WWW',
-                            'Dobieranie najlepszych kontaktów',
-                          ].map((step, index) => (
-                            <motion.div
-                              key={step}
-                              initial={{ opacity: 0, y: 12 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              transition={{ delay: index * 0.08 }}
-                              className="rounded-xl border border-white/10 bg-black/20 backdrop-blur-sm p-5"
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.5 }}
+                        className="relative"
+                      >
+                        <div className="space-y-4 pointer-events-none select-none">
+                          {[1, 2, 3, 4, 5].map((i) => (
+                            <div
+                              key={`blur-${i}`}
+                              className="rounded-xl border bg-white/5 border-white/10 backdrop-blur-xl p-6 opacity-50 blur-sm"
                             >
-                              <div className="flex items-center justify-between gap-4 mb-4">
-                                <div className="flex items-center gap-3">
-                                  <div className="size-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-sm text-gray-300">
-                                    {index + 1}
-                                  </div>
-                                  <span className="text-sm md:text-base text-white font-medium">
-                                    {step}
-                                  </span>
+                              <div className="space-y-4">
+                                <div className="h-5 rounded w-1/3 bg-white/20" />
+                                <div className="h-4 rounded w-full bg-white/10" />
+                                <div className="h-4 rounded w-3/4 bg-white/10" />
+                                <div className="flex gap-4">
+                                  <div className="h-4 rounded w-32 bg-white/10" />
+                                  <div className="h-4 rounded w-32 bg-white/10" />
                                 </div>
-
-                                <motion.div
-                                  animate={{ opacity: [0.35, 1, 0.35] }}
-                                  transition={{
-                                    duration: 1.4,
-                                    repeat: Infinity,
-                                    delay: index * 0.15,
-                                  }}
-                                  className="text-xs text-gray-400"
-                                >
-                                  w toku
-                                </motion.div>
                               </div>
-
-                              <div className="h-2 w-full overflow-hidden rounded-full bg-white/5">
-                                <motion.div
-                                  className="h-full rounded-full bg-white/20"
-                                  animate={{
-                                    x: ['-30%', '120%'],
-                                  }}
-                                  transition={{
-                                    duration: 1.8,
-                                    repeat: Infinity,
-                                    ease: 'easeInOut',
-                                    delay: index * 0.12,
-                                  }}
-                                  style={{ width: '35%' }}
-                                />
-                              </div>
-                            </motion.div>
+                            </div>
                           ))}
                         </div>
-                      </div>
-                    </motion.div>
-                  ) : (
-                    <>
-                      <div className="space-y-4 relative">
-                        <AnimatePresence mode="popLayout">
-                          {leads.map((lead, index) => (
-                            <motion.div
-                              key={lead.id}
-                              initial={{ opacity: 0, y: 20 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              exit={{ opacity: 0, y: -20 }}
-                              transition={{
-                                duration: 0.3,
-                                delay: index * 0.05,
-                              }}
-                            >
-                              <LeadRow lead={lead} dark />
-                            </motion.div>
-                          ))}
-                        </AnimatePresence>
 
-                        {leads.length > 0 && (
-                          <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.5 }}
-                            className="relative"
-                          >
-                            <div className="space-y-4 pointer-events-none select-none">
-                              {[1, 2, 3, 4, 5].map((i) => (
-                                <div
-                                  key={`blur-${i}`}
-                                  className="rounded-xl border bg-white/5 border-white/10 backdrop-blur-xl p-6 opacity-50 blur-sm"
-                                >
-                                  <div className="space-y-4">
-                                    <div className="h-5 rounded w-1/3 bg-white/20" />
-                                    <div className="h-4 rounded w-full bg-white/10" />
-                                    <div className="h-4 rounded w-3/4 bg-white/10" />
-                                    <div className="flex gap-4">
-                                      <div className="h-4 rounded w-32 bg-white/10" />
-                                      <div className="h-4 rounded w-32 bg-white/10" />
-                                    </div>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-
-                            <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-b from-transparent via-[#0a0a0a]/90 to-[#0a0a0a] backdrop-blur-md">
-                              <div className="text-center px-6 py-12 max-w-md">
-                                <div className="mb-6">
-                                  <div className="inline-flex items-center gap-3 px-6 py-3 rounded-full bg-white/5 border border-white/10 backdrop-blur-xl mb-4">
-                                    <div className="size-2 bg-gray-400 rounded-full" />
-                                    <span className="text-gray-300 text-sm font-medium">500+ więcej leadów gotowych</span>
-                                  </div>
-                                </div>
-
-                                <h3 className="text-3xl md:text-4xl font-bold text-white mb-4 leading-tight">
-                                  Odblokuj pełną listę
-                                </h3>
-
-                                <p className="text-gray-400 text-base mb-8 leading-relaxed">
-                                  Zdobądź dostęp do 500+ zweryfikowanych leadów z personalizowanymi wiadomościami AI
-                                </p>
-
-                                <Link to="/pricing" className="block w-full px-8 py-4 rounded-lg text-base font-semibold transition-all bg-white text-black hover:bg-gray-100">
-                                  Upgrade do Premium
-                                </Link>
-
-                                <p className="text-gray-500 text-sm mt-4">
-                                  Bez zobowiązań • Anuluj kiedy chcesz
-                                </p>
+                        <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-b from-transparent via-[#0a0a0a]/90 to-[#0a0a0a] backdrop-blur-md">
+                          <div className="text-center px-6 py-12 max-w-md">
+                            <div className="mb-6">
+                              <div className="inline-flex items-center gap-3 px-6 py-3 rounded-full bg-white/5 border border-white/10 backdrop-blur-xl mb-4">
+                                <div className="size-2 bg-gray-400 rounded-full" />
+                                <span className="text-gray-300 text-sm font-medium">500+ więcej leadów gotowych</span>
                               </div>
                             </div>
-                          </motion.div>
-                        )}
-                      </div>
 
-                      {leads.length === 0 && (
-                        <div className="text-center py-20">
-                          <div className="size-16 rounded-full flex items-center justify-center mx-auto mb-4 bg-white/5">
-                            <Search className="size-8 text-gray-400" />
+                            <h3 className="text-3xl md:text-4xl font-bold text-white mb-4 leading-tight">
+                              Odblokuj pełną listę
+                            </h3>
+
+                            <p className="text-gray-400 text-base mb-8 leading-relaxed">
+                              Zdobądź dostęp do 500+ zweryfikowanych leadów z personalizowanymi wiadomościami AI
+                            </p>
+
+                            <Link to="/pricing" className="block w-full px-8 py-4 rounded-lg text-base font-semibold transition-all bg-white text-black hover:bg-gray-100">
+                              Upgrade do Premium
+                            </Link>
+
+                            <p className="text-gray-500 text-sm mt-4">
+                              Bez zobowiązań • Anuluj kiedy chcesz
+                            </p>
                           </div>
-                          <h3 className="text-lg font-medium mb-2 text-white">
-                            Wprowadź branżę i miasto
-                          </h3>
-                          <p className="text-gray-400">
-                            Znajdziemy setki leadów w kilka sekund
-                          </p>
                         </div>
-                      )}
-                    </>
+                      </motion.div>
+                    )}
+                  </div>
+
+                  {isSearching && (
+                    <div className="space-y-4">
+                      {[1, 2, 3].map((i) => (
+                        <div
+                          key={i}
+                          className="rounded-lg p-6 border bg-white/5 border-white/10"
+                        >
+                          <div className="animate-pulse space-y-4">
+                            <div className="h-5 rounded w-1/4 bg-white/10" />
+                            <div className="h-4 rounded w-full bg-white/5" />
+                            <div className="h-4 rounded w-3/4 bg-white/5" />
+                            <div className="flex gap-4">
+                              <div className="h-4 rounded w-32 bg-white/5" />
+                              <div className="h-4 rounded w-32 bg-white/5" />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {!isSearching && leads.length === 0 && (
+                    <div className="text-center py-20">
+                      <div className="size-16 rounded-full flex items-center justify-center mx-auto mb-4 bg-white/5">
+                        <Search className="size-8 text-gray-400" />
+                      </div>
+                      <h3 className="text-lg font-medium mb-2 text-white">
+                        Wprowadź branżę i miasto
+                      </h3>
+                      <p className="text-gray-400">
+                        Znajdziemy setki leadów w kilka sekund
+                      </p>
+                    </div>
                   )}
                 </div>
               </div>
