@@ -61,21 +61,34 @@ export function LeadsPage() {
 
       if (tempLeads && tempQuery) {
         try {
-          const parsedLeads = JSON.parse(tempLeads);
-          const parsedQuery = JSON.parse(tempQuery);
+          // ZABEZPIECZENIE: Sprawdzamy, kiedy konto zostało założone
+          const userCreatedAt = new Date(session.user.created_at).getTime();
+          const now = Date.now();
+          const accountAgeInMinutes = (now - userCreatedAt) / (1000 * 60);
 
-          // Wrzucamy do bazy do tabeli saved_searches
-          await supabase.from('saved_searches').insert({
-            user_id: session.user.id,
-            industry: parsedQuery.industry,
-            city: parsedQuery.city,
-            leads_data: parsedLeads
-          });
+          // Jeśli konto ma mniej niż 5 minut, uznajemy je za nowe
+          const isNewAccount = accountAgeInMinutes < 5;
 
-          // Sprzątamy po sobie
+          if (isNewAccount) {
+            const parsedLeads = JSON.parse(tempLeads);
+            const parsedQuery = JSON.parse(tempQuery);
+
+            // Wrzucamy do bazy do tabeli saved_searches
+            await supabase.from('saved_searches').insert({
+              user_id: session.user.id,
+              industry: parsedQuery.industry,
+              city: parsedQuery.city,
+              leads_data: parsedLeads
+            });
+            console.log("Nowe konto: Leady z landingu dodane do bazy!");
+          } else {
+            console.log("Stare konto: Ignoruję leady testowe ze schowka.");
+          }
+
+          // ZAWSZE sprzątamy po sobie (żeby nie próbowało dodać znowu)
           localStorage.removeItem('zec_temp_leads');
           localStorage.removeItem('zec_temp_query');
-          console.log("Leady z landingu pomyślnie przeniesione do bazy!");
+          
         } catch (err) {
           console.error("Błąd podczas transferu leadów:", err);
         }
@@ -92,9 +105,7 @@ export function LeadsPage() {
       }
 
       if (searchesData) {
-        // Spłaszczamy tablicę do wyświetlenia
         const flatLeads: Lead[] = searchesData.flatMap((searchQuery) => {
-          // Zabezpieczenie przed pustymi/zepsutymi danymi
           if (!searchQuery.leads_data || !Array.isArray(searchQuery.leads_data)) return [];
 
           return searchQuery.leads_data.map((leadData: any, index: number) => ({
