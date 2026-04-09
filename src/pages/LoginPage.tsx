@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { motion } from 'motion/react';
-import { Sparkles, Mail, Lock, ArrowRight, Loader2, AlertCircle } from 'lucide-react';
+import { Sparkles, Mail, Lock, ArrowRight, Loader2, AlertCircle, ArrowLeft, Check } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 export function LoginPage() {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -16,14 +17,12 @@ export function LoginPage() {
     setLoading(true);
     setError(null);
 
-    // Własna walidacja (bez dymków HTML5)
     if (!email || !password) {
       setError('Wypełnij wszystkie pola formularza.');
       setLoading(false);
       return;
     }
 
-    // Prawdziwe uderzenie do Supabase
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -61,6 +60,15 @@ export function LoginPage() {
       {/* Subtelna siatka w tle */}
       <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:64px_64px] [mask-image:radial-gradient(ellipse_80%_50%_at_50%_0%,#000_70%,transparent_100%)]" />
 
+      {/* Przycisk powrotu w lewym górnym rogu */}
+      <Link 
+        to="/" 
+        className="absolute top-6 left-6 md:top-8 md:left-8 flex items-center gap-2 text-sm text-gray-500 hover:text-white transition-colors group z-20"
+      >
+        <ArrowLeft className="size-4 group-hover:-translate-x-1 transition-transform" />
+        Strona główna
+      </Link>
+
       <motion.div
         initial={{ opacity: 0, scale: 0.98, y: 10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -71,7 +79,7 @@ export function LoginPage() {
           <div className="size-8 bg-white rounded-md flex items-center justify-center shadow-[0_0_15px_rgba(255,255,255,0.1)]">
             <Sparkles className="size-5 text-black fill-black" />
           </div>
-          <span className="text-2xl font-bold tracking-tight">ZECLEADS</span>
+          <span className="text-2xl font-bold tracking-tight">ZEC</span>
         </Link>
 
         {/* Karta */}
@@ -94,7 +102,6 @@ export function LoginPage() {
             </div>
           )}
 
-          {/* Formularz Email na górze */}
           <form onSubmit={handleSubmit} noValidate className="space-y-4">
             <div>
               <div className="relative">
@@ -125,13 +132,21 @@ export function LoginPage() {
             </div>
 
             <div className="flex items-center justify-between pt-1">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  className="size-3.5 rounded border-white/20 bg-white/5 text-white focus:ring-0 focus:ring-offset-0 cursor-pointer"
-                />
-                <span className="text-xs text-gray-400">Zapamiętaj mnie</span>
+              {/* Customowy UI dla Checkboxa */}
+              <label className="flex items-center gap-2 cursor-pointer group">
+                <div className="relative flex items-center justify-center size-4">
+                  <input
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    className="peer sr-only"
+                  />
+                  <div className="absolute inset-0 rounded border border-white/20 bg-white/5 peer-checked:bg-white peer-checked:border-white transition-all group-hover:border-white/40" />
+                  <Check className="size-3 text-black opacity-0 peer-checked:opacity-100 relative z-10 transition-opacity" strokeWidth={3} />
+                </div>
+                <span className="text-xs text-gray-400 group-hover:text-gray-300 transition-colors">Zapamiętaj mnie</span>
               </label>
+
               <Link to="/forgot-password" className="text-xs text-gray-400 hover:text-white transition-colors underline decoration-white/20 underline-offset-2">
                 Zapomniałeś hasła?
               </Link>
@@ -140,15 +155,14 @@ export function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              style={{ fontFamily: "'Libre Baskerville', serif" }}
-              className="w-full mt-2 py-3 px-4 bg-white text-black rounded-lg text-base font-bold hover:bg-gray-200 transition-all flex items-center justify-center gap-2 group disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_15px_rgba(255,255,255,0.05)]"
+              className="w-full mt-2 py-3 px-4 bg-white text-black rounded-lg text-sm font-bold hover:bg-gray-200 transition-all flex items-center justify-center gap-2 group disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_15px_rgba(255,255,255,0.05)]"
             >
               {loading ? (
-                <Loader2 className="size-5 animate-spin" />
+                <Loader2 className="size-4 animate-spin" />
               ) : (
                 <>
                   Zaloguj się
-                  <ArrowRight className="size-5 group-hover:translate-x-1 transition-transform" />
+                  <ArrowRight className="size-4 group-hover:translate-x-1 transition-transform" />
                 </>
               )}
             </button>
