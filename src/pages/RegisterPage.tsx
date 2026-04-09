@@ -20,7 +20,6 @@ export function RegisterPage() {
     setError(null);
     setSuccessMessage(null);
 
-    // Własna walidacja 
     if (!fullName || !email || !password) {
       setError('Wypełnij wszystkie pola formularza.');
       setLoading(false);
@@ -39,7 +38,6 @@ export function RegisterPage() {
       return;
     }
 
-    // Strzał do Supabase
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -78,10 +76,8 @@ export function RegisterPage() {
   return (
     <div className="min-h-screen bg-[#111111] flex items-center justify-center p-6 text-white font-sans relative overflow-hidden">
       
-      {/* Subtelna siatka w tle */}
       <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:64px_64px] [mask-image:radial-gradient(ellipse_80%_50%_at_50%_0%,#000_70%,transparent_100%)]" />
 
-      {/* Przycisk powrotu w lewym górnym rogu */}
       <Link 
         to="/" 
         className="absolute top-6 left-6 md:top-8 md:left-8 flex items-center gap-2 text-sm text-gray-500 hover:text-white transition-colors group z-20"
@@ -103,11 +99,9 @@ export function RegisterPage() {
           <span className="text-2xl font-bold tracking-tight">ZEC</span>
         </Link>
 
-        {/* Karta */}
         <div className="bg-[#0f0f0f] border border-[#1f1f1f] rounded-2xl p-8 shadow-2xl relative">
           
           <div className="text-center mb-8">
-            {/* Poprawiony font na tytule */}
             <h1 
               className="text-4xl font-bold mb-3 tracking-tight" 
               style={{ fontFamily: "'Libre Baskerville', serif" }}
@@ -133,7 +127,6 @@ export function RegisterPage() {
 
           {!successMessage && (
             <>
-              {/* Formularz Email na górze */}
               <form onSubmit={handleSubmit} noValidate className="space-y-4">
                 <div>
                   <div className="relative">
@@ -177,22 +170,22 @@ export function RegisterPage() {
                   </div>
                 </div>
 
-                <div className="flex items-start gap-2 pt-1 group">
-                  <div className="relative flex items-center justify-center size-4 shrink-0 mt-0.5">
+                {/* NAPRAWIONY CHECKBOX REGULAMINU */}
+                <label className="flex items-start gap-3 pt-1 cursor-pointer group">
+                  <div className="relative flex items-center justify-center size-4 shrink-0 mt-[2px]">
                     <input
                       type="checkbox"
-                      id="terms"
                       checked={termsAccepted}
                       onChange={(e) => setTermsAccepted(e.target.checked)}
                       className="peer sr-only"
                     />
-                    <div className="absolute inset-0 rounded border border-white/20 bg-white/5 peer-checked:bg-white peer-checked:border-white transition-all group-hover:border-white/40 pointer-events-none" />
-                    <Check className="size-3 text-black opacity-0 peer-checked:opacity-100 relative z-10 transition-opacity pointer-events-none" strokeWidth={3} />
+                    <div className="absolute inset-0 rounded border border-white/20 bg-white/5 peer-checked:bg-white peer-checked:border-white transition-all group-hover:border-white/40" />
+                    <Check className="size-3 text-black opacity-0 peer-checked:opacity-100 relative z-10 transition-opacity" strokeWidth={3} />
                   </div>
-                  <label htmlFor="terms" className="text-xs text-gray-500 leading-tight cursor-pointer group-hover:text-gray-400 transition-colors">
+                  <span className="text-xs text-gray-500 leading-tight group-hover:text-gray-400 transition-colors">
                     Akceptuję <Link to="/terms" onClick={(e) => e.stopPropagation()} className="text-gray-400 hover:text-white transition-colors underline decoration-white/20 underline-offset-2">regulamin</Link> i <Link to="/privacy" onClick={(e) => e.stopPropagation()} className="text-gray-400 hover:text-white transition-colors underline decoration-white/20 underline-offset-2">politykę prywatności</Link>
-                  </label>
-                </div>
+                  </span>
+                </label>
 
                 <button
                   type="submit"
@@ -210,13 +203,11 @@ export function RegisterPage() {
                 </button>
               </form>
 
-              {/* Separator */}
               <div className="relative my-6">
                 <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-white/5" /></div>
                 <div className="relative flex justify-center text-[10px] uppercase tracking-widest"><span className="px-3 bg-[#0f0f0f] text-gray-500 font-semibold">lub</span></div>
               </div>
 
-              {/* Minimalistyczne przyciski Social na dole */}
               <div className="grid grid-cols-2 gap-3 mb-2">
                 <button
                   onClick={() => handleSocialSignup('google')}
