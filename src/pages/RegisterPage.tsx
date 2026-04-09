@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { motion } from 'motion/react';
-import { Sparkles, Mail, Lock, User, ArrowRight, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Sparkles, Mail, Lock, User, ArrowRight, Loader2, AlertCircle, CheckCircle2, ArrowLeft, Check } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 export function RegisterPage() {
@@ -80,6 +80,15 @@ export function RegisterPage() {
       
       {/* Subtelna siatka w tle */}
       <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:64px_64px] [mask-image:radial-gradient(ellipse_80%_50%_at_50%_0%,#000_70%,transparent_100%)]" />
+
+      {/* Przycisk powrotu w lewym górnym rogu */}
+      <Link 
+        to="/" 
+        className="absolute top-6 left-6 md:top-8 md:left-8 flex items-center gap-2 text-sm text-gray-500 hover:text-white transition-colors group z-20"
+      >
+        <ArrowLeft className="size-4 group-hover:-translate-x-1 transition-transform" />
+        Strona główna
+      </Link>
 
       <motion.div
         initial={{ opacity: 0, scale: 0.98, y: 10 }}
@@ -168,16 +177,20 @@ export function RegisterPage() {
                   </div>
                 </div>
 
-                <div className="flex items-start gap-2 pt-1">
-                  <input
-                    type="checkbox"
-                    id="terms"
-                    checked={termsAccepted}
-                    onChange={(e) => setTermsAccepted(e.target.checked)}
-                    className="mt-1 size-3.5 rounded border-white/20 bg-white/5 text-white focus:ring-0 focus:ring-offset-0 cursor-pointer"
-                  />
-                  <label htmlFor="terms" className="text-xs text-gray-500 leading-tight cursor-pointer">
-                    Akceptuję <Link to="/terms" className="text-gray-400 hover:text-white transition-colors underline decoration-white/20 underline-offset-2">regulamin</Link> i <Link to="/privacy" className="text-gray-400 hover:text-white transition-colors underline decoration-white/20 underline-offset-2">politykę prywatności</Link>
+                <div className="flex items-start gap-2 pt-1 group">
+                  <div className="relative flex items-center justify-center size-4 shrink-0 mt-0.5">
+                    <input
+                      type="checkbox"
+                      id="terms"
+                      checked={termsAccepted}
+                      onChange={(e) => setTermsAccepted(e.target.checked)}
+                      className="peer sr-only"
+                    />
+                    <div className="absolute inset-0 rounded border border-white/20 bg-white/5 peer-checked:bg-white peer-checked:border-white transition-all group-hover:border-white/40 pointer-events-none" />
+                    <Check className="size-3 text-black opacity-0 peer-checked:opacity-100 relative z-10 transition-opacity pointer-events-none" strokeWidth={3} />
+                  </div>
+                  <label htmlFor="terms" className="text-xs text-gray-500 leading-tight cursor-pointer group-hover:text-gray-400 transition-colors">
+                    Akceptuję <Link to="/terms" onClick={(e) => e.stopPropagation()} className="text-gray-400 hover:text-white transition-colors underline decoration-white/20 underline-offset-2">regulamin</Link> i <Link to="/privacy" onClick={(e) => e.stopPropagation()} className="text-gray-400 hover:text-white transition-colors underline decoration-white/20 underline-offset-2">politykę prywatności</Link>
                   </label>
                 </div>
 

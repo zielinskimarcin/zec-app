@@ -87,7 +87,7 @@ export function LoginPage() {
           
           <div className="text-center mb-8">
             <h1 
-              className="text-3xl font-bold mb-3 tracking-tight" 
+              className="text-4xl font-bold mb-3 tracking-tight" 
               style={{ fontFamily: "'Libre Baskerville', serif" }}
             >
               Witaj ponownie
