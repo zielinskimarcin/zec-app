@@ -1,15 +1,16 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Search, Filter, Mail, Globe, Calendar, X, 
   CheckCircle2, XCircle, Clock, Eye, Send,
-  ArrowUpDown, ChevronRight
+  ArrowUpDown, ChevronRight, Loader2
 } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 
 type LeadStatus = 'pending' | 'sent' | 'opened' | 'replied' | 'bounced';
 
 interface Lead {
-  id: number;
+  id: string | number;
   name: string;
   company: string;
   email: string;
@@ -28,95 +29,6 @@ interface Lead {
   }[];
 }
 
-const mockLeads: Lead[] = [
-  {
-    id: 1,
-    name: 'Jan Kowalski',
-    company: 'Studio Architektoniczne Nowak',
-    email: 'kontakt@nowakarchitekci.pl',
-    website: 'www.nowakarchitekci.pl',
-    status: 'replied',
-    city: 'Warszawa',
-    industry: 'Architektura',
-    addedDate: '2026-03-15',
-    lastContact: '2026-03-17',
-    campaign: 'Architekci Warszawa',
-    history: [
-      { date: '2026-03-17', action: 'Odpowiedź', details: 'Klient odpowiedział pozytywnie' },
-      { date: '2026-03-16', action: 'Otworzono', details: 'Email został otwarty' },
-      { date: '2026-03-15', action: 'Wysłano', details: 'Email wysłany z kampanii "Architekci Warszawa"' },
-      { date: '2026-03-15', action: 'Dodano', details: 'Lead dodany do systemu' },
-    ],
-  },
-  {
-    id: 2,
-    name: 'Anna Wiśniewska',
-    company: 'BudMaster Deweloper',
-    email: 'biuro@budmaster.com',
-    website: 'www.budmaster.com',
-    status: 'opened',
-    city: 'Kraków',
-    industry: 'Deweloper',
-    addedDate: '2026-03-14',
-    lastContact: '2026-03-16',
-    campaign: 'Deweloperzy Kraków',
-    history: [
-      { date: '2026-03-16', action: 'Otworzono', details: 'Email został otwarty' },
-      { date: '2026-03-15', action: 'Wysłano', details: 'Email wysłany z kampanii "Deweloperzy Kraków"' },
-      { date: '2026-03-14', action: 'Dodano', details: 'Lead dodany do systemu' },
-    ],
-  },
-  {
-    id: 3,
-    name: 'Piotr Nowak',
-    company: 'Creative Marketing',
-    email: 'hello@creativeagency.io',
-    website: 'www.creativeagency.io',
-    status: 'sent',
-    city: 'Wrocław',
-    industry: 'Marketing',
-    addedDate: '2026-03-10',
-    lastContact: '2026-03-12',
-    campaign: 'Marketing Agencies',
-    history: [
-      { date: '2026-03-12', action: 'Wysłano', details: 'Email wysłany z kampanii "Marketing Agencies"' },
-      { date: '2026-03-10', action: 'Dodano', details: 'Lead dodany do systemu' },
-    ],
-  },
-  {
-    id: 4,
-    name: 'Maria Kowalczyk',
-    company: 'Tech Solutions Poland',
-    email: 'info@techsolutions.pl',
-    website: 'www.techsolutions.pl',
-    status: 'pending',
-    city: 'Poznań',
-    industry: 'IT',
-    addedDate: '2026-03-18',
-    history: [
-      { date: '2026-03-18', action: 'Dodano', details: 'Lead dodany do systemu' },
-    ],
-  },
-  {
-    id: 5,
-    name: 'Tomasz Lewandowski',
-    company: 'Elegance Interiors',
-    email: 'studio@eleganceinteriors.com',
-    website: 'www.eleganceinteriors.com',
-    status: 'bounced',
-    city: 'Warszawa',
-    industry: 'Wnętrza',
-    addedDate: '2026-03-09',
-    lastContact: '2026-03-11',
-    campaign: 'Design Studios',
-    history: [
-      { date: '2026-03-11', action: 'Odbity', details: 'Email został odrzucony - nieprawidłowy adres' },
-      { date: '2026-03-11', action: 'Wysłano', details: 'Email wysłany z kampanii "Design Studios"' },
-      { date: '2026-03-09', action: 'Dodano', details: 'Lead dodany do systemu' },
-    ],
-  },
-];
-
 const statusConfig: Record<LeadStatus, { label: string; color: string; icon: any }> = {
   pending: { label: 'Oczekujący', color: 'gray', icon: Clock },
   sent: { label: 'Wysłany', color: 'blue', icon: Send },
@@ -126,11 +38,95 @@ const statusConfig: Record<LeadStatus, { label: string; color: string; icon: any
 };
 
 export function LeadsPage() {
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<LeadStatus | 'all'>('all');
 
-  const filteredLeads = mockLeads.filter(lead => {
+  // GŁÓWNY SILNIK DANYCH
+  useEffect(() => {
+    async function loadAndTransferLeads() {
+      setIsLoading(true);
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        setIsLoading(false);
+        return;
+      }
+
+      // 1. KRADNIEMY ZE SCHOWKA (Transfer z Hero.tsx)
+      const tempLeads = localStorage.getItem('zec_temp_leads');
+      const tempQuery = localStorage.getItem('zec_temp_query');
+
+      if (tempLeads && tempQuery) {
+        try {
+          const parsedLeads = JSON.parse(tempLeads);
+          const parsedQuery = JSON.parse(tempQuery);
+
+          // Wrzucamy do bazy do tabeli saved_searches
+          await supabase.from('saved_searches').insert({
+            user_id: session.user.id,
+            industry: parsedQuery.industry,
+            city: parsedQuery.city,
+            leads_data: parsedLeads
+          });
+
+          // Sprzątamy po sobie
+          localStorage.removeItem('zec_temp_leads');
+          localStorage.removeItem('zec_temp_query');
+          console.log("Leady z landingu pomyślnie przeniesione do bazy!");
+        } catch (err) {
+          console.error("Błąd podczas transferu leadów:", err);
+        }
+      }
+
+      // 2. POBIERAMY Z BAZY I RYSUJEMY
+      const { data: searchesData, error } = await supabase
+        .from('saved_searches')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error("Błąd pobierania leadów z bazy:", error);
+      }
+
+      if (searchesData) {
+        // Spłaszczamy tablicę do wyświetlenia
+        const flatLeads: Lead[] = searchesData.flatMap((searchQuery) => {
+          // Zabezpieczenie przed pustymi/zepsutymi danymi
+          if (!searchQuery.leads_data || !Array.isArray(searchQuery.leads_data)) return [];
+
+          return searchQuery.leads_data.map((leadData: any, index: number) => ({
+            id: `${searchQuery.id}-${index}`,
+            name: leadData.name || 'Brak nazwy',
+            company: leadData.name || 'Brak firmy',
+            email: leadData.email || 'brak@email.pl',
+            website: leadData.website || '',
+            status: 'pending',
+            city: searchQuery.city,
+            industry: searchQuery.industry,
+            addedDate: searchQuery.created_at,
+            campaign: `${searchQuery.industry} - ${searchQuery.city}`,
+            history: [
+              { 
+                date: searchQuery.created_at, 
+                action: 'Dodano', 
+                details: 'Wygenerowane przez ZEC AI' 
+              }
+            ]
+          }));
+        });
+        
+        setLeads(flatLeads);
+      }
+      setIsLoading(false);
+    }
+
+    loadAndTransferLeads();
+  }, []);
+
+  const filteredLeads = leads.filter(lead => {
     const matchesSearch = 
       lead.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       lead.company.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -142,11 +138,20 @@ export function LeadsPage() {
   });
 
   const stats = [
-    { label: 'Wszystkie leady', value: mockLeads.length, color: 'white' },
-    { label: 'Odpowiedzi', value: mockLeads.filter(l => l.status === 'replied').length, color: 'green' },
-    { label: 'Otwarte', value: mockLeads.filter(l => l.status === 'opened').length, color: 'yellow' },
-    { label: 'Odbite', value: mockLeads.filter(l => l.status === 'bounced').length, color: 'red' },
+    { label: 'Wszystkie leady', value: leads.length, color: 'white' },
+    { label: 'Oczekujące', value: leads.filter(l => l.status === 'pending').length, color: 'gray' },
+    { label: 'Odpowiedzi', value: leads.filter(l => l.status === 'replied').length, color: 'green' },
+    { label: 'Odbite', value: leads.filter(l => l.status === 'bounced').length, color: 'red' },
   ];
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-gray-400">
+        <Loader2 className="size-8 animate-spin mb-4" />
+        <p>Synchronizacja bazy leadów...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -225,65 +230,71 @@ export function LeadsPage() {
 
         {/* Table Body */}
         <div className="divide-y divide-white/10">
-          {filteredLeads.map((lead, index) => {
-            const statusInfo = statusConfig[lead.status];
-            const StatusIcon = statusInfo.icon;
+          {filteredLeads.length === 0 ? (
+            <div className="p-8 text-center text-gray-500">
+              Brak leadów do wyświetlenia. Wyszukaj firmy na stronie głównej, aby dodać je do bazy!
+            </div>
+          ) : (
+            filteredLeads.map((lead, index) => {
+              const statusInfo = statusConfig[lead.status];
+              const StatusIcon = statusInfo.icon;
 
-            return (
-              <motion.div
-                key={lead.id}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: index * 0.05 }}
-                onClick={() => setSelectedLead(lead)}
-                className="grid grid-cols-12 gap-4 px-6 py-4 hover:bg-white/5 transition-all cursor-pointer group"
-              >
-                {/* Contact */}
-                <div className="col-span-3">
-                  <div className="font-semibold text-white group-hover:text-blue-400 transition-colors">
-                    {lead.name}
+              return (
+                <motion.div
+                  key={lead.id}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: index * 0.05 }}
+                  onClick={() => setSelectedLead(lead)}
+                  className="grid grid-cols-12 gap-4 px-6 py-4 hover:bg-white/5 transition-all cursor-pointer group"
+                >
+                  {/* Contact */}
+                  <div className="col-span-3">
+                    <div className="font-semibold text-white group-hover:text-blue-400 transition-colors truncate">
+                      {lead.name}
+                    </div>
+                    <div className="text-sm text-gray-400 truncate">
+                      {lead.city} • {lead.industry}
+                    </div>
                   </div>
-                  <div className="text-sm text-gray-400">
-                    {lead.city} • {lead.industry}
-                  </div>
-                </div>
 
-                {/* Company */}
-                <div className="col-span-2 flex items-center">
-                  <div className="text-sm text-white">
-                    {lead.company}
+                  {/* Company */}
+                  <div className="col-span-2 flex items-center">
+                    <div className="text-sm text-white truncate">
+                      {lead.company}
+                    </div>
                   </div>
-                </div>
 
-                {/* Email */}
-                <div className="col-span-3 flex items-center">
-                  <div className="flex items-center gap-2">
-                    <Mail className="size-4 text-gray-400" />
-                    <span className="text-sm text-white">{lead.email}</span>
+                  {/* Email */}
+                  <div className="col-span-3 flex items-center">
+                    <div className="flex items-center gap-2 overflow-hidden">
+                      <Mail className="size-4 text-gray-400 shrink-0" />
+                      <span className="text-sm text-white truncate">{lead.email}</span>
+                    </div>
                   </div>
-                </div>
 
-                {/* Status */}
-                <div className="col-span-2 flex items-center">
-                  <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium bg-${statusInfo.color}-500/10 text-${statusInfo.color}-400`}>
-                    <StatusIcon className="size-3" />
-                    {statusInfo.label}
-                  </span>
-                </div>
-
-                {/* Last Contact */}
-                <div className="col-span-2 flex items-center justify-between">
-                  <div className="text-sm text-gray-400">
-                    {lead.lastContact 
-                      ? new Date(lead.lastContact).toLocaleDateString('pl-PL')
-                      : '-'
-                    }
+                  {/* Status */}
+                  <div className="col-span-2 flex items-center">
+                    <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium bg-${statusInfo.color}-500/10 text-${statusInfo.color}-400`}>
+                      <StatusIcon className="size-3" />
+                      {statusInfo.label}
+                    </span>
                   </div>
-                  <ChevronRight className="size-5 text-gray-600 group-hover:text-white transition-colors" />
-                </div>
-              </motion.div>
-            );
-          })}
+
+                  {/* Last Contact */}
+                  <div className="col-span-2 flex items-center justify-between">
+                    <div className="text-sm text-gray-400">
+                      {lead.lastContact 
+                        ? new Date(lead.lastContact).toLocaleDateString('pl-PL')
+                        : '-'
+                      }
+                    </div>
+                    <ChevronRight className="size-5 text-gray-600 group-hover:text-white transition-colors" />
+                  </div>
+                </motion.div>
+              );
+            })
+          )}
         </div>
       </div>
 
@@ -291,7 +302,6 @@ export function LeadsPage() {
       <AnimatePresence>
         {selectedLead && (
           <>
-            {/* Backdrop */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -300,7 +310,6 @@ export function LeadsPage() {
               className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40"
             />
 
-            {/* Slide-over Panel */}
             <motion.div
               initial={{ x: '100%' }}
               animate={{ x: 0 }}
@@ -309,7 +318,6 @@ export function LeadsPage() {
               className="fixed right-0 top-0 bottom-0 w-full max-w-2xl bg-[#1a1a1a] border-l border-white/10 z-50 overflow-y-auto"
             >
               <div className="p-6">
-                {/* Header */}
                 <div className="flex items-start justify-between mb-6">
                   <div>
                     <h2 className="text-2xl font-bold text-white mb-1">
@@ -325,7 +333,6 @@ export function LeadsPage() {
                   </button>
                 </div>
 
-                {/* Status Badge */}
                 <div className="mb-6">
                   {(() => {
                     const statusInfo = statusConfig[selectedLead.status];
@@ -339,7 +346,6 @@ export function LeadsPage() {
                   })()}
                 </div>
 
-                {/* Contact Info */}
                 <div className="bg-white/5 rounded-xl border border-white/10 p-6 mb-6 space-y-4">
                   <h3 className="font-semibold text-white mb-4">Informacje kontaktowe</h3>
                   
@@ -347,7 +353,7 @@ export function LeadsPage() {
                     <Mail className="size-5 text-gray-400" />
                     <div>
                       <div className="text-xs text-gray-400">Email</div>
-                      <a href={`mailto:${selectedLead.email}`} className="text-white hover:text-blue-400 transition-colors">
+                      <a href={`mailto:${selectedLead.email}`} className="text-white hover:text-blue-400 transition-colors break-all">
                         {selectedLead.email}
                       </a>
                     </div>
@@ -358,10 +364,10 @@ export function LeadsPage() {
                     <div>
                       <div className="text-xs text-gray-400">Strona WWW</div>
                       <a 
-                        href={`https://${selectedLead.website}`}
+                        href={selectedLead.website.startsWith('http') ? selectedLead.website : `https://${selectedLead.website}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-white hover:text-blue-400 transition-colors"
+                        className="text-white hover:text-blue-400 transition-colors break-all"
                       >
                         {selectedLead.website}
                       </a>
@@ -374,9 +380,7 @@ export function LeadsPage() {
                       <div className="text-xs text-gray-400">Data dodania</div>
                       <div className="text-white">
                         {new Date(selectedLead.addedDate).toLocaleDateString('pl-PL', {
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric'
+                          year: 'numeric', month: 'long', day: 'numeric'
                         })}
                       </div>
                     </div>
@@ -390,10 +394,8 @@ export function LeadsPage() {
                   )}
                 </div>
 
-                {/* History Timeline */}
                 <div className="bg-white/5 rounded-xl border border-white/10 p-6">
                   <h3 className="font-semibold text-white mb-6">Historia kontaktu</h3>
-                  
                   <div className="space-y-6">
                     {selectedLead.history.map((event, index) => (
                       <div key={index} className="flex gap-4">
@@ -405,7 +407,6 @@ export function LeadsPage() {
                             <div className="w-px flex-1 bg-white/10 mt-2" />
                           )}
                         </div>
-                        
                         <div className="flex-1 pb-6">
                           <div className="flex items-center justify-between mb-1">
                             <div className="font-medium text-white">{event.action}</div>
@@ -422,7 +423,6 @@ export function LeadsPage() {
                   </div>
                 </div>
 
-                {/* Actions */}
                 <div className="mt-6 flex gap-3">
                   <button className="flex-1 px-4 py-3 bg-white hover:bg-gray-100 text-black font-semibold rounded-lg transition-all">
                     Wyślij email

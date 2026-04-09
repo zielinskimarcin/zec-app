@@ -143,8 +143,16 @@ export function Hero() {
         isBlurred: false,
       }));
 
-      setLeads(realLeads.slice(0, 3));
+      const top3 = realLeads.slice(0, 3);
+      setLeads(top3);
       setResultsCount(Math.floor(Math.random() * (490 - 370 + 1)) + 370);
+
+      // Zapisujemy ukradkiem do przeglądarki
+      localStorage.setItem('zec_temp_leads', JSON.stringify(top3));
+      localStorage.setItem('zec_temp_query', JSON.stringify({ 
+        industry: selectedIndustryLabel, 
+        city: selectedCityLabel 
+      }));
     } catch (error) {
       console.error('Błąd podczas pobierania leadów:', error);
       alert('Ups! Nie udało się przetworzyć danych. Sprawdź konsolę (F12) po szczegóły.');
