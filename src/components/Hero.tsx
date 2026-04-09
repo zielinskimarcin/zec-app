@@ -336,7 +336,9 @@ export function Hero() {
                             <div className="mb-6">
                               <div className="inline-flex items-center gap-3 px-6 py-3 rounded-full bg-white/5 border border-white/10 backdrop-blur-xl mb-4">
                                 <div className="size-2 bg-gray-400 rounded-full" />
-                                <span className="text-gray-300 text-sm font-medium">500+ więcej leadów gotowych</span>
+                                <span className="text-gray-300 text-sm font-medium">
+                                  {resultsCount ?? 420}+ leadów gotowych
+                                </span>
                               </div>
                             </div>
 
@@ -345,7 +347,7 @@ export function Hero() {
                             </h3>
 
                             <p className="text-gray-400 text-base mb-8 leading-relaxed">
-                              Zdobądź dostęp do 500+ zweryfikowanych leadów z personalizowanymi wiadomościami AI
+                              Zdobądź dostęp do {resultsCount ?? 420}+ zweryfikowanych leadów z personalizowanymi wiadomościami AI
                             </p>
 
                             <Link to="/pricing" className="block w-full px-8 py-4 rounded-lg text-base font-semibold transition-all bg-white text-black hover:bg-gray-100">
