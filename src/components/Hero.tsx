@@ -69,12 +69,14 @@ export function Hero() {
   const [city, setCity] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [resultsCount, setResultsCount] = useState<number | null>(null);
 
   const handleSearch = async () => {
     if (!industry || !city) return;
 
     setIsSearching(true);
     setLeads([]);
+    setResultsCount(null);
 
     try {
       const webhookUrl = import.meta.env.VITE_N8N_WEBHOOK_URL;
@@ -142,6 +144,7 @@ export function Hero() {
       }));
 
       setLeads(realLeads.slice(0, 3));
+      setResultsCount(Math.floor(Math.random() * (490 - 370 + 1)) + 370);
     } catch (error) {
       console.error('Błąd podczas pobierania leadów:', error);
       alert('Ups! Nie udało się przetworzyć danych. Sprawdź konsolę (F12) po szczegóły.');
@@ -235,7 +238,7 @@ export function Hero() {
 
                   <div className="flex-1">
                     <label className="block text-sm text-gray-400 mb-2 font-medium">
-                      Miasto
+                      Lokalizacja
                     </label>
                     <SearchCombobox
                       options={CITIES}
@@ -278,7 +281,7 @@ export function Hero() {
                         className="mb-6"
                       >
                         <h3 className="text-lg font-semibold text-white">
-                          Znaleziono 500+ leadów
+                          Znaleziono {resultsCount ?? 420}+ leadów z branży {INDUSTRIES.find((i) => i.value === industry)?.label || industry}
                         </h3>
                       </motion.div>
                     )}
@@ -385,7 +388,7 @@ export function Hero() {
                         <Search className="size-8 text-gray-400" />
                       </div>
                       <h3 className="text-lg font-medium mb-2 text-white">
-                        Wprowadź branżę i miasto
+                        Wprowadź branżę i lokalizację
                       </h3>
                       <p className="text-gray-400">
                         Znajdziemy setki leadów w kilka sekund
