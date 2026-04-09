@@ -91,15 +91,21 @@ export function RegisterPage() {
           <div className="size-8 bg-white rounded-md flex items-center justify-center shadow-[0_0_15px_rgba(255,255,255,0.1)]">
             <Sparkles className="size-5 text-black fill-black" />
           </div>
-          <span className="text-2xl font-bold tracking-tight">ZECLEADS</span>
+          <span className="text-2xl font-bold tracking-tight">ZEC</span>
         </Link>
 
         {/* Karta */}
         <div className="bg-[#0f0f0f] border border-[#1f1f1f] rounded-2xl p-8 shadow-2xl relative">
           
           <div className="text-center mb-8">
-            <h1 className="text-2xl font-bold mb-2 tracking-tight">Załóż konto</h1>
-            <p className="text-gray-400 text-sm">Zaachowaj historię leadów i odblokuj limity.</p>
+            {/* Poprawiony font na tytule */}
+            <h1 
+              className="text-4xl font-bold mb-3 tracking-tight" 
+              style={{ fontFamily: "'Libre Baskerville', serif" }}
+            >
+              Załóż konto
+            </h1>
+            <p className="text-gray-400 text-sm">Zachowaj historię leadów i odblokuj limity.</p>
           </div>
 
           {error && (
@@ -178,15 +184,14 @@ export function RegisterPage() {
                 <button
                   type="submit"
                   disabled={loading}
-                  style={{ fontFamily: "'Libre Baskerville', serif" }}
-                  className="w-full mt-2 py-3 px-4 bg-white text-black rounded-lg text-base font-bold hover:bg-gray-200 transition-all flex items-center justify-center gap-2 group disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_15px_rgba(255,255,255,0.05)]"
+                  className="w-full mt-2 py-3 px-4 bg-white text-black rounded-lg text-sm font-bold hover:bg-gray-200 transition-all flex items-center justify-center gap-2 group disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_15px_rgba(255,255,255,0.05)]"
                 >
                   {loading ? (
-                    <Loader2 className="size-5 animate-spin" />
+                    <Loader2 className="size-4 animate-spin" />
                   ) : (
                     <>
                       Utwórz konto
-                      <ArrowRight className="size-5 group-hover:translate-x-1 transition-transform" />
+                      <ArrowRight className="size-4 group-hover:translate-x-1 transition-transform" />
                     </>
                   )}
                 </button>
