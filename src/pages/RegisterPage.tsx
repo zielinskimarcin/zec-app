@@ -90,7 +90,7 @@ export function RegisterPage() {
         initial={{ opacity: 0, scale: 0.98, y: 10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         transition={{ duration: 0.4 }}
-        className="relative w-full max-w-md z-10"
+        className="relative w-full max-md z-10"
       >
         <Link to="/" className="flex items-center justify-center gap-2 mb-8">
           <div className="size-8 bg-white rounded-md flex items-center justify-center shadow-[0_0_15px_rgba(255,255,255,0.1)]">
@@ -170,9 +170,9 @@ export function RegisterPage() {
                   </div>
                 </div>
 
-                {/* NAPRAWIONY CHECKBOX REGULAMINU */}
-                <label className="flex items-start gap-3 pt-1 cursor-pointer group">
-                  <div className="relative flex items-center justify-center size-4 shrink-0 mt-[2px]">
+                {/* NAPRAWIONA SYMERTIA I KLIKALNOŚĆ */}
+                <label className="flex items-start gap-2.5 pt-1 cursor-pointer group">
+                  <div className="relative flex items-center justify-center size-4 shrink-0 mt-[1px]">
                     <input
                       type="checkbox"
                       checked={termsAccepted}
@@ -182,7 +182,7 @@ export function RegisterPage() {
                     <div className="absolute inset-0 rounded border border-white/20 bg-white/5 peer-checked:bg-white peer-checked:border-white transition-all group-hover:border-white/40" />
                     <Check className="size-3 text-black opacity-0 peer-checked:opacity-100 relative z-10 transition-opacity" strokeWidth={3} />
                   </div>
-                  <span className="text-xs text-gray-500 leading-tight group-hover:text-gray-400 transition-colors">
+                  <span className="text-xs text-gray-500 leading-normal group-hover:text-gray-400 transition-colors">
                     Akceptuję <Link to="/terms" onClick={(e) => e.stopPropagation()} className="text-gray-400 hover:text-white transition-colors underline decoration-white/20 underline-offset-2">regulamin</Link> i <Link to="/privacy" onClick={(e) => e.stopPropagation()} className="text-gray-400 hover:text-white transition-colors underline decoration-white/20 underline-offset-2">politykę prywatności</Link>
                   </span>
                 </label>
