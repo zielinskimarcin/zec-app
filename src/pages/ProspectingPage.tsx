@@ -375,7 +375,7 @@ export function ProspectingPage() {
                 <div className="col-span-4 pr-4">
                   <div className="font-semibold text-white mb-1">{lead.name}</div>
                   <div className="text-xs text-gray-500 line-clamp-1">{lead.description}</div>
-                </div>
+                </div> 
 
                 <div className="col-span-3 flex flex-col justify-center gap-1.5">
                   <a href={`https://${lead.website}`} target="_blank" rel="noopener noreferrer" className="text-xs text-gray-400 hover:text-white flex items-center gap-1.5 truncate">
