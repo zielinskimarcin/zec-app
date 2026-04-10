@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router';
 import { motion, AnimatePresence } from 'motion/react';
 import { Sparkles, Search, Loader2 } from 'lucide-react';
 import { LeadRow } from './LeadRow';
-
 import { SearchCombobox } from './SearchCombobox';
 import { INDUSTRIES, CITIES } from '../data/searchOptions';
+import { supabase } from '../lib/supabase'; // Dodany import Supabase
 
 interface Lead {
   id: number;
@@ -70,6 +70,24 @@ export function Hero() {
   const [isSearching, setIsSearching] = useState(false);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [resultsCount, setResultsCount] = useState<number | null>(null);
+
+  // --- NOWE STANY DLA AUTORYZACJI ---
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isLoadingAuth, setIsLoadingAuth] = useState(true);
+
+  // --- EFFECT SPRAWDZAJĄCY SESJĘ ---
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setIsLoggedIn(!!session);
+      setIsLoadingAuth(false);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsLoggedIn(!!session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   const handleSearch = async () => {
     if (!industry || !city) return;
@@ -178,12 +196,25 @@ export function Hero() {
             <a href="#pricing" className="text-sm text-gray-500 hover:text-gray-300 transition-colors">
               Pricing
             </a>
-            <Link to="/login" className="text-sm text-gray-400 hover:text-white transition-colors">
-              Logowanie
-            </Link>
-            <Link to="/register" className="text-sm px-4 py-2 bg-white text-black rounded-lg hover:bg-gray-200 transition-all font-medium">
-              Zacznij za darmo
-            </Link>
+            
+            {/* --- ZMODYFIKOWANA SEKCJA PRZYCISKÓW --- */}
+            {!isLoadingAuth && (
+              isLoggedIn ? (
+                <Link to="/app" className="text-sm px-5 py-2 bg-white text-black rounded-lg hover:bg-gray-200 transition-all font-medium">
+                  Przejdź do panelu
+                </Link>
+              ) : (
+                <>
+                  <Link to="/login" className="text-sm text-gray-400 hover:text-white transition-colors">
+                    Logowanie
+                  </Link>
+                  <Link to="/register" className="text-sm px-4 py-2 bg-white text-black rounded-lg hover:bg-gray-200 transition-all font-medium">
+                    Zacznij za darmo
+                  </Link>
+                </>
+              )
+            )}
+            
           </div>
         </div>
       </header>
