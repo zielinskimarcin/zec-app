@@ -293,7 +293,7 @@ export function ProspectingPage() {
     }
     setIsSearching(true);
     try {
-      const webhookUrl = 'https://twoj-adres-n8n.com/webhook/szukaj-leadow';
+      const webhookUrl = import.meta.env.VITE_N8N_WEBHOOK_URL_2;
       const response = await fetch(webhookUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
