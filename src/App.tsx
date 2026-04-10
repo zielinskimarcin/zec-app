@@ -11,6 +11,7 @@ import { CampaignsPage } from './pages/CampaignsPage';
 import { LeadsPage } from './pages/LeadsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { NotFound } from './pages/NotFound';
+import { ProtectedRoute } from './components/ProtectedRoute'; // <-- Dodany import
 
 const router = createBrowserRouter([
   {
@@ -21,17 +22,25 @@ const router = createBrowserRouter([
       { path: 'pricing', element: <PricingPage /> },
       { path: 'login', element: <LoginPage /> },
       { path: 'register', element: <RegisterPage /> },
+      
+      // ZABEZPIECZONA STREFA (DASHBOARD)
       {
         path: 'app',
-        element: <DashboardLayout />,
+        element: <ProtectedRoute />, // <-- Bramkarz blokuje dostęp do wszystkiego poniżej
         children: [
-          { index: true, element: <DashboardPage /> },
-          { path: 'prospecting', element: <ProspectingPage /> },
-          { path: 'campaigns', element: <CampaignsPage /> },
-          { path: 'leads', element: <LeadsPage /> },
-          { path: 'settings', element: <SettingsPage /> },
+          {
+            element: <DashboardLayout />, // Ładujemy layout tylko jeśli bramkarz przepuścił
+            children: [
+              { index: true, element: <DashboardPage /> },
+              { path: 'prospecting', element: <ProspectingPage /> },
+              { path: 'campaigns', element: <CampaignsPage /> },
+              { path: 'leads', element: <LeadsPage /> },
+              { path: 'settings', element: <SettingsPage /> },
+            ],
+          }
         ],
       },
+      
       { path: '*', element: <NotFound /> },
     ],
   },

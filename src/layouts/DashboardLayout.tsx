@@ -1,5 +1,7 @@
-import { Link, Outlet, useLocation } from 'react-router';
-import { Sparkles, LayoutDashboard, Search, Mail, Database, Settings, Bell, ChevronDown } from 'lucide-react';
+import { useState } from 'react';
+import { Link, Outlet, useLocation, useNavigate } from 'react-router';
+import { Sparkles, LayoutDashboard, Search, Mail, Database, Settings, Bell, ChevronDown, LogOut } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 
 const navigation = [
   { name: 'Dashboard', href: '/app', icon: LayoutDashboard },
@@ -11,6 +13,14 @@ const navigation = [
 
 export function DashboardLayout() {
   const location = useLocation();
+  const navigate = useNavigate();
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+
+  // Funkcja wylogowywania
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    navigate('/login');
+  };
 
   return (
     <div className="min-h-screen bg-[#0a0a0a]">
@@ -55,13 +65,50 @@ export function DashboardLayout() {
                 <span className="absolute top-1.5 right-1.5 size-2 bg-red-500 rounded-full" />
               </button>
 
-              {/* User Menu */}
-              <button className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-white/5 transition-all group">
-                <div className="size-8 bg-white/10 rounded-full flex items-center justify-center">
-                  <span className="text-white text-sm font-semibold">JK</span>
-                </div>
-                <ChevronDown className="size-4 text-gray-400 group-hover:text-white transition-colors" />
-              </button>
+              {/* User Menu z Dropdownem */}
+              <div className="relative">
+                <button 
+                  onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-white/5 transition-all group"
+                >
+                  <div className="size-8 bg-white/10 rounded-full flex items-center justify-center">
+                    <span className="text-white text-sm font-semibold">JK</span>
+                  </div>
+                  <ChevronDown className={`size-4 text-gray-400 transition-transform duration-200 ${isUserMenuOpen ? 'rotate-180' : 'group-hover:text-white'}`} />
+                </button>
+
+                {/* Dropdown Menu */}
+                {isUserMenuOpen && (
+                  <>
+                    {/* Niewidzialna warstwa do zamykania menu po kliknięciu w tło */}
+                    <div 
+                      className="fixed inset-0 z-40" 
+                      onClick={() => setIsUserMenuOpen(false)} 
+                    />
+                    
+                    <div className="absolute right-0 mt-2 w-48 bg-[#0f0f0f] border border-white/10 rounded-xl shadow-2xl py-1 z-50 overflow-hidden">
+                      <Link
+                        to="/app/settings"
+                        onClick={() => setIsUserMenuOpen(false)}
+                        className="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-400 hover:text-white hover:bg-white/5 transition-colors"
+                      >
+                        <Settings className="size-4" />
+                        Ustawienia konta
+                      </Link>
+                      
+                      <div className="h-px bg-white/10 my-1" />
+                      
+                      <button
+                        onClick={handleLogout}
+                        className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors"
+                      >
+                        <LogOut className="size-4" />
+                        Wyloguj się
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
 
               {/* Upgrade Button */}
               <Link
