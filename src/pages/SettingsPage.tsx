@@ -107,12 +107,11 @@ export function SettingsPage() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('Brak autoryzacji');
 
-      // Trik z adresem: używa pliku .env (produkcja) ALBO portu 3000 (lokalnie)
-      const VERIFIER_URL = import.meta.env.VITE_VERIFIER_URL || 'http://localhost:3000/verify';
-      const API_SECRET = 'ZEC_SECRET_2026';
+     // Jeśli pracujesz u siebie na kompie, uderza w localhost. Na produkcji Vercel używa swojego mostu.
+const VERIFIER_URL = import.meta.env.DEV ? 'http://localhost:3000/verify' : '/api/verify';
+const API_SECRET = 'ZEC_SECRET_2026';
 
-      // 1. UDERZAMY DO TWOJEGO LOKALNEGO SERWERA NODE.JS
-      const response = await fetch(VERIFIER_URL, {
+const response = await fetch(VERIFIER_URL, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
