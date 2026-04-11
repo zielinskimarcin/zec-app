@@ -1,17 +1,12 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   User, Mail, CreditCard, Shield, Bell,
   CheckCircle2, XCircle, Plus, Trash2,
-  AlertCircle, X, Loader2, ArrowLeft, Video, Server,
-  Sparkles, Building2, Tag, FileText, ChevronRight,
-  Eye, EyeOff, Download, ToggleLeft, ToggleRight,
-  Zap, Clock, TrendingUp, AlertTriangle, Check,
-  Globe, Phone, MapPin, Briefcase
+  AlertCircle, X, Loader2, ArrowLeft, Server,
+  Sparkles, Eye, EyeOff, Download, Check, Search
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-
-// ─── Types ────────────────────────────────────────────────────────────────────
 
 type Tab = 'profile' | 'mailboxes' | 'billing' | 'blacklist' | 'notifications';
 type Provider = 'gmail' | 'outlook' | 'other' | null;
@@ -26,539 +21,435 @@ interface EmailAccount {
   last_sync: string;
 }
 
-// ─── Tiny helpers ─────────────────────────────────────────────────────────────
+// ─── Brand logos ──────────────────────────────────────────────────────────────
 
-function Label({ children }: { children: React.ReactNode }) {
+function GoogleLogo({ size = 22 }: { size?: number }) {
   return (
-    <label className="block text-[11px] font-semibold text-gray-600 uppercase tracking-wider mb-1.5">
-      {children}
-    </label>
+    <svg width={size} height={size} viewBox="0 0 24 24">
+      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+    </svg>
   );
 }
 
-function Input({
-  type = 'text', value, onChange, placeholder, required, className = '', ...rest
-}: React.InputHTMLAttributes<HTMLInputElement>) {
+function MicrosoftLogo({ size = 22 }: { size?: number }) {
   return (
-    <input
-      type={type}
-      value={value}
-      onChange={onChange}
-      placeholder={placeholder}
-      required={required}
-      className={`w-full bg-[#111] border border-[#1e1e1e] rounded-lg px-4 py-2.5 text-sm text-white placeholder:text-gray-700 focus:outline-none focus:border-[#333] transition-all ${className}`}
-      {...rest}
+    <svg width={size} height={size} viewBox="0 0 24 24">
+      <path d="M11.4 2H2v9.4h9.4V2z" fill="#F25022"/>
+      <path d="M22 2h-9.4v9.4H22V2z" fill="#7FBA00"/>
+      <path d="M11.4 12.6H2V22h9.4v-9.4z" fill="#00A4EF"/>
+      <path d="M22 12.6h-9.4V22H22v-9.4z" fill="#FFB900"/>
+    </svg>
+  );
+}
+
+// ─── Shared primitives ────────────────────────────────────────────────────────
+
+const inputCls = `w-full bg-white/[0.03] border border-white/[0.07] rounded-xl px-4 py-3
+  text-[14px] text-[#d4d4d4] placeholder:text-[#3d3d3d]
+  focus:outline-none focus:border-white/[0.14] focus:bg-white/[0.05]
+  transition-all duration-200 disabled:opacity-25 disabled:cursor-not-allowed`;
+
+function FLabel({ children }: { children: React.ReactNode }) {
+  return <p className="text-[12px] font-medium text-[#5a5a5a] mb-2">{children}</p>;
+}
+
+function FInput({ className = '', ...p }: React.InputHTMLAttributes<HTMLInputElement>) {
+  return <input className={`${inputCls} ${className}`} {...p} />;
+}
+
+function FTextarea({ className = '', ...p }: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  return (
+    <textarea
+      className={`${inputCls} resize-none leading-relaxed ${className}`}
+      {...p}
     />
   );
 }
 
-function SectionCard({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+function FSelect({ className = '', children, ...p }: React.SelectHTMLAttributes<HTMLSelectElement>) {
   return (
-    <div className={`bg-[#0a0a0a] border border-[#1a1a1a] rounded-xl p-6 ${className}`}>
+    <select className={`${inputCls} appearance-none cursor-pointer ${className}`} {...p}>
       {children}
-    </div>
+    </select>
   );
 }
 
-function SectionHeader({ title, subtitle }: { title: string; subtitle?: string }) {
-  return (
-    <div className="mb-6">
-      <h2 className="text-base font-bold text-white">{title}</h2>
-      {subtitle && <p className="text-xs text-gray-600 mt-0.5">{subtitle}</p>}
-    </div>
-  );
-}
+function Rule() { return <div className="h-px bg-white/[0.05]" />; }
 
-function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
+function SoftToggle({ checked, onChange }: { checked: boolean; onChange: () => void }) {
   return (
     <button
-      onClick={() => onChange(!checked)}
-      className={`relative w-9 h-5 rounded-full transition-colors ${checked ? 'bg-white' : 'bg-[#222]'}`}
+      onClick={onChange}
+      className={`relative shrink-0 w-9 h-5 rounded-full transition-colors duration-200 ${checked ? 'bg-[#d4d4d4]' : 'bg-white/[0.08]'}`}
     >
-      <span className={`absolute top-0.5 left-0.5 size-4 rounded-full transition-transform bg-black ${checked ? 'translate-x-4' : 'translate-x-0'}`} />
+      <span className={`absolute top-[3px] left-[3px] size-[14px] rounded-full transition-transform duration-200 shadow-sm ${checked ? 'translate-x-4 bg-[#111]' : 'bg-[#444]'}`} />
     </button>
   );
 }
 
-// ─── Tab: Profil ──────────────────────────────────────────────────────────────
+function SaveBtn({ saving, saved, onClick }: { saving: boolean; saved: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={saving}
+      className="flex items-center gap-2 px-5 py-2.5 bg-[#d4d4d4] hover:bg-white text-[#111] text-[13px] font-semibold rounded-xl transition-all disabled:opacity-40"
+    >
+      {saving ? <><Loader2 className="size-3.5 animate-spin" />Zapisuję...</>
+        : saved ? <><Check className="size-3.5" />Zapisano</>
+          : 'Zapisz zmiany'}
+    </button>
+  );
+}
+
+// ─── Profile ──────────────────────────────────────────────────────────────────
 
 function ProfileTab() {
-  const [firstName, setFirstName] = useState('Jan');
-  const [lastName, setLastName] = useState('Kowalski');
-  const [email] = useState('jan@firma.pl');
-  const [company, setCompany] = useState('Moja Firma Sp. z o.o.');
-  const [phone, setPhone] = useState('');
-  const [website, setWebsite] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [password, setPassword] = useState('••••••••••');
-  const [isSaving, setIsSaving] = useState(false);
+  const [form, setForm] = useState({
+    firstName: 'Jan', lastName: 'Kowalski',
+    company: 'Moja Firma Sp. z o.o.', phone: '', website: '', password: '',
+    industry: '', targetMarket: '', usp: '', companyDesc: '',
+  });
+  const f = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
+    setForm(p => ({ ...p, [k]: e.target.value }));
+
+  const [showPass, setShowPass] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [refining, setRefining] = useState(false);
 
-  // Opis firmy
-  const [companyDesc, setCompanyDesc] = useState('');
-  const [industry, setIndustry] = useState('');
-  const [targetMarket, setTargetMarket] = useState('');
-  const [usp, setUsp] = useState('');
-  const [isRefining, setIsRefining] = useState(false);
-
-  const handleSave = async () => {
-    setIsSaving(true);
-    await new Promise(r => setTimeout(r, 800));
-    setIsSaving(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
+  const save = async () => {
+    setSaving(true);
+    await new Promise(r => setTimeout(r, 700));
+    setSaving(false); setSaved(true);
+    setTimeout(() => setSaved(false), 2200);
   };
 
-  const handleAiRefine = async () => {
-    if (!companyDesc && !industry) return;
-    setIsRefining(true);
-    await new Promise(r => setTimeout(r, 1400));
-    const refined = `${company || 'Nasza firma'} to ${industry ? industry.toLowerCase() + ' ' : ''}specjalizujące się w dostarczaniu wysokiej jakości rozwiązań dla klientów B2B. ${usp ? 'Nasza główna przewaga to ' + usp + '.' : ''} ${targetMarket ? 'Działamy głównie na rynku ' + targetMarket + '.' : ''} Jesteśmy nastawieni na długoterminowe relacje i mierzalne efekty dla naszych klientów.`.trim();
-    setCompanyDesc(refined);
-    setIsRefining(false);
+  const refine = async () => {
+    if (!form.companyDesc && !form.industry) return;
+    setRefining(true);
+    await new Promise(r => setTimeout(r, 1500));
+    setForm(p => ({
+      ...p,
+      companyDesc: `${p.company || 'Nasza firma'} to ${p.industry ? p.industry.toLowerCase() + ' ' : ''}specjalizujące się w dostarczaniu rozwiązań B2B najwyższej jakości.${p.usp ? ' Wyróżnia nas ' + p.usp + '.' : ''}${p.targetMarket ? ' Działamy na rynku ' + p.targetMarket + ', budując trwałe relacje oparte na mierzalnych efektach.' : ''}`
+    }));
+    setRefining(false);
   };
+
+  const industries = ['IT / Software', 'Marketing / Agencja', 'Produkcja', 'Meble / Wyposażenie', 'Nieruchomości', 'Finanse / Doradztwo', 'Handel / E-commerce', 'Inne'];
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-10">
       {/* Dane osobowe */}
-      <SectionCard>
-        <SectionHeader title="Dane osobowe" subtitle="Widoczne dla odbiorców jako nadawca wiadomości" />
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label>Imię</Label>
-              <Input value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="Jan" />
-            </div>
-            <div>
-              <Label>Nazwisko</Label>
-              <Input value={lastName} onChange={e => setLastName(e.target.value)} placeholder="Kowalski" />
-            </div>
-          </div>
-          <div>
-            <Label>Adres e-mail</Label>
-            <Input value={email} disabled className="opacity-40 cursor-not-allowed" />
-          </div>
-          <div>
-            <Label>Nowe hasło</Label>
-            <div className="relative">
-              <Input
-                type={showPassword ? 'text' : 'password'}
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                placeholder="Wpisz nowe hasło..."
-              />
-              <button
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-600 hover:text-gray-400 transition-colors"
-              >
-                {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-              </button>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label>Telefon</Label>
-              <Input value={phone} onChange={e => setPhone(e.target.value)} placeholder="+48 000 000 000" />
-            </div>
-            <div>
-              <Label>Strona WWW</Label>
-              <Input value={website} onChange={e => setWebsite(e.target.value)} placeholder="https://twojafirma.pl" />
-            </div>
-          </div>
-          <div>
-            <Label>Nazwa firmy</Label>
-            <Input value={company} onChange={e => setCompany(e.target.value)} placeholder="Firma Sp. z o.o." />
-          </div>
+      <section className="space-y-5">
+        <div>
+          <h2 className="text-[15px] font-semibold text-[#c8c8c8]">Dane osobowe</h2>
+          <p className="text-[13px] text-[#484848] mt-0.5">Widoczne dla odbiorców jako nadawca wiadomości</p>
         </div>
-      </SectionCard>
 
-      {/* Profil firmy – kluczowe dla AI */}
-      <SectionCard>
-        <div className="flex items-start justify-between mb-6">
-          <div>
-            <h2 className="text-base font-bold text-white flex items-center gap-2">
-              <Sparkles className="size-4 text-amber-400" />
-              Profil firmy dla AI
-            </h2>
-            <p className="text-xs text-gray-600 mt-0.5">Na podstawie tych danych AI personalizuje każdy wysyłany mail</p>
+        <div className="grid grid-cols-2 gap-4">
+          <div><FLabel>Imię</FLabel><FInput value={form.firstName} onChange={f('firstName')} placeholder="Jan" /></div>
+          <div><FLabel>Nazwisko</FLabel><FInput value={form.lastName} onChange={f('lastName')} placeholder="Kowalski" /></div>
+        </div>
+
+        <div><FLabel>E-mail</FLabel><FInput value="jan@firma.pl" disabled /></div>
+
+        <div>
+          <FLabel>Nowe hasło</FLabel>
+          <div className="relative">
+            <FInput type={showPass ? 'text' : 'password'} value={form.password} onChange={f('password')} placeholder="Zostaw puste jeśli nie zmieniasz" />
+            <button onClick={() => setShowPass(v => !v)} className="absolute right-4 top-1/2 -translate-y-1/2 text-[#3d3d3d] hover:text-[#777] transition-colors">
+              {showPass ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+            </button>
           </div>
         </div>
 
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label>Branża</Label>
-              <select
-                value={industry}
-                onChange={e => setIndustry(e.target.value)}
-                className="w-full bg-[#111] border border-[#1e1e1e] rounded-lg px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#333] transition-all appearance-none cursor-pointer"
-              >
-                <option value="" className="bg-[#111] text-gray-500">Wybierz branżę...</option>
-                <option value="IT / Software" className="bg-[#111]">IT / Software</option>
-                <option value="Marketing / Agencja" className="bg-[#111]">Marketing / Agencja</option>
-                <option value="Produkcja / Manufacturing" className="bg-[#111]">Produkcja / Manufacturing</option>
-                <option value="Meble / Wyposażenie" className="bg-[#111]">Meble / Wyposażenie</option>
-                <option value="Nieruchomości" className="bg-[#111]">Nieruchomości</option>
-                <option value="Finanse / Doradztwo" className="bg-[#111]">Finanse / Doradztwo</option>
-                <option value="Handel / E-commerce" className="bg-[#111]">Handel / E-commerce</option>
-                <option value="Inne" className="bg-[#111]">Inne</option>
-              </select>
-            </div>
-            <div>
-              <Label>Rynek docelowy</Label>
-              <Input value={targetMarket} onChange={e => setTargetMarket(e.target.value)} placeholder="np. Polska, Niemcy, UE" />
-            </div>
-          </div>
-
-          <div>
-            <Label>Główna przewaga (USP)</Label>
-            <Input value={usp} onChange={e => setUsp(e.target.value)} placeholder="np. 10 lat doświadczenia, certyfikaty ISO, najniższe ceny" />
-          </div>
-
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <Label>Opis firmy</Label>
-              <button
-                onClick={handleAiRefine}
-                disabled={isRefining || (!companyDesc && !industry)}
-                className="flex items-center gap-1.5 text-[11px] font-semibold text-amber-400 hover:text-amber-300 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              >
-                {isRefining
-                  ? <><Loader2 className="size-3 animate-spin" /> Ulepszam...</>
-                  : <><Sparkles className="size-3" /> AI Refine</>
-                }
-              </button>
-            </div>
-            <textarea
-              value={companyDesc}
-              onChange={e => setCompanyDesc(e.target.value)}
-              placeholder="Opisz swoją firmę — czym się zajmujesz, co oferujesz, co wyróżnia cię na tle konkurencji. Im więcej szczegółów, tym bardziej spersonalizowane maile wygeneruje AI."
-              rows={5}
-              className="w-full bg-[#111] border border-[#1e1e1e] rounded-lg px-4 py-3 text-sm text-white placeholder:text-gray-700 focus:outline-none focus:border-[#333] transition-all resize-none leading-relaxed"
-            />
-            <p className="text-[11px] text-gray-700 mt-1.5">
-              {companyDesc.length} znaków · Zalecane minimum: 200 znaków
-            </p>
-          </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div><FLabel>Telefon</FLabel><FInput value={form.phone} onChange={f('phone')} placeholder="+48 000 000 000" /></div>
+          <div><FLabel>Strona WWW</FLabel><FInput value={form.website} onChange={f('website')} placeholder="https://firma.pl" /></div>
         </div>
-      </SectionCard>
 
-      {/* Zapisz */}
-      <div className="flex justify-end">
-        <button
-          onClick={handleSave}
-          disabled={isSaving}
-          className="flex items-center gap-2 px-6 py-2.5 bg-white text-black text-sm font-bold rounded-lg hover:bg-gray-100 transition-all disabled:opacity-50"
-        >
-          {isSaving ? <><Loader2 className="size-4 animate-spin" /> Zapisuję...</>
-            : saved ? <><Check className="size-4" /> Zapisano!</>
-              : 'Zapisz zmiany'}
-        </button>
-      </div>
+        <div><FLabel>Nazwa firmy</FLabel><FInput value={form.company} onChange={f('company')} placeholder="Firma Sp. z o.o." /></div>
+      </section>
+
+      <Rule />
+
+      {/* Profil AI */}
+      <section className="space-y-5">
+        <div className="flex items-start justify-between">
+          <div>
+            <h2 className="text-[15px] font-semibold text-[#c8c8c8]">Profil firmy dla AI</h2>
+            <p className="text-[13px] text-[#484848] mt-0.5">Im więcej szczegółów, tym trafniej AI personalizuje maile</p>
+          </div>
+          <span className="flex items-center gap-1.5 text-[11px] text-[#3d3d3d] bg-white/[0.03] border border-white/[0.05] px-2.5 py-1 rounded-full mt-0.5">
+            <Sparkles className="size-3" /> Używane przy generowaniu
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <FLabel>Branża</FLabel>
+            <FSelect value={form.industry} onChange={f('industry')}>
+              <option value="" className="bg-[#1a1a1a] text-[#484848]">Wybierz branżę...</option>
+              {industries.map(b => <option key={b} value={b} className="bg-[#1a1a1a] text-[#d4d4d4]">{b}</option>)}
+            </FSelect>
+          </div>
+          <div><FLabel>Rynek docelowy</FLabel><FInput value={form.targetMarket} onChange={f('targetMarket')} placeholder="np. Polska, Niemcy, cała UE" /></div>
+        </div>
+
+        <div><FLabel>Główna przewaga (USP)</FLabel><FInput value={form.usp} onChange={f('usp')} placeholder="np. 10 lat doświadczenia, ekspresowa realizacja, certyfikaty ISO" /></div>
+
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <FLabel>Opis firmy</FLabel>
+            <button
+              onClick={refine}
+              disabled={refining || (!form.companyDesc && !form.industry)}
+              className="flex items-center gap-1.5 text-[12px] text-[#484848] hover:text-[#888] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            >
+              {refining ? <><Loader2 className="size-3 animate-spin" />Ulepszam...</> : <><Sparkles className="size-3" />AI Refine</>}
+            </button>
+          </div>
+          <FTextarea
+            value={form.companyDesc}
+            onChange={f('companyDesc') as any}
+            placeholder="Opisz swoją firmę — czym się zajmujesz, co oferujesz, co wyróżnia cię na tle konkurencji. Im więcej szczegółów, tym lepiej AI spersonalizuje każdy mail."
+            rows={5}
+          />
+          <p className="text-[11px] text-[#2e2e2e] mt-2">{form.companyDesc.length} znaków · zalecane minimum 200</p>
+        </div>
+      </section>
+
+      <div className="flex justify-end"><SaveBtn saving={saving} saved={saved} onClick={save} /></div>
     </div>
   );
 }
 
-// ─── Tab: Skrzynki ────────────────────────────────────────────────────────────
+// ─── Mailboxes ────────────────────────────────────────────────────────────────
 
 function MailboxesTab() {
   const [mailboxes, setMailboxes] = useState<EmailAccount[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalStep, setModalStep] = useState<1 | 2>(1);
-  const [selectedProvider, setSelectedProvider] = useState<Provider>(null);
-  const [isVerifying, setIsVerifying] = useState(false);
-  const [verifyError, setVerifyError] = useState<string | null>(null);
-  const [newMailbox, setNewMailbox] = useState({
-    email: '', name: '', password: '', smtpHost: '', smtpPort: '', imapHost: '', imapPort: ''
-  });
+  const [loading, setLoading] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [step, setStep] = useState<1 | 2>(1);
+  const [provider, setProvider] = useState<Provider>(null);
+  const [verifying, setVerifying] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [mb, setMb] = useState({ email: '', name: '', password: '', smtpHost: '', smtpPort: '', imapHost: '', imapPort: '' });
 
-  useEffect(() => { fetchMailboxes(); }, []);
+  useEffect(() => { load(); }, []);
 
-  const fetchMailboxes = async () => {
-    setIsLoading(true);
+  const load = async () => {
+    setLoading(true);
     const { data: { session } } = await supabase.auth.getSession();
     if (session) {
       const { data } = await supabase.from('email_accounts').select('*').order('created_at', { ascending: false });
       if (data) setMailboxes(data);
     }
-    setIsLoading(false);
+    setLoading(false);
   };
 
-  const handleProviderSelect = (provider: Provider) => {
-    setSelectedProvider(provider);
-    setVerifyError(null);
-    if (provider === 'gmail') {
-      setNewMailbox(prev => ({ ...prev, smtpHost: 'smtp.gmail.com', smtpPort: '465', imapHost: 'imap.gmail.com', imapPort: '993' }));
-    } else if (provider === 'outlook') {
-      setNewMailbox(prev => ({ ...prev, smtpHost: 'smtp.office365.com', smtpPort: '587', imapHost: 'outlook.office365.com', imapPort: '993' }));
-    } else {
-      setNewMailbox(prev => ({ ...prev, smtpHost: '', smtpPort: '', imapHost: '', imapPort: '' }));
-    }
-    setModalStep(2);
+  const pick = (p: Provider) => {
+    setProvider(p); setErr(null);
+    const presets: Record<string, Partial<typeof mb>> = {
+      gmail: { smtpHost: 'smtp.gmail.com', smtpPort: '465', imapHost: 'imap.gmail.com', imapPort: '993' },
+      outlook: { smtpHost: 'smtp.office365.com', smtpPort: '587', imapHost: 'outlook.office365.com', imapPort: '993' },
+    };
+    setMb(prev => ({ ...prev, ...(presets[p as string] ?? { smtpHost: '', smtpPort: '', imapHost: '', imapPort: '' }) }));
+    setStep(2);
   };
 
-  const handleCloseModal = () => {
-    setIsModalOpen(false);
-    setTimeout(() => {
-      setModalStep(1); setSelectedProvider(null);
-      setNewMailbox({ email: '', name: '', password: '', smtpHost: '', smtpPort: '', imapHost: '', imapPort: '' });
-      setVerifyError(null);
-    }, 300);
+  const close = () => {
+    setOpen(false);
+    setTimeout(() => { setStep(1); setProvider(null); setMb({ email: '', name: '', password: '', smtpHost: '', smtpPort: '', imapHost: '', imapPort: '' }); setErr(null); }, 300);
   };
 
-  const handleAddMailbox = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setVerifyError(null);
-    setIsVerifying(true);
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault(); setErr(null); setVerifying(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('Brak autoryzacji');
-
-      const VERIFIER_URL = import.meta.env.DEV ? 'http://localhost:3000/verify' : '/api/verify';
-      const response = await fetch(VERIFIER_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ZEC_SECRET_2026' },
-        body: JSON.stringify({ email: newMailbox.email, password: newMailbox.password, host: newMailbox.smtpHost, port: newMailbox.smtpPort })
-      });
-      const result = await response.json();
-      if (!response.ok || !result.success) throw new Error(result.error || 'Błędne dane SMTP.');
-
-      const { data, error } = await supabase.from('email_accounts').insert([{
-        user_id: session.user.id,
-        email_address: newMailbox.email,
-        sender_name: newMailbox.name || newMailbox.email.split('@')[0],
-        smtp_host: newMailbox.smtpHost,
-        smtp_port: parseInt(newMailbox.smtpPort),
-        smtp_password: newMailbox.password,
-        imap_host: newMailbox.imapHost,
-        imap_port: parseInt(newMailbox.imapPort),
-        status: 'connected'
-      }]).select().single();
+      const URL = import.meta.env.DEV ? 'http://localhost:3000/verify' : '/api/verify';
+      const res = await fetch(URL, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ZEC_SECRET_2026' }, body: JSON.stringify({ email: mb.email, password: mb.password, host: mb.smtpHost, port: mb.smtpPort }) });
+      const r = await res.json();
+      if (!res.ok || !r.success) throw new Error(r.error || 'Błędne dane SMTP.');
+      const { data, error } = await supabase.from('email_accounts').insert([{ user_id: session.user.id, email_address: mb.email, sender_name: mb.name || mb.email.split('@')[0], smtp_host: mb.smtpHost, smtp_port: parseInt(mb.smtpPort), smtp_password: mb.password, imap_host: mb.imapHost, imap_port: parseInt(mb.imapPort), status: 'connected' }]).select().single();
       if (error) throw error;
-
-      setMailboxes([data, ...mailboxes]);
-      handleCloseModal();
-    } catch (err: any) {
-      setVerifyError(err.message);
-    } finally {
-      setIsVerifying(false);
-    }
+      setMailboxes(p => [data, ...p]); close();
+    } catch (e: any) { setErr(e.message); } finally { setVerifying(false); }
   };
 
-  const removeMailbox = async (id: string) => {
+  const remove = async (id: string) => {
     await supabase.from('email_accounts').delete().eq('id', id);
-    setMailboxes(mailboxes.filter(m => m.id !== id));
+    setMailboxes(p => p.filter(m => m.id !== id));
   };
 
   return (
     <>
-      <SectionCard>
-        <div className="flex items-center justify-between mb-6">
-          <SectionHeader
-            title="Podłączone skrzynki"
-            subtitle="Kampanie wysyłane są rotacyjnie z wszystkich aktywnych skrzynek"
-          />
-          <button
-            onClick={() => setIsModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-white text-black text-sm font-bold rounded-lg hover:bg-gray-100 transition-all shrink-0"
-          >
-            <Plus className="size-4" /> Dodaj skrzynkę
-          </button>
+      <div className="flex items-start justify-between mb-1">
+        <div>
+          <h2 className="text-[15px] font-semibold text-[#c8c8c8]">Podłączone skrzynki</h2>
+          <p className="text-[13px] text-[#484848] mt-0.5">Maile wysyłane są rotacyjnie ze wszystkich aktywnych skrzynek</p>
         </div>
+        <button onClick={() => setOpen(true)} className="shrink-0 flex items-center gap-2 px-4 py-2.5 bg-[#d4d4d4] hover:bg-white text-[#111] text-[13px] font-semibold rounded-xl transition-all">
+          <Plus className="size-3.5" /> Dodaj skrzynkę
+        </button>
+      </div>
 
-        {isLoading ? (
-          <div className="flex justify-center py-10"><Loader2 className="size-5 text-gray-600 animate-spin" /></div>
+      <div className="mt-8">
+        {loading ? (
+          <div className="flex justify-center py-12"><Loader2 className="size-5 text-[#333] animate-spin" /></div>
         ) : mailboxes.length === 0 ? (
-          <div className="text-center py-14 border border-dashed border-[#1a1a1a] rounded-xl">
-            <Mail className="size-7 text-gray-700 mx-auto mb-3" />
-            <p className="text-sm font-medium text-gray-400 mb-1">Brak podłączonych skrzynek</p>
-            <p className="text-xs text-gray-600 mb-4">Podłącz skrzynkę żeby zacząć wysyłać kampanie</p>
-            <button onClick={() => setIsModalOpen(true)} className="text-xs font-semibold text-white hover:text-gray-300 transition-colors">
-              Podłącz teraz →
-            </button>
+          <div className="text-center py-16 rounded-2xl border border-dashed border-white/[0.06]">
+            <div className="size-10 bg-white/[0.03] rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <Mail className="size-5 text-[#333]" />
+            </div>
+            <p className="text-[14px] text-[#555] mb-1">Brak podłączonych skrzynek</p>
+            <p className="text-[13px] text-[#333] mb-5">Podłącz skrzynkę żeby zacząć wysyłać kampanie</p>
+            <button onClick={() => setOpen(true)} className="text-[13px] text-[#555] hover:text-[#999] transition-colors">Podłącz teraz →</button>
           </div>
         ) : (
           <div className="space-y-3">
-            {mailboxes.map((m) => {
-              const pct = m.daily_limit > 0 ? Math.round((m.sent_today / m.daily_limit) * 100) : 0;
+            {mailboxes.map(m => {
+              const pct = m.daily_limit > 0 ? (m.sent_today / m.daily_limit) * 100 : 0;
               return (
-                <div key={m.id} className="bg-[#0f0f0f] border border-[#1a1a1a] rounded-xl p-5">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                      <div className="size-9 bg-white/5 border border-white/[0.06] rounded-lg flex items-center justify-center">
-                        <Mail className="size-4 text-gray-400" />
-                      </div>
+                <div key={m.id} className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-5">
+                  <div className="flex items-start justify-between mb-5">
+                    <div className="flex items-center gap-3.5">
+                      <div className="size-9 bg-white/[0.04] rounded-xl flex items-center justify-center"><Mail className="size-4 text-[#444]" /></div>
                       <div>
-                        <div className="text-sm font-semibold text-white">{m.email_address}</div>
-                        <div className="text-xs text-gray-600">{m.sender_name}</div>
+                        <p className="text-[14px] font-semibold text-[#d0d0d0]">{m.email_address}</p>
+                        <p className="text-[12px] text-[#444] mt-0.5">{m.sender_name}</p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      {m.status === 'connected' ? (
-                        <span className="flex items-center gap-1 px-2 py-1 bg-emerald-500/8 border border-emerald-500/15 text-emerald-400 rounded-md text-[10px] font-semibold">
-                          <CheckCircle2 className="size-2.5" /> Aktywna
-                        </span>
-                      ) : (
-                        <span className="flex items-center gap-1 px-2 py-1 bg-red-500/8 border border-red-500/15 text-red-400 rounded-md text-[10px] font-semibold">
-                          <XCircle className="size-2.5" /> Błąd
-                        </span>
-                      )}
-                      <button onClick={() => removeMailbox(m.id)} className="p-1.5 text-gray-700 hover:text-red-400 hover:bg-red-500/5 rounded-lg transition-all">
-                        <Trash2 className="size-3.5" />
-                      </button>
+                    <div className="flex items-center gap-2.5">
+                      {m.status === 'connected'
+                        ? <span className="flex items-center gap-1.5 text-[11px] font-medium text-[#5d9970] bg-[#5d9970]/10 px-2.5 py-1 rounded-full"><span className="size-1.5 bg-[#5d9970] rounded-full" />Aktywna</span>
+                        : <span className="flex items-center gap-1.5 text-[11px] font-medium text-[#b56060] bg-[#b56060]/10 px-2.5 py-1 rounded-full"><span className="size-1.5 bg-[#b56060] rounded-full" />Błąd</span>}
+                      <button onClick={() => remove(m.id)} className="p-1.5 text-[#2e2e2e] hover:text-[#b56060] hover:bg-[#b56060]/5 rounded-lg transition-all"><Trash2 className="size-3.5" /></button>
                     </div>
                   </div>
-                  <div className="grid grid-cols-3 gap-4 mb-3">
-                    <div>
-                      <div className="text-[10px] text-gray-600 mb-0.5">Wysłano dziś</div>
-                      <div className="text-sm font-bold text-white font-mono">{m.sent_today} / {m.daily_limit}</div>
-                    </div>
-                    <div>
-                      <div className="text-[10px] text-gray-600 mb-0.5">Limit dzienny</div>
-                      <div className="text-sm font-bold text-white font-mono">{m.daily_limit} maili</div>
-                    </div>
-                    <div>
-                      <div className="text-[10px] text-gray-600 mb-0.5">Ostatnia synchronizacja</div>
-                      <div className="text-xs text-gray-400">{m.last_sync || '—'}</div>
-                    </div>
+                  <div className="grid grid-cols-3 gap-4 mb-4 text-[12px]">
+                    <div><p className="text-[#3a3a3a] mb-1">Wysłano dziś</p><p className="font-semibold text-[#aaa]">{m.sent_today} / {m.daily_limit}</p></div>
+                    <div><p className="text-[#3a3a3a] mb-1">Limit dzienny</p><p className="font-semibold text-[#aaa]">{m.daily_limit} maili</p></div>
+                    <div><p className="text-[#3a3a3a] mb-1">Ostatnia sync</p><p className="font-semibold text-[#aaa]">{m.last_sync || '—'}</p></div>
                   </div>
-                  <div className="h-1 bg-[#1a1a1a] rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-white rounded-full transition-all"
-                      style={{ width: `${pct}%` }}
-                    />
-                  </div>
+                  <div className="h-1 bg-white/[0.04] rounded-full overflow-hidden"><div className="h-full bg-[#555] rounded-full" style={{ width: `${pct}%` }} /></div>
                 </div>
               );
             })}
           </div>
         )}
-      </SectionCard>
+      </div>
 
       {/* Modal */}
       <AnimatePresence>
-        {isModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+        {open && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xl">
             <motion.div
-              initial={{ opacity: 0, scale: 0.96, y: 12 }}
+              initial={{ opacity: 0, scale: 0.97, y: 8 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.96, y: 12 }}
-              className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-2xl w-full max-w-3xl shadow-2xl"
+              exit={{ opacity: 0, scale: 0.97, y: 8 }}
+              transition={{ duration: 0.16 }}
+              className="bg-[#161616] border border-white/[0.07] rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden"
             >
-              <div className="flex items-center justify-between px-6 py-5 border-b border-[#141414]">
+              {/* Header */}
+              <div className="flex items-center justify-between px-7 py-5 border-b border-white/[0.05]">
                 <div className="flex items-center gap-3">
-                  {modalStep === 2 && (
-                    <button onClick={() => setModalStep(1)} className="p-1.5 hover:bg-white/5 rounded-lg text-gray-500 hover:text-white transition-all">
-                      <ArrowLeft className="size-4" />
-                    </button>
-                  )}
+                  {step === 2 && <button onClick={() => setStep(1)} className="p-1.5 hover:bg-white/[0.05] rounded-lg text-[#444] hover:text-[#888] transition-all"><ArrowLeft className="size-4" /></button>}
                   <div>
-                    <h3 className="text-sm font-bold text-white">
-                      {modalStep === 1 ? 'Wybierz dostawcę' : `Podłącz ${selectedProvider === 'gmail' ? 'Google' : selectedProvider === 'outlook' ? 'Microsoft 365' : 'SMTP/IMAP'}`}
-                    </h3>
-                    <p className="text-xs text-gray-600">Połączenie szyfrowane end-to-end</p>
+                    <p className="text-[14px] font-semibold text-[#d0d0d0]">{step === 1 ? 'Wybierz dostawcę poczty' : `Podłącz ${provider === 'gmail' ? 'Google' : provider === 'outlook' ? 'Microsoft 365' : 'własny serwer'}`}</p>
+                    <p className="text-[11px] text-[#383838] mt-0.5">Połączenie szyfrowane end-to-end</p>
                   </div>
                 </div>
-                <button onClick={handleCloseModal} className="p-1.5 text-gray-600 hover:text-white hover:bg-white/5 rounded-lg transition-all">
-                  <X className="size-4" />
-                </button>
+                <button onClick={close} className="p-1.5 text-[#383838] hover:text-[#888] hover:bg-white/[0.05] rounded-lg transition-all"><X className="size-4" /></button>
               </div>
 
-              {modalStep === 1 && (
-                <div className="p-6 grid grid-cols-3 gap-4">
+              {/* Step 1 — provider pick */}
+              {step === 1 && (
+                <div className="p-7 grid grid-cols-3 gap-3">
                   {[
-                    { id: 'gmail' as Provider, name: 'Google Workspace', sub: '@gmail.com lub własna domena', color: 'text-white' },
-                    { id: 'outlook' as Provider, name: 'Microsoft 365', sub: 'Outlook, Exchange, Hotmail', color: 'text-blue-400' },
-                    { id: 'other' as Provider, name: 'Inny dostawca', sub: 'Zoho, OVH, własny serwer', color: 'text-gray-400' },
+                    { id: 'gmail' as Provider, name: 'Google', sub: 'Gmail, Workspace', logo: <GoogleLogo size={28} /> },
+                    { id: 'outlook' as Provider, name: 'Microsoft', sub: 'Outlook, Exchange', logo: <MicrosoftLogo size={26} /> },
+                    { id: 'other' as Provider, name: 'Inny', sub: 'Zoho, OVH, własny', logo: <Server className="size-6 text-[#555]" /> },
                   ].map(p => (
                     <button
                       key={p.id}
-                      onClick={() => handleProviderSelect(p.id)}
-                      className="flex flex-col items-center gap-3 p-6 bg-[#0f0f0f] hover:bg-[#141414] border border-[#1a1a1a] hover:border-[#252525] rounded-xl transition-all group"
+                      onClick={() => pick(p.id)}
+                      className="flex flex-col items-center gap-4 p-5 bg-white/[0.02] hover:bg-white/[0.05] border border-white/[0.06] hover:border-white/[0.1] rounded-2xl transition-all group"
                     >
-                      <div className="size-12 bg-white/5 rounded-xl flex items-center justify-center group-hover:scale-105 transition-transform">
-                        {p.id === 'other' ? <Server className={`size-6 ${p.color}`} /> : <Mail className={`size-6 ${p.color}`} />}
-                      </div>
+                      <div className="size-12 flex items-center justify-center">{p.logo}</div>
                       <div className="text-center">
-                        <div className="text-sm font-bold text-white mb-0.5">{p.name}</div>
-                        <div className="text-[11px] text-gray-600">{p.sub}</div>
+                        <p className="text-[13px] font-semibold text-[#c8c8c8] mb-0.5">{p.name}</p>
+                        <p className="text-[11px] text-[#3d3d3d]">{p.sub}</p>
                       </div>
                     </button>
                   ))}
                 </div>
               )}
 
-              {modalStep === 2 && (
+              {/* Step 2 — form */}
+              {step === 2 && (
                 <div className="flex">
-                  <div className="flex-1 p-6 border-r border-[#141414]">
-                    <form onSubmit={handleAddMailbox} className="space-y-4">
-                      {verifyError && (
-                        <div className="flex items-start gap-2.5 p-3 bg-red-500/8 border border-red-500/15 rounded-lg text-red-400 text-xs">
-                          <AlertCircle className="size-4 shrink-0 mt-0.5" />
-                          {verifyError}
-                        </div>
-                      )}
-                      <div>
-                        <Label>Adres e-mail</Label>
-                        <Input type="email" required value={newMailbox.email} onChange={e => setNewMailbox({ ...newMailbox, email: e.target.value })} placeholder="jan@firma.pl" />
+                  <form onSubmit={submit} className="flex-1 p-7 space-y-4">
+                    {err && (
+                      <div className="flex items-start gap-2.5 p-3.5 bg-[#b56060]/8 border border-[#b56060]/15 rounded-xl text-[#b56060] text-[13px]">
+                        <AlertCircle className="size-4 shrink-0 mt-0.5" />{err}
                       </div>
-                      <div>
-                        <Label>Nazwa nadawcy</Label>
-                        <Input value={newMailbox.name} onChange={e => setNewMailbox({ ...newMailbox, name: e.target.value })} placeholder="Jan Kowalski" />
-                      </div>
-                      {selectedProvider === 'other' && (
-                        <div className="space-y-3 p-4 bg-[#0f0f0f] rounded-xl border border-[#1a1a1a]">
-                          <div>
-                            <Label>SMTP</Label>
-                            <div className="flex gap-2">
-                              <Input required placeholder="smtp.domena.pl" value={newMailbox.smtpHost} onChange={e => setNewMailbox({ ...newMailbox, smtpHost: e.target.value })} />
-                              <Input required placeholder="465" value={newMailbox.smtpPort} onChange={e => setNewMailbox({ ...newMailbox, smtpPort: e.target.value })} className="w-20" />
-                            </div>
-                          </div>
-                          <div>
-                            <Label>IMAP</Label>
-                            <div className="flex gap-2">
-                              <Input required placeholder="imap.domena.pl" value={newMailbox.imapHost} onChange={e => setNewMailbox({ ...newMailbox, imapHost: e.target.value })} />
-                              <Input required placeholder="993" value={newMailbox.imapPort} onChange={e => setNewMailbox({ ...newMailbox, imapPort: e.target.value })} className="w-20" />
-                            </div>
+                    )}
+                    <div><FLabel>Adres e-mail</FLabel><FInput type="email" required value={mb.email} onChange={e => setMb(p => ({ ...p, email: e.target.value }))} placeholder="jan@firma.pl" /></div>
+                    <div><FLabel>Nazwa nadawcy</FLabel><FInput value={mb.name} onChange={e => setMb(p => ({ ...p, name: e.target.value }))} placeholder="Jan Kowalski" /></div>
+
+                    {provider === 'other' && (
+                      <div className="space-y-3 p-4 bg-white/[0.02] rounded-xl border border-white/[0.05]">
+                        <div>
+                          <FLabel>SMTP</FLabel>
+                          <div className="flex gap-2">
+                            <FInput required placeholder="smtp.domena.pl" value={mb.smtpHost} onChange={e => setMb(p => ({ ...p, smtpHost: e.target.value }))} />
+                            <FInput required placeholder="465" value={mb.smtpPort} onChange={e => setMb(p => ({ ...p, smtpPort: e.target.value }))} className="w-20" />
                           </div>
                         </div>
-                      )}
-                      <div>
-                        <Label>Hasło aplikacji</Label>
-                        <Input type="password" required value={newMailbox.password} onChange={e => setNewMailbox({ ...newMailbox, password: e.target.value })} placeholder="16-znakowy kod aplikacji" className="font-mono" />
+                        <div>
+                          <FLabel>IMAP</FLabel>
+                          <div className="flex gap-2">
+                            <FInput required placeholder="imap.domena.pl" value={mb.imapHost} onChange={e => setMb(p => ({ ...p, imapHost: e.target.value }))} />
+                            <FInput required placeholder="993" value={mb.imapPort} onChange={e => setMb(p => ({ ...p, imapPort: e.target.value }))} className="w-20" />
+                          </div>
+                        </div>
                       </div>
-                      <button type="submit" disabled={isVerifying} className="w-full py-2.5 bg-white text-black text-sm font-bold rounded-lg hover:bg-gray-100 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
-                        {isVerifying ? <><Loader2 className="size-4 animate-spin" /> Weryfikuję...</> : 'Połącz skrzynkę'}
-                      </button>
-                    </form>
-                  </div>
-                  <div className="w-64 p-6 bg-[#080808]">
-                    <h4 className="text-xs font-bold text-white mb-3 flex items-center gap-2">
-                      <AlertCircle className="size-3.5 text-amber-400" /> Instrukcja
-                    </h4>
-                    {selectedProvider === 'gmail' && (
-                      <ol className="space-y-2 text-[11px] text-gray-500 list-decimal pl-4 marker:text-gray-700">
-                        <li>Wejdź w ustawienia konta Google</li>
-                        <li>Bezpieczeństwo → Weryfikacja dwuetapowa</li>
-                        <li>Wyszukaj <span className="text-gray-300 font-medium">Hasła aplikacji</span></li>
-                        <li>Nazwij apkę "ZEC Leads"</li>
-                        <li>Skopiuj 16-znakowy kod</li>
+                    )}
+
+                    <div><FLabel>Hasło aplikacji</FLabel><FInput type="password" required value={mb.password} onChange={e => setMb(p => ({ ...p, password: e.target.value }))} placeholder="16-znakowy kod aplikacji" className="font-mono tracking-widest" /></div>
+
+                    <button type="submit" disabled={verifying} className="w-full py-3 bg-[#d4d4d4] hover:bg-white text-[#111] text-[13px] font-semibold rounded-xl transition-all disabled:opacity-40 flex items-center justify-center gap-2 mt-2">
+                      {verifying ? <><Loader2 className="size-4 animate-spin" />Weryfikuję...</> : 'Połącz skrzynkę'}
+                    </button>
+                  </form>
+
+                  {/* Instructions sidebar */}
+                  <div className="w-52 p-6 border-l border-white/[0.05] bg-white/[0.01]">
+                    <p className="text-[10px] font-semibold text-[#333] uppercase tracking-wider mb-4">Instrukcja</p>
+                    {provider === 'gmail' && (
+                      <ol className="space-y-3 text-[12px] text-[#3d3d3d] list-decimal pl-4 marker:text-[#2e2e2e]">
+                        <li className="leading-relaxed">Otwórz zarządzanie kontem Google</li>
+                        <li className="leading-relaxed">Bezpieczeństwo → Weryfikacja dwuetapowa</li>
+                        <li className="leading-relaxed">Wyszukaj <span className="text-[#666]">Hasła aplikacji</span></li>
+                        <li className="leading-relaxed">Nazwij apkę "ZEC" i wygeneruj kod</li>
+                        <li className="leading-relaxed">Wklej 16-znakowy kod tutaj</li>
                       </ol>
                     )}
-                    {selectedProvider === 'outlook' && (
-                      <ol className="space-y-2 text-[11px] text-gray-500 list-decimal pl-4 marker:text-gray-700">
-                        <li>Wejdź w ustawienia konta Microsoft</li>
-                        <li>Bezpieczeństwo → Weryfikacja dwuetapowa</li>
-                        <li>Utwórz nowe <span className="text-gray-300 font-medium">Hasło aplikacji</span></li>
-                        <li>Skopiuj wygenerowany kod</li>
+                    {provider === 'outlook' && (
+                      <ol className="space-y-3 text-[12px] text-[#3d3d3d] list-decimal pl-4 marker:text-[#2e2e2e]">
+                        <li className="leading-relaxed">Otwórz ustawienia konta Microsoft</li>
+                        <li className="leading-relaxed">Bezpieczeństwo → Weryfikacja dwuetapowa</li>
+                        <li className="leading-relaxed">Utwórz <span className="text-[#666]">Hasło aplikacji</span></li>
+                        <li className="leading-relaxed">Wklej wygenerowany kod tutaj</li>
                       </ol>
                     )}
-                    {selectedProvider === 'other' && (
-                      <p className="text-[11px] text-gray-500 leading-relaxed">
-                        Dane SMTP/IMAP znajdziesz w panelu swojego hostingu. Zazwyczaj możesz użyć standardowego hasła do skrzynki.
-                      </p>
+                    {provider === 'other' && (
+                      <p className="text-[12px] text-[#3d3d3d] leading-relaxed">Dane SMTP/IMAP znajdziesz w panelu hostingu. Zazwyczaj możesz użyć standardowego hasła do skrzynki.</p>
                     )}
                   </div>
                 </div>
@@ -571,109 +462,103 @@ function MailboxesTab() {
   );
 }
 
-// ─── Tab: Płatności ───────────────────────────────────────────────────────────
+// ─── Billing ──────────────────────────────────────────────────────────────────
 
 function BillingTab() {
-  const mockInvoices = [
-    { id: 1, date: '1.03.2026', plan: 'Growth', amount: '$129.00', status: 'paid' },
-    { id: 2, date: '1.02.2026', plan: 'Growth', amount: '$129.00', status: 'paid' },
-    { id: 3, date: '1.01.2026', plan: 'Starter', amount: '$49.00', status: 'paid' },
+  const invoices = [
+    { id: 1, date: '1.03.2026', plan: 'Growth', amount: '$129.00' },
+    { id: 2, date: '1.02.2026', plan: 'Growth', amount: '$129.00' },
+    { id: 3, date: '1.01.2026', plan: 'Starter', amount: '$49.00' },
   ];
 
   return (
-    <div className="space-y-4">
-      {/* Aktualny plan */}
-      <SectionCard>
-        <SectionHeader title="Obecny plan" />
-        <div className="bg-[#0f0f0f] border border-[#1a1a1a] rounded-xl p-5 mb-4">
-          <div className="flex items-start justify-between mb-4">
+    <div className="space-y-10">
+      {/* Current plan */}
+      <section>
+        <h2 className="text-[15px] font-semibold text-[#c8c8c8] mb-1">Obecny plan</h2>
+        <p className="text-[13px] text-[#484848] mb-6">Zarządzaj subskrypcją i kredytami</p>
+
+        <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-6 mb-4">
+          <div className="flex items-start justify-between mb-6">
             <div>
-              <div className="text-[10px] text-gray-600 uppercase tracking-wider mb-1">Twój plan</div>
-              <div className="text-xl font-bold text-white">Growth</div>
+              <p className="text-[11px] text-[#3a3a3a] uppercase tracking-wider mb-1.5">Twój plan</p>
+              <p className="text-[24px] font-bold text-[#d0d0d0] tracking-tight">Growth</p>
             </div>
             <div className="text-right">
-              <div className="text-[10px] text-gray-600 uppercase tracking-wider mb-1">Cena</div>
-              <div className="text-xl font-bold text-white">$129<span className="text-sm font-normal text-gray-600">/msc</span></div>
+              <p className="text-[11px] text-[#3a3a3a] uppercase tracking-wider mb-1.5">Cena</p>
+              <p className="text-[24px] font-bold text-[#d0d0d0] tracking-tight">$129<span className="text-[14px] font-normal text-[#444]">/msc</span></p>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-2 mb-4">
+
+          <div className="grid grid-cols-2 gap-y-2.5 gap-x-4 mb-6">
             {['2000 leadów miesięcznie', '3 podpięte skrzynki', 'AI Hyper-Personalization', 'Auto-Follow-upy'].map(f => (
-              <div key={f} className="flex items-center gap-2 text-xs text-gray-400">
-                <CheckCircle2 className="size-3 text-emerald-400 shrink-0" />
-                {f}
+              <div key={f} className="flex items-center gap-2 text-[13px] text-[#555]">
+                <CheckCircle2 className="size-3.5 text-[#5d9970] shrink-0" />{f}
               </div>
             ))}
           </div>
-          <div className="mb-2">
-            <div className="flex justify-between text-xs text-gray-600 mb-1.5">
-              <span>Wykorzystanie kredytów</span>
-              <span className="text-white font-mono">1450 / 2000</span>
+
+          <div>
+            <div className="flex justify-between text-[12px] mb-2">
+              <span className="text-[#3a3a3a]">Wykorzystanie kredytów</span>
+              <span className="text-[#666] font-mono">1450 / 2000</span>
             </div>
-            <div className="h-1.5 bg-[#1a1a1a] rounded-full overflow-hidden">
-              <div className="h-full bg-white rounded-full" style={{ width: '72.5%' }} />
-            </div>
-            <div className="text-[10px] text-gray-700 mt-1">Odnawia się 1 kwietnia 2026</div>
+            <div className="h-1 bg-white/[0.04] rounded-full overflow-hidden"><div className="h-full bg-[#555] rounded-full" style={{ width: '72.5%' }} /></div>
+            <p className="text-[11px] text-[#2e2e2e] mt-2">Odnawia się 1 kwietnia 2026</p>
           </div>
         </div>
+
         <div className="flex gap-3">
-          <button className="flex-1 py-2.5 bg-white text-black text-sm font-bold rounded-lg hover:bg-gray-100 transition-all">
-            Zmień plan
-          </button>
-          <button className="px-4 py-2.5 border border-[#1a1a1a] text-gray-400 hover:text-white hover:border-[#333] text-sm rounded-lg transition-all">
-            Anuluj subskrypcję
-          </button>
+          <button className="flex-1 py-3 bg-[#d4d4d4] hover:bg-white text-[#111] text-[13px] font-semibold rounded-xl transition-all">Zmień plan</button>
+          <button className="px-5 py-3 border border-white/[0.07] text-[#444] hover:text-[#777] hover:border-white/[0.12] text-[13px] rounded-xl transition-all">Anuluj subskrypcję</button>
         </div>
-      </SectionCard>
+      </section>
 
-      {/* Metoda płatności */}
-      <SectionCard>
-        <SectionHeader title="Metoda płatności" />
-        <div className="flex items-center justify-between p-4 bg-[#0f0f0f] border border-[#1a1a1a] rounded-xl">
-          <div className="flex items-center gap-3">
-            <div className="size-8 bg-white/5 border border-white/[0.06] rounded-lg flex items-center justify-center">
-              <CreditCard className="size-4 text-gray-400" />
-            </div>
+      <Rule />
+
+      {/* Payment method */}
+      <section>
+        <h2 className="text-[15px] font-semibold text-[#c8c8c8] mb-6">Metoda płatności</h2>
+        <div className="flex items-center justify-between p-5 rounded-2xl border border-white/[0.06] bg-white/[0.02]">
+          <div className="flex items-center gap-3.5">
+            <div className="size-9 bg-white/[0.04] rounded-xl flex items-center justify-center"><CreditCard className="size-4 text-[#444]" /></div>
             <div>
-              <div className="text-sm font-medium text-white">•••• •••• •••• 4242</div>
-              <div className="text-xs text-gray-600">Wygasa 12/27</div>
+              <p className="text-[14px] font-medium text-[#c0c0c0]">•••• •••• •••• 4242</p>
+              <p className="text-[12px] text-[#3a3a3a] mt-0.5">Wygasa 12/27</p>
             </div>
           </div>
-          <button className="text-xs font-semibold text-gray-400 hover:text-white border border-[#1a1a1a] hover:border-[#333] px-3 py-1.5 rounded-lg transition-all">
-            Zmień
-          </button>
+          <button className="text-[13px] font-medium text-[#444] hover:text-[#888] border border-white/[0.07] hover:border-white/[0.12] px-4 py-2 rounded-xl transition-all">Zmień</button>
         </div>
-      </SectionCard>
+      </section>
 
-      {/* Historia faktur */}
-      <SectionCard>
-        <SectionHeader title="Historia faktur" />
-        <div className="space-y-2">
-          {mockInvoices.map(inv => (
-            <div key={inv.id} className="flex items-center justify-between p-4 bg-[#0f0f0f] border border-[#1a1a1a] rounded-xl">
-              <div className="flex items-center gap-3">
-                <div className="size-8 bg-white/5 border border-white/[0.06] rounded-lg flex items-center justify-center">
-                  <CreditCard className="size-3.5 text-gray-600" />
-                </div>
+      <Rule />
+
+      {/* Invoices */}
+      <section>
+        <h2 className="text-[15px] font-semibold text-[#c8c8c8] mb-6">Historia faktur</h2>
+        <div className="space-y-1.5">
+          {invoices.map(inv => (
+            <div key={inv.id} className="flex items-center justify-between px-5 py-4 rounded-2xl hover:bg-white/[0.02] transition-all group">
+              <div className="flex items-center gap-3.5">
+                <div className="size-8 bg-white/[0.03] rounded-lg flex items-center justify-center"><CreditCard className="size-3.5 text-[#333]" /></div>
                 <div>
-                  <div className="text-sm font-medium text-white">{inv.plan}</div>
-                  <div className="text-xs text-gray-600">{inv.date}</div>
+                  <p className="text-[13px] font-medium text-[#b8b8b8]">{inv.plan}</p>
+                  <p className="text-[12px] text-[#3a3a3a]">{inv.date}</p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                <span className="text-xs font-semibold text-emerald-400">{inv.amount}</span>
-                <button className="p-1.5 text-gray-600 hover:text-white hover:bg-white/5 rounded-lg transition-all">
-                  <Download className="size-3.5" />
-                </button>
+                <span className="text-[13px] font-semibold text-[#5d9970]">{inv.amount}</span>
+                <button className="p-1.5 text-[#2e2e2e] hover:text-[#777] hover:bg-white/[0.05] rounded-lg transition-all opacity-0 group-hover:opacity-100"><Download className="size-3.5" /></button>
               </div>
             </div>
           ))}
         </div>
-      </SectionCard>
+      </section>
     </div>
   );
 }
 
-// ─── Tab: Czarna lista ────────────────────────────────────────────────────────
+// ─── Blacklist ────────────────────────────────────────────────────────────────
 
 function BlacklistTab() {
   const [entries, setEntries] = useState(['spam@domain.com', 'noreply@automaticsystem.com']);
@@ -681,193 +566,130 @@ function BlacklistTab() {
   const [filter, setFilter] = useState('');
 
   const add = () => {
-    const trimmed = newEntry.trim();
-    if (trimmed && !entries.includes(trimmed)) {
-      setEntries([trimmed, ...entries]);
-      setNewEntry('');
-    }
+    const t = newEntry.trim();
+    if (t && !entries.includes(t)) { setEntries([t, ...entries]); setNewEntry(''); }
   };
 
-  const filtered = entries.filter(e => e.includes(filter));
-
   return (
-    <div className="space-y-4">
-      <SectionCard>
-        <SectionHeader
-          title="Czarna lista"
-          subtitle="Maile z tych adresów i domen nigdy nie zostaną wciągnięte do kampanii"
-        />
+    <div>
+      <h2 className="text-[15px] font-semibold text-[#c8c8c8] mb-1">Czarna lista</h2>
+      <p className="text-[13px] text-[#484848] mb-8">Adresy i domeny które nigdy nie trafią do kampanii</p>
 
-        <div className="flex gap-2 mb-4">
-          <Input
-            value={newEntry}
-            onChange={e => setNewEntry(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && add()}
-            placeholder="adres@email.pl lub @domena.pl"
-            className="flex-1"
-          />
-          <button
-            onClick={add}
-            className="px-4 py-2.5 bg-white text-black text-sm font-bold rounded-lg hover:bg-gray-100 transition-all"
-          >
-            Dodaj
-          </button>
+      <div className="flex gap-2 mb-4">
+        <FInput value={newEntry} onChange={e => setNewEntry(e.target.value)} onKeyDown={e => e.key === 'Enter' && add()} placeholder="adres@email.pl lub @cała-domena.pl" className="flex-1" />
+        <button onClick={add} className="px-5 py-3 bg-[#d4d4d4] hover:bg-white text-[#111] text-[13px] font-semibold rounded-xl transition-all whitespace-nowrap">Dodaj</button>
+      </div>
+
+      {entries.length > 5 && (
+        <div className="relative mb-3">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 size-3.5 text-[#2e2e2e]" />
+          <FInput value={filter} onChange={e => setFilter(e.target.value)} placeholder="Szukaj..." className="pl-10" />
         </div>
+      )}
 
-        {entries.length > 5 && (
-          <div className="mb-3">
-            <Input value={filter} onChange={e => setFilter(e.target.value)} placeholder="Filtruj listę..." />
+      <div className="space-y-1 max-h-72 overflow-y-auto">
+        {entries.filter(e => e.includes(filter)).map(entry => (
+          <div key={entry} className="flex items-center justify-between px-4 py-3 rounded-xl hover:bg-white/[0.02] group transition-all">
+            <div className="flex items-center gap-3">
+              <Shield className="size-3.5 text-[#2e2e2e]" />
+              <span className="text-[13px] font-mono text-[#5a5a5a]">{entry}</span>
+            </div>
+            <button onClick={() => setEntries(entries.filter(e => e !== entry))} className="opacity-0 group-hover:opacity-100 p-1 text-[#2e2e2e] hover:text-[#b56060] transition-all"><X className="size-3.5" /></button>
           </div>
-        )}
+        ))}
+      </div>
 
-        <div className="space-y-1.5 max-h-80 overflow-y-auto">
-          {filtered.length === 0 ? (
-            <div className="text-center py-8 text-xs text-gray-600">Brak wpisów na czarnej liście</div>
-          ) : (
-            filtered.map(entry => (
-              <div key={entry} className="flex items-center justify-between px-4 py-2.5 bg-[#0f0f0f] border border-[#1a1a1a] rounded-lg group">
-                <div className="flex items-center gap-2">
-                  <Shield className="size-3 text-gray-600" />
-                  <span className="text-xs font-mono text-gray-300">{entry}</span>
-                </div>
-                <button
-                  onClick={() => setEntries(entries.filter(e => e !== entry))}
-                  className="opacity-0 group-hover:opacity-100 p-1 text-gray-600 hover:text-red-400 transition-all"
-                >
-                  <X className="size-3" />
-                </button>
-              </div>
-            ))
-          )}
-        </div>
-
-        <div className="mt-4 pt-4 border-t border-[#141414] text-[11px] text-gray-700">
-          {entries.length} wpisów · Możesz dodawać całe domeny (np. @spam.pl)
-        </div>
-      </SectionCard>
+      <p className="text-[11px] text-[#2a2a2a] mt-6">{entries.length} wpisów · Możesz dodawać całe domeny np. @spam.pl</p>
     </div>
   );
 }
 
-// ─── Tab: Powiadomienia ───────────────────────────────────────────────────────
+// ─── Notifications ────────────────────────────────────────────────────────────
 
 function NotificationsTab() {
-  const [settings, setSettings] = useState({
-    campaignFinished: true,
-    newReply: true,
-    dailyReport: false,
-    weeklyReport: true,
-    lowCredits: true,
-    mailboxError: true,
-    newLead: false,
-    productUpdates: true,
-  });
-
-  const toggle = (key: keyof typeof settings) =>
-    setSettings(prev => ({ ...prev, [key]: !prev[key] }));
+  const [s, setS] = useState({ campaignFinished: true, newReply: true, dailyReport: false, weeklyReport: true, lowCredits: true, mailboxError: true, newLead: false, productUpdates: true });
+  const tog = (k: keyof typeof s) => setS(p => ({ ...p, [k]: !p[k] }));
 
   const groups = [
-    {
-      title: 'Kampanie',
-      items: [
-        { key: 'campaignFinished' as const, label: 'Kampania zakończona', desc: 'Gdy wszystkie maile zostaną wysłane' },
-        { key: 'newReply' as const, label: 'Nowa odpowiedź', desc: 'Ktoś odpowiedział na Twój mail' },
-        { key: 'newLead' as const, label: 'Nowy lead zakwalifikowany', desc: 'AI zakwalifikowało lead jako gorący' },
-      ]
-    },
-    {
-      title: 'Raporty',
-      items: [
-        { key: 'dailyReport' as const, label: 'Raport dzienny', desc: 'Podsumowanie aktywności każdego dnia' },
-        { key: 'weeklyReport' as const, label: 'Raport tygodniowy', desc: 'Podsumowanie wyników co tydzień' },
-      ]
-    },
-    {
-      title: 'System',
-      items: [
-        { key: 'lowCredits' as const, label: 'Niski stan kredytów', desc: 'Gdy pozostanie mniej niż 10% kredytów' },
-        { key: 'mailboxError' as const, label: 'Błąd skrzynki', desc: 'Gdy skrzynka pocztowa straci połączenie' },
-        { key: 'productUpdates' as const, label: 'Aktualizacje produktu', desc: 'Nowe funkcje i poprawki' },
-      ]
-    },
+    { title: 'Kampanie', items: [{ k: 'campaignFinished' as const, l: 'Kampania zakończona', d: 'Gdy wszystkie maile zostaną wysłane' }, { k: 'newReply' as const, l: 'Nowa odpowiedź', d: 'Ktoś odpowiedział na Twój mail' }, { k: 'newLead' as const, l: 'Lead zakwalifikowany', d: 'AI oznaczyło lead jako gorący' }] },
+    { title: 'Raporty', items: [{ k: 'dailyReport' as const, l: 'Raport dzienny', d: 'Podsumowanie aktywności każdego dnia' }, { k: 'weeklyReport' as const, l: 'Raport tygodniowy', d: 'Podsumowanie wyników co tydzień' }] },
+    { title: 'System', items: [{ k: 'lowCredits' as const, l: 'Niski stan kredytów', d: 'Gdy pozostanie mniej niż 10% kredytów' }, { k: 'mailboxError' as const, l: 'Błąd skrzynki', d: 'Gdy skrzynka straci połączenie' }, { k: 'productUpdates' as const, l: 'Aktualizacje produktu', d: 'Nowe funkcje i poprawki' }] },
   ];
 
   return (
-    <div className="space-y-4">
-      {groups.map(group => (
-        <SectionCard key={group.title}>
-          <SectionHeader title={group.title} />
-          <div className="space-y-1">
-            {group.items.map((item, i) => (
-              <div key={item.key}>
-                <div className="flex items-center justify-between py-3">
+    <div className="space-y-10">
+      {groups.map((g, gi) => (
+        <section key={g.title}>
+          <h2 className="text-[15px] font-semibold text-[#c8c8c8] mb-6">{g.title}</h2>
+          <div className="space-y-0">
+            {g.items.map((item, i) => (
+              <div key={item.k}>
+                <div className="flex items-center justify-between py-4">
                   <div>
-                    <div className="text-sm font-medium text-white">{item.label}</div>
-                    <div className="text-xs text-gray-600 mt-0.5">{item.desc}</div>
+                    <p className="text-[14px] font-medium text-[#b8b8b8]">{item.l}</p>
+                    <p className="text-[12px] text-[#3d3d3d] mt-0.5">{item.d}</p>
                   </div>
-                  <Toggle checked={settings[item.key]} onChange={() => toggle(item.key)} />
+                  <SoftToggle checked={s[item.k]} onChange={() => tog(item.k)} />
                 </div>
-                {i < group.items.length - 1 && <div className="h-px bg-[#141414]" />}
+                {i < g.items.length - 1 && <div className="h-px bg-white/[0.04]" />}
               </div>
             ))}
           </div>
-        </SectionCard>
+          {gi < groups.length - 1 && <div className="h-px bg-white/[0.05] mt-6" />}
+        </section>
       ))}
     </div>
   );
 }
 
-// ─── Main ─────────────────────────────────────────────────────────────────────
+// ─── Root ─────────────────────────────────────────────────────────────────────
 
 export function SettingsPage() {
   const [activeTab, setActiveTab] = useState<Tab>('profile');
 
   const tabs: { id: Tab; label: string; icon: React.ElementType }[] = [
     { id: 'profile', label: 'Profil', icon: User },
-    { id: 'mailboxes', label: 'Skrzynki', icon: Mail },
+    { id: 'mailboxes', label: 'Skrzynki pocztowe', icon: Mail },
     { id: 'billing', label: 'Płatności', icon: CreditCard },
     { id: 'blacklist', label: 'Czarna lista', icon: Shield },
     { id: 'notifications', label: 'Powiadomienia', icon: Bell },
   ];
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-white tracking-tight">Ustawienia</h1>
-        <p className="text-sm text-gray-600 mt-1">Zarządzaj kontem, skrzynkami i preferencjami</p>
+    <div className="max-w-3xl mx-auto">
+      <div className="mb-10">
+        <h1 className="text-[20px] font-semibold text-[#c8c8c8] tracking-tight">Ustawienia</h1>
+        <p className="text-[13px] text-[#444] mt-1">Zarządzaj kontem, skrzynkami i preferencjami</p>
       </div>
 
-      <div className="grid grid-cols-12 gap-5">
-        {/* Sidebar */}
-        <div className="col-span-12 lg:col-span-3">
-          <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-xl p-1.5 space-y-0.5">
-            {tabs.map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                  activeTab === tab.id
-                    ? 'bg-white/[0.06] text-white'
-                    : 'text-gray-600 hover:text-gray-300 hover:bg-white/[0.02]'
-                }`}
-              >
-                <tab.icon className="size-4 shrink-0" />
-                {tab.label}
-                {activeTab === tab.id && <ChevronRight className="size-3 ml-auto text-gray-600" />}
-              </button>
-            ))}
-          </div>
-        </div>
+      <div className="grid grid-cols-12 gap-10">
+        {/* Sidebar nav */}
+        <nav className="col-span-12 lg:col-span-3 space-y-0.5">
+          {tabs.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-all text-left ${
+                activeTab === tab.id
+                  ? 'bg-white/[0.05] text-[#c8c8c8]'
+                  : 'text-[#3a3a3a] hover:text-[#666] hover:bg-white/[0.02]'
+              }`}
+            >
+              <tab.icon className="size-4 shrink-0" />
+              {tab.label}
+            </button>
+          ))}
+        </nav>
 
         {/* Content */}
         <div className="col-span-12 lg:col-span-9">
           <AnimatePresence mode="wait">
             <motion.div
               key={activeTab}
-              initial={{ opacity: 0, y: 6 }}
+              initial={{ opacity: 0, y: 5 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
-              transition={{ duration: 0.15 }}
+              exit={{ opacity: 0, y: -5 }}
+              transition={{ duration: 0.12 }}
             >
               {activeTab === 'profile' && <ProfileTab />}
               {activeTab === 'mailboxes' && <MailboxesTab />}
