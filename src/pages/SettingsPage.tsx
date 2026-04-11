@@ -108,32 +108,35 @@ export function SettingsPage() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('Brak autoryzacji');
 
-      // SYMULACJA WERYFIKACJI (Do zastąpienia przez Edge Function)
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Wywołanie naszej nowej Edge Function
+      const { data, error } = await supabase.functions.invoke('verify-smtp', {
+        body: {
+          email: newMailbox.email,
+          name: newMailbox.name,
+          smtpHost: newMailbox.smtpHost,
+          smtpPort: newMailbox.smtpPort,
+          imapHost: newMailbox.imapHost,
+          imapPort: newMailbox.imapPort,
+          password: newMailbox.password
+        }
+      });
 
-      const { data, error } = await supabase.from('email_accounts').insert([{
-        user_id: session.user.id,
-        email_address: newMailbox.email,
-        sender_name: newMailbox.name || newMailbox.email.split('@')[0],
-        smtp_host: newMailbox.smtpHost,
-        smtp_port: parseInt(newMailbox.smtpPort),
-        smtp_password: newMailbox.password, // Szyfrowane w Edge Function
-        imap_host: newMailbox.imapHost,
-        imap_port: parseInt(newMailbox.imapPort),
-        status: 'connected',
-      }]).select().single();
+      // Jeśli Supabase zwróci błąd systemowy lub funkcja rzuci błędem z nodemailer
+      if (error || (data && data.error)) {
+        throw new Error(data?.error || 'Błąd połączenia z serwerem.');
+      }
 
-      if (error) throw error;
-
-      setMailboxes([data, ...mailboxes]);
+      // Jeśli wszystko poszło dobrze, funkcja zwróciła nowy obiekt z bazy
+      setMailboxes([data.data, ...mailboxes]);
       handleCloseModal();
+      
     } catch (err: any) {
-      setVerifyError('Odrzucono połączenie (Invalid Credentials). Upewnij się, że używasz Hasła Aplikacji, a nie hasła głównego.');
+      console.error(err);
+      setVerifyError('Odrzucono połączenie. Sprawdź, czy wpisujesz prawidłowe Hasło Aplikacji oraz czy ustawienia portu są właściwe.');
     } finally {
       setIsVerifying(false);
     }
   };
-
   const removeMailbox = async (id: string) => {
     await supabase.from('email_accounts').delete().eq('id', id);
     setMailboxes(mailboxes.filter(m => m.id !== id));
