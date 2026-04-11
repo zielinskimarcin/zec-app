@@ -26,7 +26,7 @@ const mockInvoices = [
 ];
 
 export function SettingsPage() {
-  const [activeTab, setActiveTab] = useState<Tab>('mailboxes'); // Domyślnie otwieramy skrzynki dla testów
+  const [activeTab, setActiveTab] = useState<Tab>('mailboxes');
   const [blacklist, setBlacklist] = useState<string[]>(['spam@domain.com']);
   const [newBlacklistEntry, setNewBlacklistEntry] = useState('');
 
@@ -77,7 +77,6 @@ export function SettingsPage() {
     setSelectedProvider(provider);
     setVerifyError(null);
     
-    // Auto-wypełnianie ukrytych pól dla znanych dostawców
     if (provider === 'gmail') {
       setNewMailbox(prev => ({ ...prev, smtpHost: 'smtp.gmail.com', smtpPort: '465', imapHost: 'imap.gmail.com', imapPort: '993' }));
     } else if (provider === 'outlook') {
@@ -108,35 +107,57 @@ export function SettingsPage() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('Brak autoryzacji');
 
-      // Wywołanie naszej nowej Edge Function
-      const { data, error } = await supabase.functions.invoke('verify-smtp', {
-        body: {
+      // Trik z adresem: używa pliku .env (produkcja) ALBO portu 3000 (lokalnie)
+      const VERIFIER_URL = import.meta.env.VITE_VERIFIER_URL || 'http://localhost:3000/verify';
+      const API_SECRET = 'ZEC_SECRET_2026';
+
+      // 1. UDERZAMY DO TWOJEGO LOKALNEGO SERWERA NODE.JS
+      const response = await fetch(VERIFIER_URL, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${API_SECRET}`
+        },
+        body: JSON.stringify({
           email: newMailbox.email,
-          name: newMailbox.name,
-          smtpHost: newMailbox.smtpHost,
-          smtpPort: newMailbox.smtpPort,
-          imapHost: newMailbox.imapHost,
-          imapPort: newMailbox.imapPort,
-          password: newMailbox.password
-        }
+          password: newMailbox.password,
+          host: newMailbox.smtpHost,
+          port: newMailbox.smtpPort
+        })
       });
 
-      // Jeśli Supabase zwróci błąd systemowy lub funkcja rzuci błędem z nodemailer
-      if (error || (data && data.error)) {
-        throw new Error(data?.error || 'Błąd połączenia z serwerem.');
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Błędne hasło aplikacji lub dane serwera SMTP.');
       }
 
-      // Jeśli wszystko poszło dobrze, funkcja zwróciła nowy obiekt z bazy
-      setMailboxes([data.data, ...mailboxes]);
+      // 2. SUKCES -> ZAPIS DO SUPABASE
+      const { data, error } = await supabase.from('email_accounts').insert([{
+        user_id: session.user.id,
+        email_address: newMailbox.email,
+        sender_name: newMailbox.name || newMailbox.email.split('@')[0],
+        smtp_host: newMailbox.smtpHost,
+        smtp_port: parseInt(newMailbox.smtpPort),
+        smtp_password: newMailbox.password, 
+        imap_host: newMailbox.imapHost,
+        imap_port: parseInt(newMailbox.imapPort),
+        status: 'connected'
+      }]).select().single();
+
+      if (error) throw error;
+
+      setMailboxes([data, ...mailboxes]);
       handleCloseModal();
       
     } catch (err: any) {
       console.error(err);
-      setVerifyError('Odrzucono połączenie. Sprawdź, czy wpisujesz prawidłowe Hasło Aplikacji oraz czy ustawienia portu są właściwe.');
+      setVerifyError(err.message);
     } finally {
       setIsVerifying(false);
     }
   };
+
   const removeMailbox = async (id: string) => {
     await supabase.from('email_accounts').delete().eq('id', id);
     setMailboxes(mailboxes.filter(m => m.id !== id));
