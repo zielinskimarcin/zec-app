@@ -553,7 +553,7 @@ export function ProspectingPage() {
             <div className="flex items-center gap-3">
               <span className="text-[11px] text-[#333] font-mono shrink-0">10</span>
               <input
-                type="range" min={10} max={500} step={10}
+                type="range" min={1} max={500} step={1}
                 value={common.maxLeads}
                 onChange={e => setCommon({ ...common, maxLeads: parseInt(e.target.value) })}
                 className="flex-1 h-px bg-white/[0.08] rounded-full appearance-none cursor-pointer
