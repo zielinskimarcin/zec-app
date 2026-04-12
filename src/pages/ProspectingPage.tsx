@@ -62,6 +62,8 @@ export function ProspectingPage() {
             offer: data.offer ?? '',
             package: data.package ?? 'basic',
           });
+        } else {
+          setUserProfile({ full_name: '', offer: '', package: 'basic' });
         }
       }
     }
@@ -90,13 +92,13 @@ export function ProspectingPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          user_id: userId,
-          package: userProfile?.package ?? 'basic',
+          user_id: 'test_user_001',
+          package: 'basic',
 
           client: {
-            name: userProfile?.full_name ?? '',
-            email: userEmail ?? '',
-            offer: userProfile?.offer ?? '',
+            name: 'Jan Kowalski',
+            email: 'jan@test.pl',
+            offer: 'Automatyzacja lead generation B2B',
             language: 'pl',
           },
 
@@ -108,33 +110,33 @@ export function ProspectingPage() {
             maxLeads: filters.leadsCount,
           },
 
-          googleFilters: {
-            minRating: filters.minRating,
-            minReviews: filters.minReviews,
-            requireWebsite: filters.requireWebsite,
-            requireEmail: filters.requireEmail,
-            requirePhone: false,
-            requireOpenNow: false,
-          },
-
-          igFilters: {
-            minFollowers: 1000,
-            maxFollowers: 500000,
-            minEngagementRate: 1,
-            minPosts: 12,
-            businessAccountOnly: true,
-            requireEmail: false,
-            requireWebsite: false,
-          },
-
-          liFilters: {
-            minEmployees: 1,
-            maxEmployees: 250,
-            companySize: [],
-            requireWebsite: true,
-            hasActiveJobs: false,
-            requireEmail: false,
-            foundedAfter: '',
+          filters: {
+            google: {
+              minRating: filters.minRating,
+              minReviews: filters.minReviews,
+              requireWebsite: filters.requireWebsite,
+              requireEmail: filters.requireEmail,
+              requirePhone: false,
+              requireOpenNow: false,
+            },
+            instagram: {
+              minFollowers: 1000,
+              maxFollowers: 500000,
+              minEngagementRate: 1,
+              minPosts: 12,
+              businessAccountOnly: true,
+              requireEmail: false,
+              requireWebsite: false,
+            },
+            linkedin: {
+              minEmployees: 1,
+              maxEmployees: 250,
+              companySize: [],
+              requireWebsite: true,
+              hasActiveJobs: false,
+              requireEmail: false,
+              foundedAfter: '',
+            },
           },
         }),
       });
