@@ -2,13 +2,14 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   User, Mail, CreditCard, Shield, Bell,
-  CheckCircle2, XCircle, Plus, Trash2,
-  AlertCircle, X, Loader2, ArrowLeft, Server,
-  Sparkles, Eye, EyeOff, Download, Check, Search, Info
+  CheckCircle2, Plus, Trash2, AlertCircle, 
+  X, Loader2, ArrowLeft, Server, Sparkles, 
+  Eye, EyeOff, Download, Check, Search, Info,
+  Building, Megaphone
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
-type Tab = 'profile' | 'mailboxes' | 'billing' | 'blacklist' | 'notifications';
+type Tab = 'profile' | 'company' | 'campaign' | 'mailboxes' | 'billing' | 'blacklist' | 'notifications';
 type Provider = 'gmail' | 'outlook' | 'other' | null;
 
 interface EmailAccount {
@@ -105,49 +106,28 @@ function SaveBtn({ saving, saved, onClick }: { saving: boolean; saved: boolean; 
   );
 }
 
-// ─── Profile ──────────────────────────────────────────────────────────────────
+// ─── Profile (Only Account Details) ──────────────────────────────────────────
 
 function ProfileTab() {
-  const [form, setForm] = useState({
-    firstName: 'Jan', lastName: 'Kowalski',
-    company: 'Moja Firma Sp. z o.o.', phone: '', website: '', password: '',
-    industry: '', targetMarket: '', usp: '', companyDesc: '',
-  });
-  const f = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
-    setForm(p => ({ ...p, [k]: e.target.value }));
-
+  const [form, setForm] = useState({ firstName: 'Jan', lastName: 'Kowalski', phone: '', password: '' });
+  const f = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => setForm(p => ({ ...p, [k]: e.target.value }));
   const [showPass, setShowPass] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [refining, setRefining] = useState(false);
 
   const save = async () => {
     setSaving(true);
-    await new Promise(r => setTimeout(r, 700));
+    await new Promise(r => setTimeout(r, 700)); // Mockup zapisu
     setSaving(false); setSaved(true);
     setTimeout(() => setSaved(false), 2200);
   };
 
-  const refine = async () => {
-    if (!form.companyDesc && !form.industry) return;
-    setRefining(true);
-    await new Promise(r => setTimeout(r, 1500));
-    setForm(p => ({
-      ...p,
-      companyDesc: `${p.company || 'Nasza firma'} to ${p.industry ? p.industry.toLowerCase() + ' ' : ''}specjalizujące się w dostarczaniu rozwiązań B2B najwyższej jakości.${p.usp ? ' Wyróżnia nas ' + p.usp + '.' : ''}${p.targetMarket ? ' Działamy na rynku ' + p.targetMarket + ', budując trwałe relacje oparte na mierzalnych efektach.' : ''}`
-    }));
-    setRefining(false);
-  };
-
-  const industries = ['IT / Software', 'Marketing / Agencja', 'Produkcja', 'Meble / Wyposażenie', 'Nieruchomości', 'Finanse / Doradztwo', 'Handel / E-commerce', 'Inne'];
-
   return (
     <div className="space-y-12">
-      {/* Dane osobowe */}
       <section className="space-y-6">
         <div>
-          <h2 className="text-[18px] font-medium text-[#EAE8E1]">Dane osobowe</h2>
-          <p className="text-[15px] text-[#A1A1AA] mt-1">Widoczne dla odbiorców jako nadawca wiadomości</p>
+          <h2 className="text-[18px] font-medium text-[#EAE8E1]">Dane konta</h2>
+          <p className="text-[15px] text-[#A1A1AA] mt-1">Podstawowe dane logowania i bezpieczeństwo</p>
         </div>
 
         <div className="grid grid-cols-2 gap-5">
@@ -155,75 +135,221 @@ function ProfileTab() {
           <div><FLabel>Nazwisko</FLabel><FInput value={form.lastName} onChange={f('lastName')} placeholder="Kowalski" /></div>
         </div>
 
-        <div><FLabel>E-mail</FLabel><FInput value="jan@firma.pl" disabled /></div>
+        <div className="grid grid-cols-2 gap-5">
+          <div><FLabel>E-mail (Login)</FLabel><FInput value="jan@firma.pl" disabled /></div>
+          <div>
+            <FLabel>Nowe hasło</FLabel>
+            <div className="relative">
+              <FInput type={showPass ? 'text' : 'password'} value={form.password} onChange={f('password')} placeholder="Zostaw puste, jeśli nie zmieniasz" />
+              <button onClick={() => setShowPass(v => !v)} className="absolute right-5 top-1/2 -translate-y-1/2 text-[#71717A] hover:text-[#A1A1AA] transition-colors">
+                {showPass ? <EyeOff className="size-5" /> : <Eye className="size-5" />}
+              </button>
+            </div>
+          </div>
+        </div>
+        
+        <div><FLabel>Telefon prywatny</FLabel><FInput value={form.phone} onChange={f('phone')} placeholder="+48 000 000 000" className="w-1/2 pr-5" /></div>
+      </section>
 
-        <div>
-          <FLabel>Nowe hasło</FLabel>
-          <div className="relative">
-            <FInput type={showPass ? 'text' : 'password'} value={form.password} onChange={f('password')} placeholder="Zostaw puste jeśli nie zmieniasz" />
-            <button onClick={() => setShowPass(v => !v)} className="absolute right-5 top-1/2 -translate-y-1/2 text-[#71717A] hover:text-[#A1A1AA] transition-colors">
-              {showPass ? <EyeOff className="size-5" /> : <Eye className="size-5" />}
-            </button>
+      <div className="flex justify-end pt-4"><SaveBtn saving={saving} saved={saved} onClick={save} /></div>
+    </div>
+  );
+}
+
+// ─── Company Info ────────────────────────────────────────────────────────────
+
+function CompanyTab() {
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  const [form, setForm] = useState({
+    name: '', website: '', industry: '', short_description: '',
+    ideal_customer_profile: '', competitive_advantages: '', ai_context: ''
+  });
+
+  const f = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
+    setForm(p => ({ ...p, [k]: e.target.value }));
+
+  useEffect(() => { load(); }, []);
+
+  const load = async () => {
+    setLoading(true);
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session) {
+      const { data } = await supabase.from('companies').select('*').eq('user_id', session.user.id).single();
+      if (data) {
+        setForm({
+          name: data.name || '', website: data.website || '', industry: data.industry || '',
+          short_description: data.short_description || '', ideal_customer_profile: data.ideal_customer_profile || '',
+          competitive_advantages: data.competitive_advantages || '', ai_context: data.ai_context || ''
+        });
+      }
+    }
+    setLoading(false);
+  };
+
+  const save = async () => {
+    setSaving(true);
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session) {
+      await supabase.from('companies').upsert({ user_id: session.user.id, ...form }, { onConflict: 'user_id' });
+    }
+    setSaving(false); setSaved(true);
+    setTimeout(() => setSaved(false), 2200);
+  };
+
+  const industries = ['IT / Software', 'Marketing / Agencja', 'Produkcja', 'Meble / Wyposażenie', 'Nieruchomości', 'Finanse / Doradztwo', 'Handel / E-commerce', 'Inne'];
+
+  if (loading) return <div className="flex justify-center py-14"><Loader2 className="size-6 text-[#71717A] animate-spin" /></div>;
+
+  return (
+    <div className="space-y-12">
+      <section className="space-y-6">
+        <div className="flex items-start justify-between">
+          <div>
+            <h2 className="text-[18px] font-medium text-[#EAE8E1]">Podstawowe informacje o firmie</h2>
+            <p className="text-[15px] text-[#A1A1AA] mt-1">Niezbędne minimum do definiowania Twojej działalności</p>
           </div>
         </div>
 
         <div className="grid grid-cols-2 gap-5">
-          <div><FLabel>Telefon</FLabel><FInput value={form.phone} onChange={f('phone')} placeholder="+48 000 000 000" /></div>
-          <div><FLabel>Strona WWW</FLabel><FInput value={form.website} onChange={f('website')} placeholder="https://firma.pl" /></div>
+          <div>
+            <FLabel>Nazwa firmy <span className="text-[#b56060]">*</span></FLabel>
+            <FInput value={form.name} onChange={f('name')} placeholder="np. TechFlow Sp. z o.o." />
+          </div>
+          <div>
+            <FLabel>Strona WWW <span className="text-[#b56060]">*</span></FLabel>
+            <FInput value={form.website} onChange={f('website')} placeholder="https://techflow.pl" />
+          </div>
         </div>
 
-        <div><FLabel>Nazwa firmy</FLabel><FInput value={form.company} onChange={f('company')} placeholder="Firma Sp. z o.o." /></div>
+        <div className="grid grid-cols-2 gap-5">
+          <div>
+            <FLabel>Branża <span className="text-[#b56060]">*</span></FLabel>
+            <FSelect value={form.industry} onChange={f('industry')}>
+              <option value="" className="bg-[#1a1a1a] text-[#A1A1AA]">Wybierz branżę...</option>
+              {industries.map(b => <option key={b} value={b} className="bg-[#1a1a1a] text-[#EAE8E1]">{b}</option>)}
+            </FSelect>
+          </div>
+          <div>
+            <FLabel>Główny profil działalności <span className="text-[#b56060]">*</span></FLabel>
+            <FInput value={form.short_description} onChange={f('short_description')} placeholder="np. Tworzymy dedykowane oprogramowanie dla logistyki." />
+          </div>
+        </div>
       </section>
 
       <Rule />
 
-      {/* Profil AI */}
       <section className="space-y-6">
         <div className="flex items-start justify-between">
           <div>
-            <h2 className="text-[18px] font-medium text-[#EAE8E1]">Profil firmy dla AI</h2>
-            <p className="text-[15px] text-[#A1A1AA] mt-1">Im więcej szczegółów, tym trafniej AI personalizuje maile</p>
+            <div className="flex items-center gap-3">
+              <h2 className="text-[18px] font-medium text-[#EAE8E1]">Paliwo dla AI</h2>
+              <span className="text-[11px] font-medium text-[#A1A1AA] uppercase tracking-wider border border-white/[0.1] px-2 py-0.5 rounded-md">Opcjonalne</span>
+            </div>
+            <p className="text-[15px] text-[#A1A1AA] mt-1">Im więcej detali, tym trafniejsza personalizacja maili.</p>
           </div>
-          <span className="flex items-center gap-2 text-[13px] text-[#A1A1AA] bg-white/[0.03] border border-white/[0.08] px-3 py-1.5 rounded-full mt-0.5">
+          <span className="flex items-center gap-2 text-[13px] text-[#A1A1AA] bg-[#5d9970]/10 text-[#5d9970] border border-[#5d9970]/20 px-3 py-1.5 rounded-full mt-0.5">
             <Sparkles className="size-3.5" /> Używane przy generowaniu
           </span>
         </div>
 
         <div className="grid grid-cols-2 gap-5">
           <div>
-            <FLabel>Branża</FLabel>
-            <FSelect value={form.industry} onChange={f('industry')}>
-              <option value="" className="bg-[#1a1a1a] text-[#A1A1AA]">Wybierz branżę...</option>
-              {industries.map(b => <option key={b} value={b} className="bg-[#1a1a1a] text-[#EAE8E1]">{b}</option>)}
-            </FSelect>
+            <FLabel>Profil idealnego klienta (Odbiorca)</FLabel>
+            <FInput value={form.ideal_customer_profile} onChange={f('ideal_customer_profile')} placeholder="np. Dyrektorzy operacyjni w firmach 50+ pracowników" />
           </div>
-          <div><FLabel>Rynek docelowy</FLabel><FInput value={form.targetMarket} onChange={f('targetMarket')} placeholder="np. Polska, Niemcy, cała UE" /></div>
+          <div>
+            <FLabel>Kluczowe wyróżniki (Przewaga konkurencyjna)</FLabel>
+            <FInput value={form.competitive_advantages} onChange={f('competitive_advantages')} placeholder="np. Wdrożenie w 14 dni, darmowy audyt na start" />
+          </div>
         </div>
-
-        <div><FLabel>Główna przewaga (USP)</FLabel><FInput value={form.usp} onChange={f('usp')} placeholder="np. 10 lat doświadczenia, ekspresowa realizacja, certyfikaty ISO" /></div>
 
         <div>
           <div className="flex items-center justify-between mb-3">
-            <FLabel>Opis firmy</FLabel>
-            <button
-              onClick={refine}
-              disabled={refining || (!form.companyDesc && !form.industry)}
-              className="flex items-center gap-2 text-[14px] text-[#A1A1AA] hover:text-[#EAE8E1] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-            >
-              {refining ? <><Loader2 className="size-3.5 animate-spin" />Ulepszam...</> : <><Sparkles className="size-3.5" />AI Refine</>}
+            <FLabel>Szczegółowy kontekst dla AI</FLabel>
+            <button disabled className="flex items-center gap-2 text-[14px] text-[#71717A] opacity-60 cursor-not-allowed transition-colors">
+              <Sparkles className="size-3.5" /> AI Refine <span className="text-[10px] font-medium bg-white/[0.08] text-[#EAE8E1] px-1.5 py-0.5 rounded">Wkrótce</span>
             </button>
           </div>
           <FTextarea
-            value={form.companyDesc}
-            onChange={f('companyDesc') as any}
-            placeholder="Opisz swoją firmę — czym się zajmujesz, co oferujesz, co wyróżnia cię na tle konkurencji. Im więcej szczegółów, tym lepiej AI spersonalizuje każdy mail."
+            value={form.ai_context}
+            onChange={f('ai_context') as any}
+            placeholder="Opisz wszystko, co AI powinno wiedzieć: wielkość firmy, kluczowi klienci, wasza historia, szczegóły oferty, najczęstsze problemy, które rozwiązujecie..."
             rows={5}
           />
-          <p className="text-[13px] text-[#71717A] mt-2.5">{form.companyDesc.length} znaków · zalecane minimum 200</p>
         </div>
       </section>
 
-      <div className="flex justify-end"><SaveBtn saving={saving} saved={saved} onClick={save} /></div>
+      <div className="flex justify-end pt-4"><SaveBtn saving={saving} saved={saved} onClick={save} /></div>
+    </div>
+  );
+}
+
+// ─── Campaign Settings ───────────────────────────────────────────────────────
+
+function CampaignSettingsTab() {
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  const [form, setForm] = useState({ tone_of_voice: 'professional', primary_goal: 'meeting' });
+  const f = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLSelectElement>) => setForm(p => ({ ...p, [k]: e.target.value }));
+
+  useEffect(() => { load(); }, []);
+
+  const load = async () => {
+    setLoading(true);
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session) {
+      const { data } = await supabase.from('campaign_defaults').select('*').eq('user_id', session.user.id).single();
+      if (data) setForm({ tone_of_voice: data.tone_of_voice || 'professional', primary_goal: data.primary_goal || 'meeting' });
+    }
+    setLoading(false);
+  };
+
+  const save = async () => {
+    setSaving(true);
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session) {
+      await supabase.from('campaign_defaults').upsert({ user_id: session.user.id, ...form }, { onConflict: 'user_id' });
+    }
+    setSaving(false); setSaved(true);
+    setTimeout(() => setSaved(false), 2200);
+  };
+
+  if (loading) return <div className="flex justify-center py-14"><Loader2 className="size-6 text-[#71717A] animate-spin" /></div>;
+
+  return (
+    <div className="space-y-12">
+      <section className="space-y-6">
+        <div>
+          <h2 className="text-[18px] font-medium text-[#EAE8E1]">Domyślne ustawienia kampanii</h2>
+          <p className="text-[15px] text-[#A1A1AA] mt-1">Te wartości będą domyślnie używane podczas tworzenia nowych sekwencji.</p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-5">
+          <div>
+            <FLabel>Ton komunikacji</FLabel>
+            <FSelect value={form.tone_of_voice} onChange={f('tone_of_voice')}>
+              <option value="professional" className="bg-[#1a1a1a] text-[#EAE8E1]">Profesjonalny i formalny (Korporacje, B2B)</option>
+              <option value="direct" className="bg-[#1a1a1a] text-[#EAE8E1]">Bezpośredni i luźny (Startupy, E-commerce)</option>
+              <option value="analytical" className="bg-[#1a1a1a] text-[#EAE8E1]">Krótki i analityczny (CTO, Kadra C-level)</option>
+            </FSelect>
+          </div>
+          <div>
+            <FLabel>Główny cel maila (Call to Action)</FLabel>
+            <FSelect value={form.primary_goal} onChange={f('primary_goal')}>
+              <option value="meeting" className="bg-[#1a1a1a] text-[#EAE8E1]">Zaproszenie na krótkie spotkanie / Call</option>
+              <option value="material" className="bg-[#1a1a1a] text-[#EAE8E1]">Odesłanie do Case Study / Materiałów</option>
+              <option value="interest" className="bg-[#1a1a1a] text-[#EAE8E1]">Miękkie badanie gruntu ("Czy to u was temat?")</option>
+            </FSelect>
+          </div>
+        </div>
+      </section>
+
+      <div className="flex justify-end pt-4"><SaveBtn saving={saving} saved={saved} onClick={save} /></div>
     </div>
   );
 }
@@ -544,7 +670,6 @@ function BillingTab() {
 
   return (
     <div className="space-y-12">
-      {/* Current plan */}
       <section>
         <h2 className="text-[18px] font-medium text-[#EAE8E1] mb-1">Obecny plan</h2>
         <p className="text-[15px] text-[#A1A1AA] mb-6">Zarządzaj subskrypcją i kredytami</p>
@@ -587,7 +712,6 @@ function BillingTab() {
 
       <Rule />
 
-      {/* Payment method */}
       <section>
         <h2 className="text-[18px] font-medium text-[#EAE8E1] mb-6">Metoda płatności</h2>
         <div className="flex items-center justify-between p-6 rounded-2xl border border-white/[0.08] bg-white/[0.02]">
@@ -604,7 +728,6 @@ function BillingTab() {
 
       <Rule />
 
-      {/* Invoices */}
       <section>
         <h2 className="text-[18px] font-medium text-[#EAE8E1] mb-6">Historia faktur</h2>
         <div className="space-y-2">
@@ -716,10 +839,12 @@ function NotificationsTab() {
 // ─── Root ─────────────────────────────────────────────────────────────────────
 
 export function SettingsPage() {
-  const [activeTab, setActiveTab] = useState<Tab>('profile');
+  const [activeTab, setActiveTab] = useState<Tab>('company');
 
   const tabs: { id: Tab; label: string; icon: React.ElementType }[] = [
     { id: 'profile', label: 'Profil', icon: User },
+    { id: 'company', label: 'Informacje o firmie', icon: Building },
+    { id: 'campaign', label: 'Ustawienia kampanii', icon: Megaphone },
     { id: 'mailboxes', label: 'Skrzynki pocztowe', icon: Mail },
     { id: 'billing', label: 'Płatności', icon: CreditCard },
     { id: 'blacklist', label: 'Czarna lista', icon: Shield },
@@ -730,7 +855,7 @@ export function SettingsPage() {
     <div className="max-w-5xl mx-auto">
       <div className="mb-12">
         <h1 className="text-[28px] font-serif text-[#EAE8E1] tracking-tight">Ustawienia</h1>
-        <p className="text-[15px] text-[#A1A1AA] mt-2">Zarządzaj kontem, skrzynkami i preferencjami</p>
+        <p className="text-[15px] text-[#A1A1AA] mt-2">Zarządzaj kontem, firmą, skrzynkami i preferencjami</p>
       </div>
 
       <div className="grid grid-cols-12 gap-12">
@@ -763,6 +888,8 @@ export function SettingsPage() {
               transition={{ duration: 0.12 }}
             >
               {activeTab === 'profile' && <ProfileTab />}
+              {activeTab === 'company' && <CompanyTab />}
+              {activeTab === 'campaign' && <CampaignSettingsTab />}
               {activeTab === 'mailboxes' && <MailboxesTab />}
               {activeTab === 'billing' && <BillingTab />}
               {activeTab === 'blacklist' && <BlacklistTab />}
