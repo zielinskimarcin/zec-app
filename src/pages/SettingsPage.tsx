@@ -10,7 +10,7 @@ import {
 import { supabase } from '../lib/supabase';
 
 // IMPORT TWOICH BRANŻ (Dostosuj ścieżkę jeśli jest inna)
-import { searchOptions } from '../data/searchOptions';
+import { INDUSTRIES } from '../data/searchOptions';
 
 type Tab = 'profile' | 'company' | 'mailboxes' | 'campaign' | 'billing' | 'blacklist' | 'notifications';
 type Provider = 'gmail' | 'outlook' | 'other' | null;
@@ -116,9 +116,7 @@ function IndustryAutocomplete({ value, onChange }: { value: string, onChange: (v
   const [query, setQuery] = useState(value);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
-  // Bezpieczny fallback jeśli searchOptions nie zostało dobrze załadowane
-  const options = Array.isArray(searchOptions) ? searchOptions : ['IT', 'Marketing', 'Finanse', 'E-commerce', 'Nieruchomości'];
-  const filtered = options.filter(o => o.toLowerCase().includes(query.toLowerCase()));
+  const options = INDUSTRIES.map(ind => ind.label);
 
   useEffect(() => { setQuery(value); }, [value]);
 
