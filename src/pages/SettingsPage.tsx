@@ -4,7 +4,7 @@ import {
   User, Mail, CreditCard, Shield, Bell,
   CheckCircle2, XCircle, Plus, Trash2,
   AlertCircle, X, Loader2, ArrowLeft, Server,
-  Sparkles, Eye, EyeOff, Download, Check, Search
+  Sparkles, Eye, EyeOff, Download, Check, Search, Info
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
@@ -18,7 +18,8 @@ interface EmailAccount {
   status: 'connected' | 'error';
   daily_limit: number;
   sent_today: number;
-  last_sync: string;
+  last_sync: string | null;
+  smtp_host: string;
 }
 
 // ─── Brand logos ──────────────────────────────────────────────────────────────
@@ -236,6 +237,7 @@ function MailboxesTab() {
   const [step, setStep] = useState<1 | 2>(1);
   const [provider, setProvider] = useState<Provider>(null);
   const [verifying, setVerifying] = useState(false);
+  const [updatingLimit, setUpdatingLimit] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [mb, setMb] = useState({ email: '', name: '', password: '', smtpHost: '', smtpPort: '', imapHost: '', imapPort: '' });
 
@@ -286,6 +288,36 @@ function MailboxesTab() {
     setMailboxes(p => p.filter(m => m.id !== id));
   };
 
+  const updateLimit = async (id: string, newLimit: number) => {
+    if (!newLimit || isNaN(newLimit) || newLimit < 1) return;
+    setUpdatingLimit(id);
+    await supabase.from('email_accounts').update({ daily_limit: newLimit }).eq('id', id);
+    setMailboxes(prev => prev.map(m => m.id === id ? { ...m, daily_limit: newLimit } : m));
+    setUpdatingLimit(null);
+  };
+
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return '—';
+    try {
+      return new Intl.DateTimeFormat('pl-PL', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit'
+      }).format(new Date(dateString));
+    } catch { return '—'; }
+  };
+
+  const detectProvider = (email: string, smtpHost: string) => {
+    const lEmail = email.toLowerCase();
+    const lHost = (smtpHost || '').toLowerCase();
+    if (lEmail.includes('@gmail.com') || lHost.includes('gmail') || lHost.includes('google')) {
+      return { name: 'Google', logo: <GoogleLogo size={18} /> };
+    }
+    if (lEmail.includes('@outlook.') || lEmail.includes('@hotmail.') || lHost.includes('office365') || lHost.includes('microsoft')) {
+      return { name: 'Microsoft', logo: <MicrosoftLogo size={18} /> };
+    }
+    return { name: 'Inny host', logo: <Server className="size-5 text-[#A1A1AA]" /> };
+  };
+
   return (
     <>
       <div className="flex items-start justify-between mb-2">
@@ -314,14 +346,23 @@ function MailboxesTab() {
           <div className="space-y-4">
             {mailboxes.map(m => {
               const pct = m.daily_limit > 0 ? (m.sent_today / m.daily_limit) * 100 : 0;
+              const pInfo = detectProvider(m.email_address, m.smtp_host);
+              
               return (
-                <div key={m.id} className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-6">
+                <div key={m.id} className="rounded-2xl border border-white/[0.08] bg-white/[0.04] hover:bg-white/[0.06] p-6 transition-all duration-300">
                   <div className="flex items-start justify-between mb-6">
                     <div className="flex items-center gap-4">
-                      <div className="size-11 bg-white/[0.05] rounded-xl flex items-center justify-center"><Mail className="size-5 text-[#A1A1AA]" /></div>
+                      <div className="size-11 bg-white/[0.06] rounded-xl flex items-center justify-center">
+                        {pInfo.logo}
+                      </div>
                       <div>
-                        <p className="text-[16px] font-medium text-[#EAE8E1]">{m.email_address}</p>
-                        <p className="text-[14px] text-[#A1A1AA] mt-0.5">{m.sender_name}</p>
+                        <div className="flex items-center gap-3 mb-0.5">
+                          <p className="text-[16px] font-medium text-[#EAE8E1]">{m.email_address}</p>
+                          <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-white/[0.06] border border-white/[0.04] text-[11px] text-[#A1A1AA] font-medium uppercase tracking-wider">
+                            {pInfo.name}
+                          </span>
+                        </div>
+                        <p className="text-[14px] text-[#A1A1AA]">{m.sender_name}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
@@ -331,12 +372,42 @@ function MailboxesTab() {
                       <button onClick={() => remove(m.id)} className="p-2 text-[#71717A] hover:text-[#b56060] hover:bg-[#b56060]/10 rounded-lg transition-all"><Trash2 className="size-4" /></button>
                     </div>
                   </div>
+                  
                   <div className="grid grid-cols-3 gap-6 mb-5 text-[14px]">
-                    <div><p className="text-[#71717A] mb-1.5">Wysłano dziś</p><p className="font-medium text-[#EAE8E1]">{m.sent_today} / {m.daily_limit}</p></div>
-                    <div><p className="text-[#71717A] mb-1.5">Limit dzienny</p><p className="font-medium text-[#EAE8E1]">{m.daily_limit} maili</p></div>
-                    <div><p className="text-[#71717A] mb-1.5">Ostatnia sync</p><p className="font-medium text-[#EAE8E1]">{m.last_sync || '—'}</p></div>
+                    <div>
+                      <p className="text-[#71717A] mb-2">Wysłano dziś</p>
+                      <p className="font-medium text-[#EAE8E1]">{m.sent_today} <span className="text-[#71717A] font-normal">/ {m.daily_limit}</span></p>
+                    </div>
+                    
+                    <div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <p className="text-[#71717A]">Limit dzienny</p>
+                        <div className="relative group">
+                          <Info className="size-3.5 text-[#71717A] cursor-help hover:text-[#EAE8E1] transition-colors" />
+                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 p-3 bg-[#1A1A1A] border border-white/[0.12] text-[#A1A1AA] text-[12px] leading-relaxed rounded-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10 text-center shadow-xl">
+                            Zalecany limit to <strong className="text-[#EAE8E1] font-medium">30-50 maili</strong> dziennie dla jednej skrzynki, aby uniknąć blokady antyspamowej.
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input 
+                          type="number" 
+                          min="1"
+                          defaultValue={m.daily_limit}
+                          onBlur={(e) => updateLimit(m.id, parseInt(e.target.value))}
+                          className="w-16 bg-transparent border border-white/[0.12] rounded-lg px-2 py-1 text-[14px] text-[#EAE8E1] focus:outline-none focus:border-white/[0.25] focus:bg-white/[0.04] transition-all text-center"
+                        />
+                        <span className="text-[#71717A] text-[13px]">maili</span>
+                        {updatingLimit === m.id && <Loader2 className="size-3.5 text-[#A1A1AA] animate-spin ml-1" />}
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <p className="text-[#71717A] mb-2">Ostatnia sync</p>
+                      <p className="font-medium text-[#EAE8E1]">{formatDate(m.last_sync)}</p>
+                    </div>
                   </div>
-                  <div className="h-1.5 bg-white/[0.06] rounded-full overflow-hidden"><div className="h-full bg-[#A1A1AA] rounded-full" style={{ width: `${pct}%` }} /></div>
+                  <div className="h-1.5 bg-white/[0.06] rounded-full overflow-hidden"><div className="h-full bg-[#A1A1AA] rounded-full transition-all duration-500" style={{ width: `${pct}%` }} /></div>
                 </div>
               );
             })}
