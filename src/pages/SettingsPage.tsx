@@ -1,15 +1,18 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   User, Mail, CreditCard, Shield, Bell,
   CheckCircle2, Plus, Trash2, AlertCircle, 
   X, Loader2, ArrowLeft, Server, Sparkles, 
   Eye, EyeOff, Download, Check, Search, Info,
-  Building, Megaphone
+  Building, Megaphone, Lock
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
-type Tab = 'profile' | 'company' | 'campaign' | 'mailboxes' | 'billing' | 'blacklist' | 'notifications';
+// IMPORT TWOICH BRANŻ (Dostosuj ścieżkę jeśli jest inna)
+import { searchOptions } from '../data/searchOptions';
+
+type Tab = 'profile' | 'company' | 'mailboxes' | 'campaign' | 'billing' | 'blacklist' | 'notifications';
 type Provider = 'gmail' | 'outlook' | 'other' | null;
 
 interface EmailAccount {
@@ -49,9 +52,9 @@ function MicrosoftLogo({ size = 22 }: { size?: number }) {
 
 // ─── Shared primitives ────────────────────────────────────────────────────────
 
-const inputCls = `w-full bg-transparent border border-white/[0.12] rounded-xl px-5 py-3.5
+const inputCls = `w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-5 py-3.5
   text-[15px] text-[#EAE8E1] placeholder:text-[#71717A]
-  focus:outline-none focus:border-white/[0.25] focus:bg-white/[0.02]
+  focus:outline-none focus:border-white/[0.25] focus:bg-white/[0.06]
   transition-all duration-200 disabled:opacity-25 disabled:cursor-not-allowed`;
 
 function FLabel({ children }: { children: React.ReactNode }) {
@@ -106,28 +109,156 @@ function SaveBtn({ saving, saved, onClick }: { saving: boolean; saved: boolean; 
   );
 }
 
-// ─── Profile (Only Account Details) ──────────────────────────────────────────
+// ─── Autocomplete Component ───────────────────────────────────────────────────
+
+function IndustryAutocomplete({ value, onChange }: { value: string, onChange: (v: string) => void }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [query, setQuery] = useState(value);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  // Bezpieczny fallback jeśli searchOptions nie zostało dobrze załadowane
+  const options = Array.isArray(searchOptions) ? searchOptions : ['IT', 'Marketing', 'Finanse', 'E-commerce', 'Nieruchomości'];
+  const filtered = options.filter(o => o.toLowerCase().includes(query.toLowerCase()));
+
+  useEffect(() => { setQuery(value); }, [value]);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [wrapperRef]);
+
+  return (
+    <div className="relative" ref={wrapperRef}>
+      <FInput 
+        value={query} 
+        onChange={(e) => { setQuery(e.target.value); onChange(e.target.value); setIsOpen(true); }}
+        onFocus={() => setIsOpen(true)}
+        placeholder="Wpisz lub wybierz branżę..."
+        required
+      />
+      <AnimatePresence>
+        {isOpen && filtered.length > 0 && (
+          <motion.div 
+            initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }}
+            className="absolute top-full left-0 right-0 mt-2 max-h-60 overflow-y-auto bg-[#1A1A1A] border border-white/[0.12] rounded-xl shadow-2xl z-50 p-1"
+          >
+            {filtered.map(opt => (
+              <button
+                key={opt}
+                type="button"
+                onClick={() => { setQuery(opt); onChange(opt); setIsOpen(false); }}
+                className="w-full text-left px-4 py-2.5 text-[14px] text-[#EAE8E1] hover:bg-white/[0.06] rounded-lg transition-colors"
+              >
+                {opt}
+              </button>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+
+// ─── Profile Tab (Complex Account & Security) ────────────────────────────────
 
 function ProfileTab() {
-  const [form, setForm] = useState({ firstName: 'Jan', lastName: 'Kowalski', phone: '', password: '' });
-  const f = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => setForm(p => ({ ...p, [k]: e.target.value }));
-  const [showPass, setShowPass] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', phone: '', timezone: 'Europe/Warsaw' });
+  
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [passForm, setPassForm] = useState({ newPass: '', confirmPass: '' });
+  const [showPass, setShowPass] = useState(false);
+
+  useEffect(() => { load(); }, []);
+
+  const load = async () => {
+    setLoading(true);
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session) {
+      const { data } = await supabase.from('profiles').select('*').eq('id', session.user.id).single();
+      const fullName = data?.full_name || '';
+      const nameParts = fullName.split(' ');
+      
+      setForm({ 
+        firstName: nameParts[0] || '', 
+        lastName: nameParts.slice(1).join(' ') || '', 
+        email: session.user.email || '', 
+        phone: data?.phone || '', 
+        timezone: data?.timezone || 'Europe/Warsaw' 
+      });
+    }
+    setLoading(false);
+  };
 
   const save = async () => {
+    setErr(null);
     setSaving(true);
-    await new Promise(r => setTimeout(r, 700)); // Mockup zapisu
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    if (session) {
+      // 1. Aktualizacja danych profilu
+      const fullName = `${form.firstName} ${form.lastName}`.trim();
+      await supabase.from('profiles').update({ 
+        full_name: fullName, 
+        phone: form.phone, 
+        timezone: form.timezone 
+      }).eq('id', session.user.id);
+
+      // 2. Aktualizacja hasła (jeśli formularz otwarty)
+      if (isChangingPassword) {
+        if (!passForm.newPass || passForm.newPass !== passForm.confirmPass) {
+          setErr("Hasła nie pasują do siebie lub są puste.");
+          setSaving(false);
+          return;
+        }
+        const { error } = await supabase.auth.updateUser({ password: passForm.newPass });
+        if (error) {
+          setErr(error.message);
+          setSaving(false);
+          return;
+        }
+        setIsChangingPassword(false);
+        setPassForm({ newPass: '', confirmPass: '' });
+      }
+    }
     setSaving(false); setSaved(true);
     setTimeout(() => setSaved(false), 2200);
   };
 
+  const f = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setForm(p => ({ ...p, [k]: e.target.value }));
+  const pf = (k: keyof typeof passForm) => (e: React.ChangeEvent<HTMLInputElement>) => setPassForm(p => ({ ...p, [k]: e.target.value }));
+
+  const initials = `${form.firstName?.[0] || ''}${form.lastName?.[0] || ''}`.toUpperCase() || 'U';
+
+  if (loading) return <div className="flex justify-center py-14"><Loader2 className="size-6 text-[#71717A] animate-spin" /></div>;
+
   return (
     <div className="space-y-12">
-      <section className="space-y-6">
+      {/* Awatar i Informacje podstawowe */}
+      <section className="space-y-8">
         <div>
           <h2 className="text-[18px] font-medium text-[#EAE8E1]">Dane konta</h2>
-          <p className="text-[15px] text-[#A1A1AA] mt-1">Podstawowe dane logowania i bezpieczeństwo</p>
+          <p className="text-[15px] text-[#A1A1AA] mt-1">Podstawowe dane logowania i identyfikacja</p>
+        </div>
+
+        <div className="flex items-center gap-6">
+          <div className="size-20 bg-white/[0.06] border border-white/[0.1] rounded-full flex items-center justify-center text-[24px] font-medium text-[#EAE8E1] tracking-wider">
+            {initials}
+          </div>
+          <div>
+            <p className="text-[16px] font-medium text-[#EAE8E1]">{form.firstName} {form.lastName}</p>
+            <p className="text-[14px] text-[#71717A] mt-0.5">{form.email}</p>
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-5">
@@ -136,19 +267,71 @@ function ProfileTab() {
         </div>
 
         <div className="grid grid-cols-2 gap-5">
-          <div><FLabel>E-mail (Login)</FLabel><FInput value="jan@firma.pl" disabled /></div>
-          <div>
-            <FLabel>Nowe hasło</FLabel>
-            <div className="relative">
-              <FInput type={showPass ? 'text' : 'password'} value={form.password} onChange={f('password')} placeholder="Zostaw puste, jeśli nie zmieniasz" />
-              <button onClick={() => setShowPass(v => !v)} className="absolute right-5 top-1/2 -translate-y-1/2 text-[#71717A] hover:text-[#A1A1AA] transition-colors">
-                {showPass ? <EyeOff className="size-5" /> : <Eye className="size-5" />}
+          <div><FLabel>E-mail (Login)</FLabel><FInput value={form.email} disabled className="opacity-50" /></div>
+          <div><FLabel>Telefon prywatny</FLabel><FInput value={form.phone} onChange={f('phone')} placeholder="+48 000 000 000" /></div>
+        </div>
+
+        <div className="w-1/2 pr-2.5">
+          <FLabel>Strefa czasowa</FLabel>
+          <FSelect value={form.timezone} onChange={f('timezone')}>
+            <option value="Europe/Warsaw" className="bg-[#1a1a1a]">Europa / Warszawa (CET)</option>
+            <option value="Europe/London" className="bg-[#1a1a1a]">Europa / Londyn (GMT)</option>
+            <option value="America/New_York" className="bg-[#1a1a1a]">Ameryka / Nowy Jork (EST)</option>
+            <option value="Asia/Dubai" className="bg-[#1a1a1a]">Azja / Dubaj (GST)</option>
+          </FSelect>
+        </div>
+      </section>
+
+      <Rule />
+
+      {/* Bezpieczeństwo / Hasło */}
+      <section className="space-y-6">
+        <div>
+          <h2 className="text-[18px] font-medium text-[#EAE8E1]">Bezpieczeństwo</h2>
+          <p className="text-[15px] text-[#A1A1AA] mt-1">Zarządzaj hasłem do swojego konta</p>
+        </div>
+
+        {err && (
+          <div className="flex items-start gap-3 p-4 bg-[#b56060]/10 border border-[#b56060]/20 rounded-xl text-[#b56060] text-[14px]">
+            <AlertCircle className="size-5 shrink-0 mt-0.5" />{err}
+          </div>
+        )}
+
+        {!isChangingPassword ? (
+          <button 
+            onClick={() => setIsChangingPassword(true)}
+            className="flex items-center gap-2.5 px-5 py-3 border border-white/[0.1] text-[#EAE8E1] text-[14px] font-medium rounded-xl hover:bg-white/[0.04] transition-all"
+          >
+            <Lock className="size-4" /> Zmień hasło
+          </button>
+        ) : (
+          <div className="p-6 bg-white/[0.02] border border-white/[0.08] rounded-2xl space-y-5">
+            <div className="grid grid-cols-2 gap-5">
+              <div>
+                <FLabel>Nowe hasło</FLabel>
+                <div className="relative">
+                  <FInput type={showPass ? 'text' : 'password'} value={passForm.newPass} onChange={pf('newPass')} placeholder="Wpisz nowe hasło" />
+                  <button onClick={() => setShowPass(v => !v)} className="absolute right-5 top-1/2 -translate-y-1/2 text-[#71717A] hover:text-[#A1A1AA] transition-colors">
+                    {showPass ? <EyeOff className="size-5" /> : <Eye className="size-5" />}
+                  </button>
+                </div>
+              </div>
+              <div>
+                <FLabel>Potwierdź nowe hasło</FLabel>
+                <FInput type={showPass ? 'text' : 'password'} value={passForm.confirmPass} onChange={pf('confirmPass')} placeholder="Powtórz nowe hasło" />
+              </div>
+            </div>
+            <div className="flex justify-end gap-3">
+              <button 
+                onClick={() => { setIsChangingPassword(false); setPassForm({ newPass: '', confirmPass: '' }); setErr(null); }}
+                className="px-5 py-3 text-[#A1A1AA] hover:text-[#EAE8E1] text-[14px] font-medium transition-all"
+              >
+                Anuluj
               </button>
             </div>
           </div>
-        </div>
-        
-        <div><FLabel>Telefon prywatny</FLabel><FInput value={form.phone} onChange={f('phone')} placeholder="+48 000 000 000" className="w-1/2 pr-5" /></div>
+        )}
+
       </section>
 
       <div className="flex justify-end pt-4"><SaveBtn saving={saving} saved={saved} onClick={save} /></div>
@@ -162,13 +345,14 @@ function CompanyTab() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
 
   const [form, setForm] = useState({
     name: '', website: '', industry: '', short_description: '',
     ideal_customer_profile: '', competitive_advantages: '', ai_context: ''
   });
 
-  const f = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
+  const f = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm(p => ({ ...p, [k]: e.target.value }));
 
   useEffect(() => { load(); }, []);
@@ -190,6 +374,12 @@ function CompanyTab() {
   };
 
   const save = async () => {
+    setErr(null);
+    if (!form.name || !form.website || !form.industry || !form.short_description) {
+      setErr("Proszę wypełnić wszystkie wymagane pola oznaczone gwiazdką.");
+      return;
+    }
+
     setSaving(true);
     const { data: { session } } = await supabase.auth.getSession();
     if (session) {
@@ -199,153 +389,78 @@ function CompanyTab() {
     setTimeout(() => setSaved(false), 2200);
   };
 
-  const industries = ['IT / Software', 'Marketing / Agencja', 'Produkcja', 'Meble / Wyposażenie', 'Nieruchomości', 'Finanse / Doradztwo', 'Handel / E-commerce', 'Inne'];
-
   if (loading) return <div className="flex justify-center py-14"><Loader2 className="size-6 text-[#71717A] animate-spin" /></div>;
 
   return (
     <div className="space-y-12">
+      {err && (
+        <div className="flex items-start gap-3 p-4 bg-[#b56060]/10 border border-[#b56060]/20 rounded-xl text-[#b56060] text-[14px]">
+          <AlertCircle className="size-5 shrink-0 mt-0.5" />{err}
+        </div>
+      )}
+
+      {/* Sekcja 1: Podstawy */}
       <section className="space-y-6">
         <div className="flex items-start justify-between">
           <div>
             <h2 className="text-[18px] font-medium text-[#EAE8E1]">Podstawowe informacje o firmie</h2>
-            <p className="text-[15px] text-[#A1A1AA] mt-1">Niezbędne minimum do definiowania Twojej działalności</p>
+            <p className="text-[15px] text-[#A1A1AA] mt-1">Niezbędne minimum do zdefiniowania Twojej działalności</p>
           </div>
         </div>
 
         <div className="grid grid-cols-2 gap-5">
           <div>
             <FLabel>Nazwa firmy <span className="text-[#b56060]">*</span></FLabel>
-            <FInput value={form.name} onChange={f('name')} placeholder="np. TechFlow Sp. z o.o." />
+            <FInput value={form.name} onChange={f('name')} placeholder="np. TechFlow Sp. z o.o." required />
           </div>
           <div>
             <FLabel>Strona WWW <span className="text-[#b56060]">*</span></FLabel>
-            <FInput value={form.website} onChange={f('website')} placeholder="https://techflow.pl" />
+            <FInput value={form.website} onChange={f('website')} placeholder="https://techflow.pl" required />
           </div>
         </div>
 
         <div className="grid grid-cols-2 gap-5">
-          <div>
+          <div className="relative">
             <FLabel>Branża <span className="text-[#b56060]">*</span></FLabel>
-            <FSelect value={form.industry} onChange={f('industry')}>
-              <option value="" className="bg-[#1a1a1a] text-[#A1A1AA]">Wybierz branżę...</option>
-              {industries.map(b => <option key={b} value={b} className="bg-[#1a1a1a] text-[#EAE8E1]">{b}</option>)}
-            </FSelect>
+            <IndustryAutocomplete value={form.industry} onChange={(val) => setForm(p => ({ ...p, industry: val }))} />
           </div>
           <div>
-            <FLabel>Główny profil działalności <span className="text-[#b56060]">*</span></FLabel>
-            <FInput value={form.short_description} onChange={f('short_description')} placeholder="np. Tworzymy dedykowane oprogramowanie dla logistyki." />
+            <FLabel>Krótki opis (Czym się zajmujecie?) <span className="text-[#b56060]">*</span></FLabel>
+            <FInput value={form.short_description} onChange={f('short_description')} placeholder="np. Tworzymy dedykowane oprogramowanie dla logistyki." required />
           </div>
         </div>
       </section>
 
       <Rule />
 
+      {/* Sekcja 2: Paliwo dla AI */}
       <section className="space-y-6">
         <div className="flex items-start justify-between">
           <div>
-            <div className="flex items-center gap-3">
-              <h2 className="text-[18px] font-medium text-[#EAE8E1]">Paliwo dla AI</h2>
-              <span className="text-[11px] font-medium text-[#A1A1AA] uppercase tracking-wider border border-white/[0.1] px-2 py-0.5 rounded-md">Opcjonalne</span>
-            </div>
-            <p className="text-[15px] text-[#A1A1AA] mt-1">Im więcej detali, tym trafniejsza personalizacja maili.</p>
+            <h2 className="text-[18px] font-medium text-[#EAE8E1]">Dodatkowy kontekst dla AI <span className="text-[#71717A] text-[15px] font-normal">(opcjonalne)</span></h2>
+            <p className="text-[15px] text-[#A1A1AA] mt-1">Im więcej detali tu podasz, tym trafniejsza będzie personalizacja maili.</p>
           </div>
-          <span className="flex items-center gap-2 text-[13px] text-[#A1A1AA] bg-[#5d9970]/10 text-[#5d9970] border border-[#5d9970]/20 px-3 py-1.5 rounded-full mt-0.5">
-            <Sparkles className="size-3.5" /> Używane przy generowaniu
-          </span>
         </div>
 
         <div className="grid grid-cols-2 gap-5">
           <div>
-            <FLabel>Profil idealnego klienta (Odbiorca)</FLabel>
+            <FLabel>Profil idealnego klienta (Kto jest odbiorcą?)</FLabel>
             <FInput value={form.ideal_customer_profile} onChange={f('ideal_customer_profile')} placeholder="np. Dyrektorzy operacyjni w firmach 50+ pracowników" />
           </div>
           <div>
-            <FLabel>Kluczowe wyróżniki (Przewaga konkurencyjna)</FLabel>
+            <FLabel>Kluczowe wyróżniki (Twoja przewaga)</FLabel>
             <FInput value={form.competitive_advantages} onChange={f('competitive_advantages')} placeholder="np. Wdrożenie w 14 dni, darmowy audyt na start" />
           </div>
         </div>
 
         <div>
-          <div className="flex items-center justify-between mb-3">
-            <FLabel>Szczegółowy kontekst dla AI</FLabel>
-            <button disabled className="flex items-center gap-2 text-[14px] text-[#71717A] opacity-60 cursor-not-allowed transition-colors">
-              <Sparkles className="size-3.5" /> AI Refine <span className="text-[10px] font-medium bg-white/[0.08] text-[#EAE8E1] px-1.5 py-0.5 rounded">Wkrótce</span>
-            </button>
-          </div>
+          <FLabel>Szczegółowy opis działalności</FLabel>
           <FTextarea
             value={form.ai_context}
             onChange={f('ai_context') as any}
             placeholder="Opisz wszystko, co AI powinno wiedzieć: wielkość firmy, kluczowi klienci, wasza historia, szczegóły oferty, najczęstsze problemy, które rozwiązujecie..."
             rows={5}
           />
-        </div>
-      </section>
-
-      <div className="flex justify-end pt-4"><SaveBtn saving={saving} saved={saved} onClick={save} /></div>
-    </div>
-  );
-}
-
-// ─── Campaign Settings ───────────────────────────────────────────────────────
-
-function CampaignSettingsTab() {
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-
-  const [form, setForm] = useState({ tone_of_voice: 'professional', primary_goal: 'meeting' });
-  const f = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLSelectElement>) => setForm(p => ({ ...p, [k]: e.target.value }));
-
-  useEffect(() => { load(); }, []);
-
-  const load = async () => {
-    setLoading(true);
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session) {
-      const { data } = await supabase.from('campaign_defaults').select('*').eq('user_id', session.user.id).single();
-      if (data) setForm({ tone_of_voice: data.tone_of_voice || 'professional', primary_goal: data.primary_goal || 'meeting' });
-    }
-    setLoading(false);
-  };
-
-  const save = async () => {
-    setSaving(true);
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session) {
-      await supabase.from('campaign_defaults').upsert({ user_id: session.user.id, ...form }, { onConflict: 'user_id' });
-    }
-    setSaving(false); setSaved(true);
-    setTimeout(() => setSaved(false), 2200);
-  };
-
-  if (loading) return <div className="flex justify-center py-14"><Loader2 className="size-6 text-[#71717A] animate-spin" /></div>;
-
-  return (
-    <div className="space-y-12">
-      <section className="space-y-6">
-        <div>
-          <h2 className="text-[18px] font-medium text-[#EAE8E1]">Domyślne ustawienia kampanii</h2>
-          <p className="text-[15px] text-[#A1A1AA] mt-1">Te wartości będą domyślnie używane podczas tworzenia nowych sekwencji.</p>
-        </div>
-
-        <div className="grid grid-cols-2 gap-5">
-          <div>
-            <FLabel>Ton komunikacji</FLabel>
-            <FSelect value={form.tone_of_voice} onChange={f('tone_of_voice')}>
-              <option value="professional" className="bg-[#1a1a1a] text-[#EAE8E1]">Profesjonalny i formalny (Korporacje, B2B)</option>
-              <option value="direct" className="bg-[#1a1a1a] text-[#EAE8E1]">Bezpośredni i luźny (Startupy, E-commerce)</option>
-              <option value="analytical" className="bg-[#1a1a1a] text-[#EAE8E1]">Krótki i analityczny (CTO, Kadra C-level)</option>
-            </FSelect>
-          </div>
-          <div>
-            <FLabel>Główny cel maila (Call to Action)</FLabel>
-            <FSelect value={form.primary_goal} onChange={f('primary_goal')}>
-              <option value="meeting" className="bg-[#1a1a1a] text-[#EAE8E1]">Zaproszenie na krótkie spotkanie / Call</option>
-              <option value="material" className="bg-[#1a1a1a] text-[#EAE8E1]">Odesłanie do Case Study / Materiałów</option>
-              <option value="interest" className="bg-[#1a1a1a] text-[#EAE8E1]">Miękkie badanie gruntu ("Czy to u was temat?")</option>
-            </FSelect>
-          </div>
         </div>
       </section>
 
@@ -541,7 +656,7 @@ function MailboxesTab() {
         )}
       </div>
 
-      {/* Modal */}
+      {/* Modal skrzynek */}
       <AnimatePresence>
         {open && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
@@ -552,7 +667,6 @@ function MailboxesTab() {
               transition={{ duration: 0.16 }}
               className="bg-[#1e1e1e] border border-white/[0.08] rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden"
             >
-              {/* Header */}
               <div className="flex items-center justify-between px-8 py-6 border-b border-white/[0.06]">
                 <div className="flex items-center gap-4">
                   {step === 2 && <button onClick={() => setStep(1)} className="p-2 hover:bg-white/[0.06] rounded-lg text-[#A1A1AA] hover:text-[#EAE8E1] transition-all"><ArrowLeft className="size-5" /></button>}
@@ -564,7 +678,6 @@ function MailboxesTab() {
                 <button onClick={close} className="p-2 text-[#71717A] hover:text-[#EAE8E1] hover:bg-white/[0.06] rounded-lg transition-all"><X className="size-5" /></button>
               </div>
 
-              {/* Step 1 — provider pick */}
               {step === 1 && (
                 <div className="p-8 grid grid-cols-3 gap-4">
                   {[
@@ -587,7 +700,6 @@ function MailboxesTab() {
                 </div>
               )}
 
-              {/* Step 2 — form */}
               {step === 2 && (
                 <div className="flex">
                   <form onSubmit={submit} className="flex-1 p-8 space-y-5">
@@ -625,7 +737,6 @@ function MailboxesTab() {
                     </button>
                   </form>
 
-                  {/* Instructions sidebar */}
                   <div className="w-64 p-8 border-l border-white/[0.06] bg-white/[0.01]">
                     <p className="text-[12px] font-medium text-[#71717A] uppercase tracking-wider mb-5">Instrukcja</p>
                     {provider === 'gmail' && (
@@ -659,13 +770,80 @@ function MailboxesTab() {
   );
 }
 
-// ─── Billing ──────────────────────────────────────────────────────────────────
+// ─── Campaign Settings ───────────────────────────────────────────────────────
+
+function CampaignSettingsTab() {
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  const [form, setForm] = useState({ tone_of_voice: 'professional', primary_goal: 'meeting' });
+  const f = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLSelectElement>) => setForm(p => ({ ...p, [k]: e.target.value }));
+
+  useEffect(() => { load(); }, []);
+
+  const load = async () => {
+    setLoading(true);
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session) {
+      const { data } = await supabase.from('campaign_defaults').select('*').eq('user_id', session.user.id).single();
+      if (data) setForm({ tone_of_voice: data.tone_of_voice || 'professional', primary_goal: data.primary_goal || 'meeting' });
+    }
+    setLoading(false);
+  };
+
+  const save = async () => {
+    setSaving(true);
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session) {
+      await supabase.from('campaign_defaults').upsert({ user_id: session.user.id, ...form }, { onConflict: 'user_id' });
+    }
+    setSaving(false); setSaved(true);
+    setTimeout(() => setSaved(false), 2200);
+  };
+
+  if (loading) return <div className="flex justify-center py-14"><Loader2 className="size-6 text-[#71717A] animate-spin" /></div>;
+
+  return (
+    <div className="space-y-12">
+      <section className="space-y-6">
+        <div>
+          <h2 className="text-[18px] font-medium text-[#EAE8E1]">Domyślne ustawienia kampanii</h2>
+          <p className="text-[15px] text-[#A1A1AA] mt-1">Te wartości będą używane jako podstawa przy tworzeniu nowych sekwencji.</p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-5">
+          <div>
+            <FLabel>Ton komunikacji</FLabel>
+            <FSelect value={form.tone_of_voice} onChange={f('tone_of_voice')}>
+              <option value="professional" className="bg-[#1a1a1a] text-[#EAE8E1]">Profesjonalny i formalny (Korporacje, B2B)</option>
+              <option value="direct" className="bg-[#1a1a1a] text-[#EAE8E1]">Bezpośredni i luźny (Startupy, E-commerce)</option>
+              <option value="analytical" className="bg-[#1a1a1a] text-[#EAE8E1]">Krótki i analityczny (CTO, Kadra C-level)</option>
+            </FSelect>
+          </div>
+          <div>
+            <FLabel>Główny cel maila (Call to Action)</FLabel>
+            <FSelect value={form.primary_goal} onChange={f('primary_goal')}>
+              <option value="meeting" className="bg-[#1a1a1a] text-[#EAE8E1]">Zaproszenie na krótkie spotkanie / Call</option>
+              <option value="material" className="bg-[#1a1a1a] text-[#EAE8E1]">Odesłanie do Case Study / Materiałów</option>
+              <option value="interest" className="bg-[#1a1a1a] text-[#EAE8E1]">Miękkie badanie gruntu ("Czy to u was temat?")</option>
+            </FSelect>
+          </div>
+        </div>
+      </section>
+
+      <div className="flex justify-end pt-4"><SaveBtn saving={saving} saved={saved} onClick={save} /></div>
+    </div>
+  );
+}
+
+// ─── Billing, Blacklist, Notifications ────────────────────────────────────────
 
 function BillingTab() {
   const invoices = [
-    { id: 1, date: '1.03.2026', plan: 'Growth', amount: '$129.00' },
-    { id: 2, date: '1.02.2026', plan: 'Growth', amount: '$129.00' },
-    { id: 3, date: '1.01.2026', plan: 'Starter', amount: '$49.00' },
+    { id: 1, date: '1.04.2026', plan: 'Growth', amount: '$129.00' },
+    { id: 2, date: '1.03.2026', plan: 'Growth', amount: '$129.00' },
+    { id: 3, date: '1.02.2026', plan: 'Starter', amount: '$49.00' },
   ];
 
   return (
@@ -674,7 +852,7 @@ function BillingTab() {
         <h2 className="text-[18px] font-medium text-[#EAE8E1] mb-1">Obecny plan</h2>
         <p className="text-[15px] text-[#A1A1AA] mb-6">Zarządzaj subskrypcją i kredytami</p>
 
-        <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-8 mb-5">
+        <div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] p-8 mb-5">
           <div className="flex items-start justify-between mb-8">
             <div>
               <p className="text-[13px] text-[#71717A] uppercase tracking-wider mb-2">Twój plan</p>
@@ -700,7 +878,7 @@ function BillingTab() {
               <span className="text-[#EAE8E1] font-mono">1450 / 2000</span>
             </div>
             <div className="h-1.5 bg-white/[0.06] rounded-full overflow-hidden"><div className="h-full bg-[#A1A1AA] rounded-full" style={{ width: '72.5%' }} /></div>
-            <p className="text-[13px] text-[#71717A] mt-3">Odnawia się 1 kwietnia 2026</p>
+            <p className="text-[13px] text-[#71717A] mt-3">Odnawia się 1 maja 2026</p>
           </div>
         </div>
 
@@ -714,7 +892,7 @@ function BillingTab() {
 
       <section>
         <h2 className="text-[18px] font-medium text-[#EAE8E1] mb-6">Metoda płatności</h2>
-        <div className="flex items-center justify-between p-6 rounded-2xl border border-white/[0.08] bg-white/[0.02]">
+        <div className="flex items-center justify-between p-6 rounded-2xl border border-white/[0.08] bg-white/[0.04]">
           <div className="flex items-center gap-4">
             <div className="size-11 bg-white/[0.05] rounded-xl flex items-center justify-center"><CreditCard className="size-5 text-[#A1A1AA]" /></div>
             <div>
@@ -732,9 +910,9 @@ function BillingTab() {
         <h2 className="text-[18px] font-medium text-[#EAE8E1] mb-6">Historia faktur</h2>
         <div className="space-y-2">
           {invoices.map(inv => (
-            <div key={inv.id} className="flex items-center justify-between px-6 py-4 rounded-2xl hover:bg-white/[0.03] transition-all group border border-transparent hover:border-white/[0.06]">
+            <div key={inv.id} className="flex items-center justify-between px-6 py-4 rounded-2xl hover:bg-white/[0.04] transition-all group border border-transparent hover:border-white/[0.06]">
               <div className="flex items-center gap-4">
-                <div className="size-10 bg-white/[0.04] rounded-lg flex items-center justify-center"><CreditCard className="size-4 text-[#A1A1AA]" /></div>
+                <div className="size-10 bg-white/[0.05] rounded-lg flex items-center justify-center"><CreditCard className="size-4 text-[#A1A1AA]" /></div>
                 <div>
                   <p className="text-[15px] font-medium text-[#EAE8E1]">{inv.plan}</p>
                   <p className="text-[13px] text-[#71717A] mt-0.5">{inv.date}</p>
@@ -751,8 +929,6 @@ function BillingTab() {
     </div>
   );
 }
-
-// ─── Blacklist ────────────────────────────────────────────────────────────────
 
 function BlacklistTab() {
   const [entries, setEntries] = useState(['spam@domain.com', 'noreply@automaticsystem.com']);
@@ -783,7 +959,7 @@ function BlacklistTab() {
 
       <div className="space-y-1.5 max-h-96 overflow-y-auto pr-2">
         {entries.filter(e => e.includes(filter)).map(entry => (
-          <div key={entry} className="flex items-center justify-between px-5 py-3.5 rounded-xl border border-transparent hover:border-white/[0.06] hover:bg-white/[0.02] group transition-all">
+          <div key={entry} className="flex items-center justify-between px-5 py-3.5 rounded-xl border border-transparent hover:border-white/[0.06] hover:bg-white/[0.04] group transition-all">
             <div className="flex items-center gap-3.5">
               <Shield className="size-4 text-[#71717A]" />
               <span className="text-[15px] font-mono text-[#EAE8E1]">{entry}</span>
@@ -797,8 +973,6 @@ function BlacklistTab() {
     </div>
   );
 }
-
-// ─── Notifications ────────────────────────────────────────────────────────────
 
 function NotificationsTab() {
   const [s, setS] = useState({ campaignFinished: true, newReply: true, dailyReport: false, weeklyReport: true, lowCredits: true, mailboxError: true, newLead: false, productUpdates: true });
@@ -839,13 +1013,13 @@ function NotificationsTab() {
 // ─── Root ─────────────────────────────────────────────────────────────────────
 
 export function SettingsPage() {
-  const [activeTab, setActiveTab] = useState<Tab>('company');
+  const [activeTab, setActiveTab] = useState<Tab>('profile');
 
   const tabs: { id: Tab; label: string; icon: React.ElementType }[] = [
     { id: 'profile', label: 'Profil', icon: User },
     { id: 'company', label: 'Informacje o firmie', icon: Building },
-    { id: 'campaign', label: 'Ustawienia kampanii', icon: Megaphone },
     { id: 'mailboxes', label: 'Skrzynki pocztowe', icon: Mail },
+    { id: 'campaign', label: 'Ustawienia kampanii', icon: Megaphone },
     { id: 'billing', label: 'Płatności', icon: CreditCard },
     { id: 'blacklist', label: 'Czarna lista', icon: Shield },
     { id: 'notifications', label: 'Powiadomienia', icon: Bell },
@@ -868,7 +1042,7 @@ export function SettingsPage() {
               className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-xl text-[15px] font-medium transition-all text-left ${
                 activeTab === tab.id
                   ? 'bg-white/[0.08] text-[#EAE8E1]'
-                  : 'text-[#A1A1AA] hover:text-[#EAE8E1] hover:bg-white/[0.03]'
+                  : 'text-[#A1A1AA] hover:text-[#EAE8E1] hover:bg-white/[0.04]'
               }`}
             >
               <tab.icon className="size-4 shrink-0" />
@@ -889,8 +1063,8 @@ export function SettingsPage() {
             >
               {activeTab === 'profile' && <ProfileTab />}
               {activeTab === 'company' && <CompanyTab />}
-              {activeTab === 'campaign' && <CampaignSettingsTab />}
               {activeTab === 'mailboxes' && <MailboxesTab />}
+              {activeTab === 'campaign' && <CampaignSettingsTab />}
               {activeTab === 'billing' && <BillingTab />}
               {activeTab === 'blacklist' && <BlacklistTab />}
               {activeTab === 'notifications' && <NotificationsTab />}
