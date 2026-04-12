@@ -6,25 +6,29 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
-// Mock data (zostawiamy jako fallback, dopóki webhook nie zwróci realnych danych)
 const mockLeads = [
   { id: 1, name: 'Studio Architektoniczne Nowak', website: 'nowakarchitekci.pl', email: 'kontakt@nowakarchitekci.pl', rating: 4.8, reviews: 127, city: 'Warszawa', industry: 'Architektura', description: 'Nowoczesne projekty budowlane.' },
   { id: 2, name: 'BudMaster Deweloper', website: 'budmaster.com', email: 'biuro@budmaster.com', rating: 4.9, reviews: 203, city: 'Kraków', industry: 'Deweloper', description: 'Lider na rynku deweloperskim w Małopolsce.' },
 ];
 
+interface UserProfile {
+  full_name: string;
+  offer: string;
+  package: string;
+}
+
 export function ProspectingPage() {
-  // Stan danych i UI
   const [leads, setLeads] = useState<typeof mockLeads>([]);
   const [selectedLeads, setSelectedLeads] = useState<number[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
-  // Stan użytkownika (Supabase)
+
   const [availableTokens, setAvailableTokens] = useState<number>(0);
   const [userId, setUserId] = useState<string | null>(null);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
 
-  // Stan formularza (Filtry)
   const [filters, setFilters] = useState({
     industry: '',
     country: 'Polska',
@@ -35,29 +39,38 @@ export function ProspectingPage() {
     requireSocials: false,
     minRating: 4.0,
     minReviews: 10,
-    leadsCount: 50 // Ile leadów klient chce pobrać
+    leadsCount: 50,
   });
 
-  // Pobieranie kredytów z Supabase przy starcie
   useEffect(() => {
-    async function fetchUserCredits() {
+    async function fetchUserData() {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         setUserId(session.user.id);
+        setUserEmail(session.user.email ?? null);
+
         const { data } = await supabase
           .from('profiles')
-          .select('credits')
+          .select('credits, full_name, offer, package')
           .eq('id', session.user.id)
           .single();
-          
-        if (data) setAvailableTokens(data.credits);
+
+        if (data) {
+          setAvailableTokens(data.credits ?? 0);
+          setUserProfile({
+            full_name: data.full_name ?? '',
+            offer: data.offer ?? '',
+            package: data.package ?? 'basic',
+          });
+        }
       }
     }
-    fetchUserCredits();
+    fetchUserData();
   }, []);
 
   const handleSearch = async () => {
     setError(null);
+
     if (!filters.industry || !filters.city) {
       setError('Branża i miasto są wymagane.');
       return;
@@ -71,50 +84,90 @@ export function ProspectingPage() {
     setIsSearching(true);
 
     try {
-      // Tuta uderzamy do Twojego Webhooka n8n, przekazując wszystkie filtry
-      // ZMIEŃ TEN URL NA TWÓJ PRAWDZIWY WEBHOOK Z n8n
-      const webhookUrl = 'https://twoj-adres-n8n.com/webhook/szukaj-leadow'; 
-      
+      const webhookUrl = 'https://n8n.srv1579942.hstgr.cloud/webhook/36f18c9a-7027-4260-a666-fecbc697eedb';
+
       const response = await fetch(webhookUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId: userId,
-          filters: filters
-        })
+          user_id: userId,
+          package: userProfile?.package ?? 'basic',
+
+          client: {
+            name: userProfile?.full_name ?? '',
+            email: userEmail ?? '',
+            offer: userProfile?.offer ?? '',
+            language: 'pl',
+          },
+
+          common: {
+            industry: filters.industry,
+            country: filters.country,
+            city: filters.city,
+            keywords: filters.keywords,
+            maxLeads: filters.leadsCount,
+          },
+
+          googleFilters: {
+            minRating: filters.minRating,
+            minReviews: filters.minReviews,
+            requireWebsite: filters.requireWebsite,
+            requireEmail: filters.requireEmail,
+            requirePhone: false,
+            requireOpenNow: false,
+          },
+
+          igFilters: {
+            minFollowers: 1000,
+            maxFollowers: 500000,
+            minEngagementRate: 1,
+            minPosts: 12,
+            businessAccountOnly: true,
+            requireEmail: false,
+            requireWebsite: false,
+          },
+
+          liFilters: {
+            minEmployees: 1,
+            maxEmployees: 250,
+            companySize: [],
+            requireWebsite: true,
+            hasActiveJobs: false,
+            requireEmail: false,
+            foundedAfter: '',
+          },
+        }),
       });
 
       if (!response.ok) throw new Error('Błąd połączenia z serwerem wyszukiwania.');
 
       const data = await response.json();
-      
-      // Zakładamy, że n8n zwraca tablicę leadów. 
-      // Jeśli na razie testujesz, używamy mocków:
       setLeads(data.leads && data.leads.length > 0 ? data.leads : mockLeads);
-      
+
     } catch (err: any) {
       console.error(err);
-      // Fallback do mocków dla celów deweloperskich, żebyś widział jak działa UI
-      setLeads(mockLeads); 
-      // Odsłoń error w produkcji: setError(err.message);
+      setLeads(mockLeads);
     } finally {
       setIsSearching(false);
     }
   };
 
   const toggleLead = (id: number) => {
-    setSelectedLeads(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
+    setSelectedLeads(prev =>
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
   };
 
   const toggleAll = () => {
-    selectedLeads.length === leads.length ? setSelectedLeads([]) : setSelectedLeads(leads.map(l => l.id));
+    selectedLeads.length === leads.length
+      ? setSelectedLeads([])
+      : setSelectedLeads(leads.map(l => l.id));
   };
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
-      
-      {/* Top Bar - Kredyty */}
-      <motion.div 
+
+      <motion.div
         initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
         className="flex items-center justify-between bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-4"
       >
@@ -132,7 +185,6 @@ export function ProspectingPage() {
         </button>
       </motion.div>
 
-      {/* Header */}
       <div>
         <h1 className="text-3xl font-bold text-white mb-2" style={{ fontFamily: "'Libre Baskerville', serif" }}>
           Wyszukiwarka leadów
@@ -147,12 +199,10 @@ export function ProspectingPage() {
         </div>
       )}
 
-      {/* Main Filter Module */}
       <motion.div
         initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
         className="bg-[#0f0f0f] border border-[#1f1f1f] rounded-2xl p-6 shadow-2xl relative"
       >
-        {/* Podstawowe Filtry */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
           <div>
             <label className="block text-sm font-medium text-gray-400 mb-2">Branża *</label>
@@ -216,9 +266,8 @@ export function ProspectingPage() {
           </div>
         </div>
 
-        {/* Sekcja Zaawansowana (Toggle) */}
         <div className="border-t border-white/5 pt-4 mb-6">
-          <button 
+          <button
             onClick={() => setShowAdvanced(!showAdvanced)}
             className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors"
           >
@@ -226,22 +275,20 @@ export function ProspectingPage() {
             Zaawansowane filtry
             {showAdvanced ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
           </button>
-          
+
           <AnimatePresence>
             {showAdvanced && (
-              <motion.div 
+              <motion.div
                 initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
                 className="overflow-hidden mt-4"
               >
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 p-4 bg-white/[0.01] rounded-xl border border-white/5">
-                  {/* Wymagania - Checkboxy w Twoim stylu z RegisterPage */}
                   <div className="space-y-3">
                     <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Wymagania firmy</h3>
-                    
                     {[
                       { id: 'requireWebsite', label: 'Wymagaj strony WWW (Zalecane)' },
                       { id: 'requireEmail', label: 'Wymagaj widocznego e-maila' },
-                      { id: 'requireSocials', label: 'Wymagaj profili Social Media (LinkedIn/FB)' }
+                      { id: 'requireSocials', label: 'Wymagaj profili Social Media (LinkedIn/FB)' },
                     ].map(checkbox => (
                       <label key={checkbox.id} className="flex items-start gap-2.5 pt-1 cursor-pointer group">
                         <div className="relative flex items-center justify-center size-4 shrink-0 mt-[1px]">
@@ -259,7 +306,6 @@ export function ProspectingPage() {
                     ))}
                   </div>
 
-                  {/* Jakość / Opinie */}
                   <div className="space-y-4">
                     <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Jakość firmy (Google Maps)</h3>
                     <div>
@@ -267,11 +313,11 @@ export function ProspectingPage() {
                         <span className="text-gray-400">Minimalna ocena:</span>
                         <span className="text-white font-medium">{filters.minRating} <Star className="inline size-3 text-amber-400 mb-0.5" /></span>
                       </div>
-                      <input 
-                        type="range" min="1" max="5" step="0.1" 
-                        value={filters.minRating} 
-                        onChange={(e) => setFilters({...filters, minRating: parseFloat(e.target.value)})}
-                        className="w-full accent-white" 
+                      <input
+                        type="range" min="1" max="5" step="0.1"
+                        value={filters.minRating}
+                        onChange={(e) => setFilters({ ...filters, minRating: parseFloat(e.target.value) })}
+                        className="w-full accent-white"
                       />
                     </div>
                     <div>
@@ -279,11 +325,11 @@ export function ProspectingPage() {
                         <span className="text-gray-400">Minimalna liczba opinii:</span>
                         <span className="text-white font-medium">{filters.minReviews}+</span>
                       </div>
-                      <input 
-                        type="range" min="0" max="100" step="5" 
-                        value={filters.minReviews} 
-                        onChange={(e) => setFilters({...filters, minReviews: parseInt(e.target.value)})}
-                        className="w-full accent-white" 
+                      <input
+                        type="range" min="0" max="100" step="5"
+                        value={filters.minReviews}
+                        onChange={(e) => setFilters({ ...filters, minReviews: parseInt(e.target.value) })}
+                        className="w-full accent-white"
                       />
                     </div>
                   </div>
@@ -293,16 +339,15 @@ export function ProspectingPage() {
           </AnimatePresence>
         </div>
 
-        {/* Panel wyszukiwania i kosztów na dole modułu */}
         <div className="flex flex-col md:flex-row items-center justify-between gap-4 p-4 bg-white/[0.02] rounded-xl border border-white/10">
           <div className="flex-1 w-full md:w-auto">
             <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Ile leadów potrzebujesz?</label>
             <div className="flex items-center gap-4">
-              <input 
-                type="range" min="10" max="500" step="10" 
-                value={filters.leadsCount} 
-                onChange={(e) => setFilters({...filters, leadsCount: parseInt(e.target.value)})}
-                className="w-48 accent-white" 
+              <input
+                type="range" min="10" max="500" step="10"
+                value={filters.leadsCount}
+                onChange={(e) => setFilters({ ...filters, leadsCount: parseInt(e.target.value) })}
+                className="w-48 accent-white"
               />
               <div className="bg-[#111111] px-4 py-1.5 rounded-lg border border-white/10 text-white font-mono font-bold">
                 {filters.leadsCount}
@@ -312,26 +357,21 @@ export function ProspectingPage() {
               </div>
             </div>
           </div>
-          
+
           <button
             onClick={handleSearch}
             disabled={isSearching}
             className="w-full md:w-auto px-8 py-3 bg-white text-black font-bold rounded-lg text-sm hover:bg-gray-200 transition-all flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(255,255,255,0.05)] disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
           >
             {isSearching ? (
-              <>
-                <Loader2 className="size-4 animate-spin" /> Skanowanie sieci...
-              </>
+              <><Loader2 className="size-4 animate-spin" /> Skanowanie sieci...</>
             ) : (
-              <>
-                <Sparkles className="size-4" /> Rozpocznij skanowanie
-              </>
+              <><Sparkles className="size-4" /> Rozpocznij skanowanie</>
             )}
           </button>
         </div>
       </motion.div>
 
-      {/* Tabela Wyników (Renderowana tylko gdy są leady) */}
       {leads.length > 0 && (
         <motion.div
           initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
@@ -371,11 +411,11 @@ export function ProspectingPage() {
                     <Check className="size-3 text-black opacity-0 peer-checked:opacity-100 relative z-10" strokeWidth={3} />
                   </label>
                 </div>
-                
+
                 <div className="col-span-4 pr-4">
                   <div className="font-semibold text-white mb-1">{lead.name}</div>
                   <div className="text-xs text-gray-500 line-clamp-1">{lead.description}</div>
-                </div> 
+                </div>
 
                 <div className="col-span-3 flex flex-col justify-center gap-1.5">
                   <a href={`https://${lead.website}`} target="_blank" rel="noopener noreferrer" className="text-xs text-gray-400 hover:text-white flex items-center gap-1.5 truncate">
@@ -399,7 +439,6 @@ export function ProspectingPage() {
         </motion.div>
       )}
 
-      {/* Floating Action Bar (Na dole, gdy wybrano leady) */}
       <AnimatePresence>
         {selectedLeads.length > 0 && (
           <motion.div
