@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router';
 import { LayoutDashboard, Search, Mail, Database, Settings, Bell, ChevronDown, LogOut } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -15,6 +15,26 @@ export function DashboardLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [initials, setInitials] = useState('..');
+
+  // Pobieranie inicjałów z Supabase
+  useEffect(() => {
+    const fetchProfile = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        const { data } = await supabase.from('profiles').select('full_name').eq('id', session.user.id).single();
+        if (data?.full_name) {
+          const names = data.full_name.trim().split(' ');
+          const first = names[0]?.[0] || '';
+          const last = names.length > 1 ? names[names.length - 1]?.[0] : '';
+          setInitials((first + last).toUpperCase());
+        } else if (session.user.email) {
+          setInitials(session.user.email[0].toUpperCase());
+        }
+      }
+    };
+    fetchProfile();
+  }, []);
 
   // Funkcja wylogowywania
   const handleLogout = async () => {
@@ -29,13 +49,19 @@ export function DashboardLayout() {
         <div className="max-w-[1600px] mx-auto px-6 py-3.5">
           <div className="flex items-center justify-between">
             
-            {/* Logo */}
-            <Link to="/" className="flex items-center gap-3.5 group">
-              <div className="w-8 h-8 bg-[#EAE8E1] rounded-lg flex items-center justify-center shadow-sm group-hover:opacity-90 transition-opacity">
-                <img src="/logo.png" alt="ZEC Logo" className="w-5 h-5 object-contain opacity-90" />
-              </div>
-              <span className="text-[22px] font-serif font-medium text-[#EAE8E1] tracking-wide">ZEC</span>
-            </Link>
+           {/* Logo */}
+{/* Logo */}
+<Link to="/" className="flex items-center gap-[10px] group">
+  <div className="w-7 h-7 bg-white/[0.06] border border-white/[0.12] rounded-lg flex items-center justify-center shadow-sm group-hover:bg-white/[0.1] transition-all p-0.5">
+    <img src="/logo.png" alt="ZEC Logo" className="w-4 h-4 object-contain opacity-90 invert brightness-0" />
+  </div>
+  <span 
+    className="text-[22px] font-semibold lowercase text-[#EAE8E1] tracking-[0.08em] -mt-[2px]" 
+    style={{ fontFamily: "'Outfit', sans-serif" }}
+  >
+    zec
+  </span>
+</Link>
 
             {/* Navigation Links */}
             <div className="hidden md:flex items-center gap-1.5">
@@ -84,7 +110,7 @@ export function DashboardLayout() {
                   className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/[0.04] transition-all group"
                 >
                   <div className="size-8 bg-white/[0.06] border border-white/[0.12] rounded-full flex items-center justify-center">
-                    <span className="text-[#EAE8E1] text-[13px] font-medium">JK</span>
+                    <span className="text-[#EAE8E1] text-[12px] font-semibold tracking-wider">{initials}</span>
                   </div>
                   <ChevronDown className={`size-4 text-[#827E78] transition-transform duration-200 ${isUserMenuOpen ? 'rotate-180' : 'group-hover:text-[#EAE8E1]'}`} />
                 </button>
