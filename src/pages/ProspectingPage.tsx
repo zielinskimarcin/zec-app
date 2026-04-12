@@ -8,16 +8,149 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
-const mockLeads = [
-  { id: 1, name: 'Studio Architektoniczne Nowak', website: 'nowakarchitekci.pl', email: 'kontakt@nowakarchitekci.pl', rating: 4.8, reviews: 127, city: 'Warszawa', industry: 'Architektura', description: 'Nowoczesne projekty budowlane.' },
-  { id: 2, name: 'BudMaster Deweloper', website: 'budmaster.com', email: 'biuro@budmaster.com', rating: 4.9, reviews: 203, city: 'Kraków', industry: 'Deweloper', description: 'Lider na rynku deweloperskim w Małopolsce.' },
+// ─── Typy ────────────────────────────────────────────────────────────────────
+
+type Platform = 'google' | 'instagram' | 'linkedin';
+
+interface PlatformConfig {
+  id: Platform;
+  label: string;
+  icon: React.ReactNode;
+  tokenCost: number;
+  activeClass: string;
+}
+
+const PLATFORMS: PlatformConfig[] = [
+  {
+    id: 'google',
+    label: 'Google',
+    icon: <Globe className="size-4" />,
+    tokenCost: 1,
+    activeClass: 'bg-white/[0.06] border-white/[0.15] text-[#c8c8c8]',
+  },
+  {
+    id: 'instagram',
+    label: 'Instagram',
+    icon: <Instagram className="size-4" />,
+    tokenCost: 2,
+    activeClass: 'bg-white/[0.06] border-white/[0.15] text-[#c8c8c8]',
+  },
+  {
+    id: 'linkedin',
+    label: 'LinkedIn',
+    icon: <Linkedin className="size-4" />,
+    tokenCost: 3,
+    activeClass: 'bg-white/[0.06] border-white/[0.15] text-[#c8c8c8]',
+  },
 ];
 
-interface UserProfile {
-  full_name: string;
-  offer: string;
-  package: string;
+// ─── Mock data ────────────────────────────────────────────────────────────────
+
+const mockLeads = [
+  {
+    id: 1,
+    name: 'Studio Architektoniczne Nowak',
+    website: 'nowakarchitekci.pl',
+    email: 'kontakt@nowakarchitekci.pl',
+    rating: 4.8,
+    reviews: 127,
+    city: 'Warszawa',
+    industry: 'Architektura',
+    description: 'Nowoczesne projekty budowlane i wnętrz premium.',
+    platform: 'google',
+  },
+  {
+    id: 2,
+    name: 'BudMaster Deweloper',
+    website: 'budmaster.com',
+    email: 'biuro@budmaster.com',
+    rating: 4.9,
+    reviews: 203,
+    city: 'Kraków',
+    industry: 'Deweloper',
+    description: 'Lider na rynku deweloperskim w Małopolsce.',
+    platform: 'google',
+  },
+  {
+    id: 3,
+    name: '@meblowawarszawa',
+    website: 'meblowawarszawa.pl',
+    email: 'hello@meblowawarszawa.pl',
+    followers: 48200,
+    posts: 312,
+    engagementRate: 3.4,
+    city: 'Warszawa',
+    industry: 'Meble / Wnętrza',
+    description: 'Sklep z meblami premium dla domu i biura.',
+    platform: 'instagram',
+    isBusinessAccount: true,
+  },
+  {
+    id: 4,
+    name: 'Softlab Solutions',
+    website: 'softlab.io',
+    email: 'sales@softlab.io',
+    employeeCount: 45,
+    followers: 1230,
+    city: 'Wrocław',
+    industry: 'IT / Software',
+    description: 'Software house specjalizujący się w aplikacjach B2B.',
+    platform: 'linkedin',
+    companyType: 'Private',
+  },
+];
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function SliderRow({
+  label, value, min, max, step, format, onChange, icon,
+}: {
+  label: string; value: number; min: number; max: number; step: number;
+  format: (v: number) => string; onChange: (v: number) => void; icon?: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between text-sm">
+        <span className="text-[#888] flex items-center gap-1.5">{icon}{label}</span>
+        <span className="text-[#c8c8c8] font-mono font-semibold tabular-nums">{format(value)}</span>
+      </div>
+      <input
+        type="range" min={min} max={max} step={step} value={value}
+        onChange={e => onChange(parseFloat(e.target.value))}
+        className="w-full h-px bg-white/[0.1] rounded-full appearance-none cursor-pointer
+          [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:size-3
+          [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#c8c8c8]"
+      />
+    </div>
+  );
 }
+
+function CheckRow({
+  label, checked, onChange,
+}: {
+  label: string; checked: boolean; onChange: (v: boolean) => void;
+}) {
+  return (
+    <label className="flex items-center gap-2.5 cursor-pointer group">
+      <div className="relative flex items-center justify-center size-4 shrink-0">
+        <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)} className="peer sr-only" />
+        <div className="absolute inset-0 rounded border border-white/[0.15] bg-white/[0.03] peer-checked:bg-[#c8c8c8] peer-checked:border-[#c8c8c8] transition-all" />
+        <Check className="size-2.5 text-black opacity-0 peer-checked:opacity-100 relative z-10 transition-opacity" strokeWidth={3} />
+      </div>
+      <span className="text-sm text-[#888] group-hover:text-[#aaa] transition-colors">{label}</span>
+    </label>
+  );
+}
+
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return (
+    <h3 className="text-[10px] font-bold text-[#555] uppercase tracking-[0.15em] mb-3">
+      {children}
+    </h3>
+  );
+}
+
+// ─── Main ─────────────────────────────────────────────────────────────────────
 
 export function ProspectingPage() {
   const [leads, setLeads] = useState<typeof mockLeads>([]);
@@ -25,51 +158,43 @@ export function ProspectingPage() {
   const [isSearching, setIsSearching] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const [availableTokens, setAvailableTokens] = useState<number>(0);
+  const [availableTokens, setAvailableTokens] = useState<number>(1240);
   const [userId, setUserId] = useState<string | null>(null);
-  const [userEmail, setUserEmail] = useState<string | null>(null);
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [selectedPlatforms, setSelectedPlatforms] = useState<Platform[]>(['google']);
 
-  const [filters, setFilters] = useState({
+  const [common, setCommon] = useState({
     industry: '',
     country: 'Polska',
     city: '',
     keywords: '',
-    requireWebsite: true,
-    requireEmail: false,
-    requireSocials: false,
-    minRating: 4.0,
-    minReviews: 10,
-    leadsCount: 50,
+    maxLeads: 50,
+  });
+
+  const [googleFilters, setGoogleFilters] = useState({
+    minRating: 4.0, minReviews: 10,
+    requireWebsite: true, requireEmail: false, requirePhone: false, requireOpenNow: false,
+  });
+
+  const [igFilters, setIgFilters] = useState({
+    minFollowers: 1000, maxFollowers: 500000, minEngagementRate: 1.0, minPosts: 12,
+    businessAccountOnly: true, requireEmail: false, requireWebsite: false,
+  });
+
+  const [liFilters, setLiFilters] = useState({
+    minEmployees: 1, maxEmployees: 250, companySize: [] as string[],
+    requireWebsite: true, hasActiveJobs: false, requireEmail: false, foundedAfter: '',
   });
 
   useEffect(() => {
-    async function fetchUserData() {
+    async function fetchCredits() {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         setUserId(session.user.id);
-        setUserEmail(session.user.email ?? null);
-
-        const { data } = await supabase
-          .from('profiles')
-          .select('credits, full_name, offer, package')
-          .eq('id', session.user.id)
-          .single();
-
-        if (data) {
-          setAvailableTokens(data.credits ?? 0);
-          setUserProfile({
-            full_name: data.full_name ?? '',
-            offer: data.offer ?? '',
-            package: data.package ?? 'basic',
-          });
-        } else {
-          setUserProfile({ full_name: '', offer: '', package: 'basic' });
-        }
+        const { data } = await supabase.from('profiles').select('credits').eq('id', session.user.id).single();
+        if (data) setAvailableTokens(data.credits);
       }
     }
-    fetchUserData();
+    fetchCredits();
   }, []);
 
   const tokenCost = common.maxLeads * selectedPlatforms.reduce((acc, p) => {
@@ -95,103 +220,43 @@ export function ProspectingPage() {
 
   const handleSearch = async () => {
     setError(null);
-
-    if (!filters.industry || !filters.city) {
-      setError('Branża i miasto są wymagane.');
-      return;
-    }
-
-    if (filters.leadsCount > availableTokens) {
-      setError(`Nie masz wystarczającej liczby tokenów. Brakuje: ${filters.leadsCount - availableTokens}`);
-      return;
-    }
-
+    if (!common.industry || !common.city) { setError('Branża i miasto są wymagane.'); return; }
+    if (tokenCost > availableTokens) { setError(`Niewystarczająca liczba tokenów. Brakuje: ${tokenCost - availableTokens}`); return; }
     setIsSearching(true);
     try {
-      const webhookUrl = 'https://n8n.srv1579942.hstgr.cloud/webhook/36f18c9a-7027-4260-a666-fecbc697eedb';
-
+      const webhookUrl = import.meta.env.VITE_N8N_WEBHOOK_URL_2;
       const response = await fetch(webhookUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          user_id: 'test_user_001',
-          package: 'basic',
-
-          client: {
-            name: 'Jan Kowalski',
-            email: 'jan@test.pl',
-            offer: 'Automatyzacja lead generation B2B',
-            language: 'pl',
-          },
-
-          common: {
-            industry: filters.industry,
-            country: filters.country,
-            city: filters.city,
-            keywords: filters.keywords,
-            maxLeads: filters.leadsCount,
-          },
-
-          filters: {
-            google: {
-              minRating: filters.minRating,
-              minReviews: filters.minReviews,
-              requireWebsite: filters.requireWebsite,
-              requireEmail: filters.requireEmail,
-              requirePhone: false,
-              requireOpenNow: false,
-            },
-            instagram: {
-              minFollowers: 1000,
-              maxFollowers: 500000,
-              minEngagementRate: 1,
-              minPosts: 12,
-              businessAccountOnly: true,
-              requireEmail: false,
-              requireWebsite: false,
-            },
-            linkedin: {
-              minEmployees: 1,
-              maxEmployees: 250,
-              companySize: [],
-              requireWebsite: true,
-              hasActiveJobs: false,
-              requireEmail: false,
-              foundedAfter: '',
-            },
-          },
-        }),
+        body: JSON.stringify({ userId, platforms: selectedPlatforms, common, googleFilters, igFilters, liFilters }),
       });
       if (!response.ok) throw new Error('Błąd serwera.');
       const data = await response.json();
-      setLeads(data.leads && data.leads.length > 0 ? data.leads : mockLeads);
-
-    } catch (err: any) {
-      console.error(err);
-      setLeads(mockLeads);
-    } finally {
-      setIsSearching(false);
-    }
+      setLeads(data.leads?.length ? data.leads : mockLeads);
+    } catch { setLeads(mockLeads); } finally { setIsSearching(false); }
   };
 
-  const toggleLead = (id: number) => {
-    setSelectedLeads(prev =>
-      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
-    );
+  const toggleLead = (id: number) =>
+    setSelectedLeads(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
+  const toggleAll = () =>
+    setSelectedLeads(selectedLeads.length === leads.length ? [] : leads.map(l => l.id));
+
+  const platformIcon = (p: string) => {
+    if (p === 'google') return <Globe className="size-3 text-[#666]" />;
+    if (p === 'instagram') return <Instagram className="size-3 text-[#666]" />;
+    if (p === 'linkedin') return <Linkedin className="size-3 text-[#666]" />;
+    return null;
   };
 
-  const toggleAll = () => {
-    selectedLeads.length === leads.length
-      ? setSelectedLeads([])
-      : setSelectedLeads(leads.map(l => l.id));
-  };
+  // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
+    <div className="space-y-5 max-w-5xl mx-auto pb-32">
 
+      {/* ── Top bar ── */}
       <motion.div
-        initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
-        className="flex items-center justify-between bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-4"
+        initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
+        className="flex items-center justify-between"
       >
         <div>
           <h1 className="text-[20px] font-semibold text-[#c8c8c8] tracking-tight">Wyszukiwarka leadów</h1>
@@ -211,91 +276,12 @@ export function ProspectingPage() {
         </div>
       </motion.div>
 
-      <div>
-        <h1 className="text-3xl font-bold text-white mb-2" style={{ fontFamily: "'Libre Baskerville', serif" }}>
-          Wyszukiwarka leadów
-        </h1>
-        <p className="text-gray-400">Precyzyjnie filtruj i pobieraj firmy gotowe na Twój outreach.</p>
-      </div>
-
-      {error && (
-        <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/20 flex items-center gap-3 text-red-400">
-          <AlertCircle className="size-5 shrink-0" />
-          <span className="text-sm">{error}</span>
-        </div>
-      )}
-
-      <motion.div
-        initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-        className="bg-[#0f0f0f] border border-[#1f1f1f] rounded-2xl p-6 shadow-2xl relative"
-      >
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-400 mb-2">Branża *</label>
-            <div className="relative">
-              <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-500 pointer-events-none" />
-              <select
-                value={filters.industry}
-                onChange={(e) => setFilters({ ...filters, industry: e.target.value })}
-                className="w-full pl-10 pr-4 py-2.5 bg-white/[0.02] border border-white/10 rounded-lg text-sm text-white focus:outline-none focus:border-white/30 focus:bg-white/5 transition-all appearance-none cursor-pointer"
-              >
-                <option value="" className="bg-[#111111] text-gray-400">Wybierz branżę...</option>
-                <option value="architektura" className="bg-[#111111] text-white">Architektura i Projektowanie</option>
-                <option value="deweloper" className="bg-[#111111] text-white">Nieruchomości / Deweloper</option>
-                <option value="marketing" className="bg-[#111111] text-white">Agencje Marketingowe</option>
-                <option value="it" className="bg-[#111111] text-white">Software House / IT</option>
-              </select>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-400 mb-2">Kraj</label>
-            <div className="relative">
-              <Globe className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-500 pointer-events-none" />
-              <select
-                value={filters.country}
-                onChange={(e) => setFilters({ ...filters, country: e.target.value })}
-                className="w-full pl-10 pr-4 py-2.5 bg-white/[0.02] border border-white/10 rounded-lg text-sm text-white focus:outline-none focus:border-white/30 focus:bg-white/5 transition-all appearance-none cursor-pointer"
-              >
-                <option value="Polska" className="bg-[#111111] text-white">Polska</option>
-                <option value="Global" className="bg-[#111111] text-white">Cały świat (Global)</option>
-              </select>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-400 mb-2">Miasto *</label>
-            <div className="relative">
-              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-500" />
-              <input
-                type="text"
-                value={filters.city}
-                onChange={(e) => setFilters({ ...filters, city: e.target.value })}
-                placeholder="np. Warszawa"
-                className="w-full pl-10 pr-4 py-2.5 bg-white/[0.02] border border-white/10 rounded-lg text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-white/30 focus:bg-white/5 transition-all"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-400 mb-2">Słowa kluczowe (Opcjonalnie)</label>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-500" />
-              <input
-                type="text"
-                value={filters.keywords}
-                onChange={(e) => setFilters({ ...filters, keywords: e.target.value })}
-                placeholder="np. B2B, luksusowe"
-                className="w-full pl-10 pr-4 py-2.5 bg-white/[0.02] border border-white/10 rounded-lg text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-white/30 focus:bg-white/5 transition-all"
-              />
-            </div>
-          </div>
-        </div>
-
-        <div className="border-t border-white/5 pt-4 mb-6">
-          <button
-            onClick={() => setShowAdvanced(!showAdvanced)}
-            className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors"
+      {/* ── Error ── */}
+      <AnimatePresence>
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
+            className="flex items-center gap-2.5 text-[13px] text-[#c47070] bg-[#c47070]/8 border border-[#c47070]/15 rounded-xl px-4 py-3"
           >
             <AlertCircle className="size-4 shrink-0" />{error}
           </motion.div>
@@ -440,58 +426,33 @@ export function ProspectingPage() {
           <AnimatePresence>
             {showAdvanced && (
               <motion.div
-                initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
-                className="overflow-hidden mt-4"
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="overflow-hidden"
               >
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 p-4 bg-white/[0.01] rounded-xl border border-white/5">
-                  <div className="space-y-3">
-                    <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Wymagania firmy</h3>
-                    {[
-                      { id: 'requireWebsite', label: 'Wymagaj strony WWW (Zalecane)' },
-                      { id: 'requireEmail', label: 'Wymagaj widocznego e-maila' },
-                      { id: 'requireSocials', label: 'Wymagaj profili Social Media (LinkedIn/FB)' },
-                    ].map(checkbox => (
-                      <label key={checkbox.id} className="flex items-start gap-2.5 pt-1 cursor-pointer group">
-                        <div className="relative flex items-center justify-center size-4 shrink-0 mt-[1px]">
-                          <input
-                            type="checkbox"
-                            checked={filters[checkbox.id as keyof typeof filters] as boolean}
-                            onChange={(e) => setFilters({ ...filters, [checkbox.id]: e.target.checked })}
-                            className="peer sr-only"
-                          />
-                          <div className="absolute inset-0 rounded border border-white/20 bg-white/5 peer-checked:bg-white peer-checked:border-white transition-all group-hover:border-white/40" />
-                          <Check className="size-3 text-black opacity-0 peer-checked:opacity-100 relative z-10 transition-opacity" strokeWidth={3} />
-                        </div>
-                        <span className="text-sm text-gray-400 group-hover:text-gray-300 transition-colors">{checkbox.label}</span>
-                      </label>
-                    ))}
-                  </div>
+                <div className="px-5 pb-5 space-y-5">
 
-                  <div className="space-y-4">
-                    <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Jakość firmy (Google Maps)</h3>
-                    <div>
-                      <div className="flex justify-between text-sm mb-1">
-                        <span className="text-gray-400">Minimalna ocena:</span>
-                        <span className="text-white font-medium">{filters.minRating} <Star className="inline size-3 text-amber-400 mb-0.5" /></span>
+                  {/* Google */}
+                  {selectedPlatforms.includes('google') && (
+                    <div className="p-4 rounded-xl bg-white/[0.02] border border-white/[0.06]">
+                      <div className="flex items-center gap-2 mb-4">
+                        <Globe className="size-3.5 text-[#555]" />
+                        <SectionTitle>Filtry Google Maps</SectionTitle>
                       </div>
-                      <input
-                        type="range" min="1" max="5" step="0.1"
-                        value={filters.minRating}
-                        onChange={(e) => setFilters({ ...filters, minRating: parseFloat(e.target.value) })}
-                        className="w-full accent-white"
-                      />
-                    </div>
-                    <div>
-                      <div className="flex justify-between text-sm mb-1">
-                        <span className="text-gray-400">Minimalna liczba opinii:</span>
-                        <span className="text-white font-medium">{filters.minReviews}+</span>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                        <div className="space-y-4">
+                          <SliderRow label="Min. ocena Google" value={googleFilters.minRating} min={1} max={5} step={0.1} format={v => `${v.toFixed(1)} ★`} onChange={v => setGoogleFilters({ ...googleFilters, minRating: v })} icon={<Star className="size-3 text-[#777]" />} />
+                          <SliderRow label="Min. liczba opinii" value={googleFilters.minReviews} min={0} max={500} step={5} format={v => `${v}+`} onChange={v => setGoogleFilters({ ...googleFilters, minReviews: v })} icon={<Hash className="size-3 text-[#777]" />} />
+                        </div>
+                        <div className="space-y-2.5">
+                          <CheckRow label="Wymagaj strony WWW" checked={googleFilters.requireWebsite} onChange={v => setGoogleFilters({ ...googleFilters, requireWebsite: v })} />
+                          <CheckRow label="Wymagaj widocznego e-maila" checked={googleFilters.requireEmail} onChange={v => setGoogleFilters({ ...googleFilters, requireEmail: v })} />
+                          <CheckRow label="Wymagaj numeru telefonu" checked={googleFilters.requirePhone} onChange={v => setGoogleFilters({ ...googleFilters, requirePhone: v })} />
+                          <CheckRow label="Tylko aktualnie otwarte" checked={googleFilters.requireOpenNow} onChange={v => setGoogleFilters({ ...googleFilters, requireOpenNow: v })} />
+                        </div>
                       </div>
-                      <input
-                        type="range" min="0" max="100" step="5"
-                        value={filters.minReviews}
-                        onChange={(e) => setFilters({ ...filters, minReviews: parseInt(e.target.value) })}
-                        className="w-full accent-white"
-                      />
                     </div>
                   )}
 
@@ -569,21 +530,23 @@ export function ProspectingPage() {
           </AnimatePresence>
         </div>
 
-        <div className="flex flex-col md:flex-row items-center justify-between gap-4 p-4 bg-white/[0.02] rounded-xl border border-white/10">
-          <div className="flex-1 w-full md:w-auto">
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Ile leadów potrzebujesz?</label>
-            <div className="flex items-center gap-4">
-              <input
-                type="range" min="10" max="500" step="10"
-                value={filters.leadsCount}
-                onChange={(e) => setFilters({ ...filters, leadsCount: parseInt(e.target.value) })}
-                className="w-48 accent-white"
-              />
-              <div className="bg-[#111111] px-4 py-1.5 rounded-lg border border-white/10 text-white font-mono font-bold">
-                {filters.leadsCount}
-              </div>
-              <div className="text-sm text-gray-400 hidden sm:block">
-                Szacunkowy koszt: <span className="text-amber-400 font-bold">{filters.leadsCount} tokenów</span>
+        {/* ── Pasek dolny: maks leadów + szukaj ── */}
+        <div className="border-t border-white/[0.05] px-5 py-5 flex flex-col md:flex-row items-center gap-6">
+
+          {/* Maks leadów — czytelne pole */}
+          <div className="flex-1 w-full space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-[11px] font-medium text-[#4a4a4a] uppercase tracking-wider">
+                Maksymalna liczba leadów
+              </p>
+              <div className="flex items-center gap-2">
+                <span className="text-[15px] font-bold text-[#c8c8c8] font-mono tabular-nums">
+                  {common.maxLeads}
+                </span>
+                <span className="text-[11px] text-[#3a3a3a]">·</span>
+                <span className={`text-[12px] font-mono ${tokenCost > availableTokens ? 'text-[#c47070]' : 'text-[#666]'}`}>
+                  maks. {tokenCost} tokenów
+                </span>
               </div>
             </div>
 
@@ -605,27 +568,28 @@ export function ProspectingPage() {
             </p>
           </div>
 
+          {/* Przycisk — bez emoji */}
           <button
             onClick={handleSearch}
             disabled={isSearching}
             className="shrink-0 w-full md:w-auto flex items-center justify-center gap-2 px-8 py-3 bg-[#d4d4d4] hover:bg-white text-[#111] text-[13px] font-semibold rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            {isSearching ? (
-              <><Loader2 className="size-4 animate-spin" /> Skanowanie sieci...</>
-            ) : (
-              <><Sparkles className="size-4" /> Rozpocznij skanowanie</>
-            )}
+            {isSearching
+              ? <><Loader2 className="size-4 animate-spin" />Skanowanie...</>
+              : 'Rozpocznij skanowanie'
+            }
           </button>
         </div>
       </motion.div>
 
-      {leads.length > 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-          className="bg-[#0f0f0f] border border-[#1f1f1f] rounded-2xl overflow-hidden shadow-2xl relative"
-        >
-          <div className="p-6 border-b border-white/5">
-            <div className="flex items-center justify-between">
+      {/* ── Wyniki ── */}
+      <AnimatePresence>
+        {leads.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
+            className="rounded-2xl border border-white/[0.06] bg-white/[0.02] overflow-hidden"
+          >
+            <div className="px-5 py-4 border-b border-white/[0.05] flex items-center justify-between">
               <div>
                 <p className="text-[14px] font-semibold text-[#c8c8c8]">Wyniki</p>
                 <p className="text-[12px] text-[#444] mt-0.5">Pobrano {leads.length} leadów spełniających kryteria</p>
@@ -650,21 +614,20 @@ export function ProspectingPage() {
               <div className="col-span-3">Metryki</div>
             </div>
 
-          <div className="divide-y divide-white/5">
-            {leads.map((lead) => (
-              <div key={lead.id} className={`grid grid-cols-12 gap-4 px-6 py-4 transition-all hover:bg-white/[0.02] ${selectedLeads.includes(lead.id) ? 'bg-white/[0.04]' : ''}`}>
-                <div className="col-span-1 flex items-center">
-                  <label className="relative flex items-center justify-center size-4 cursor-pointer">
-                    <input type="checkbox" checked={selectedLeads.includes(lead.id)} onChange={() => toggleLead(lead.id)} className="peer sr-only" />
-                    <div className="absolute inset-0 rounded border border-white/20 bg-white/5 peer-checked:bg-white peer-checked:border-white transition-all" />
-                    <Check className="size-3 text-black opacity-0 peer-checked:opacity-100 relative z-10" strokeWidth={3} />
-                  </label>
-                </div>
-
-                <div className="col-span-4 pr-4">
-                  <div className="font-semibold text-white mb-1">{lead.name}</div>
-                  <div className="text-xs text-gray-500 line-clamp-1">{lead.description}</div>
-                </div>
+            {/* Wiersze */}
+            <div className="divide-y divide-white/[0.03]">
+              {leads.map(lead => (
+                <div
+                  key={lead.id}
+                  className={`grid grid-cols-12 gap-4 px-5 py-4 transition-colors hover:bg-white/[0.02] ${selectedLeads.includes(lead.id) ? 'bg-white/[0.02]' : ''}`}
+                >
+                  <div className="col-span-1 flex items-center">
+                    <label className="relative flex items-center justify-center size-3.5 cursor-pointer">
+                      <input type="checkbox" checked={selectedLeads.includes(lead.id)} onChange={() => toggleLead(lead.id)} className="peer sr-only" />
+                      <div className="absolute inset-0 rounded border border-white/[0.12] bg-white/[0.03] peer-checked:bg-[#c8c8c8] peer-checked:border-[#c8c8c8] transition-all" />
+                      <Check className="size-2.5 text-black opacity-0 peer-checked:opacity-100 relative z-10" strokeWidth={3} />
+                    </label>
+                  </div>
 
                   <div className="col-span-1 flex items-center">{platformIcon(lead.platform)}</div>
 
@@ -730,19 +693,7 @@ export function ProspectingPage() {
         )}
       </AnimatePresence>
 
-                <div className="col-span-3 flex items-center gap-2">
-                  <div className="flex items-center gap-1 px-2 py-1 bg-white/5 rounded-md border border-white/10">
-                    <Star className="size-3 text-amber-400 fill-amber-400/20" />
-                    <span className="text-xs font-bold text-white">{lead.rating}</span>
-                  </div>
-                  <span className="text-xs text-gray-500">({lead.reviews} opinii)</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </motion.div>
-      )}
-
+      {/* ── Floating action bar ── */}
       <AnimatePresence>
         {selectedLeads.length > 0 && (
           <motion.div
