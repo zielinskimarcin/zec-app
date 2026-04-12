@@ -252,6 +252,7 @@ function ProfileTab() {
 
   return (
     <div className="space-y-12">
+      {/* Awatar i Informacje podstawowe */}
       <section className="space-y-8">
         <div>
           <h2 className="text-[18px] font-medium text-[#EAE8E1]">Dane konta</h2>
@@ -273,45 +274,53 @@ function ProfileTab() {
           <div><FLabel>Nazwisko</FLabel><FInput value={form.lastName} onChange={f('lastName')} placeholder="Kowalski" /></div>
         </div>
 
-        <div className="grid grid-cols-2 gap-5">
-          <div><FLabel>E-mail (Login)</FLabel><FInput value={form.email} disabled className="opacity-50" /></div>
-          <div><FLabel>Telefon prywatny</FLabel><FInput value={form.phone} onChange={f('phone')} placeholder="+48 000 000 000" /></div>
-        </div>
+        {/* E-mail pełna szerokość */}
+        <div><FLabel>E-mail (Login)</FLabel><FInput value={form.email} disabled className="opacity-50 cursor-not-allowed" /></div>
 
-        <div className="w-1/2 pr-2.5">
-          <FLabel>Strefa czasowa</FLabel>
-          <FSelect value={form.timezone} onChange={f('timezone')}>
-            <option value="Europe/Warsaw" className="bg-[#1a1a1a]">Europa / Warszawa (CET)</option>
-            <option value="Europe/London" className="bg-[#1a1a1a]">Europa / Londyn (GMT)</option>
-            <option value="America/New_York" className="bg-[#1a1a1a]">Ameryka / Nowy Jork (EST)</option>
-            <option value="Asia/Dubai" className="bg-[#1a1a1a]">Azja / Dubaj (GST)</option>
-          </FSelect>
+        {/* Telefon i strefa czasowa obok siebie */}
+        <div className="grid grid-cols-2 gap-5">
+          <div><FLabel>Telefon prywatny</FLabel><FInput value={form.phone} onChange={f('phone')} placeholder="+48 000 000 000" /></div>
+          <div>
+            <FLabel>Strefa czasowa</FLabel>
+            <FSelect value={form.timezone} onChange={f('timezone')}>
+              <option value="Europe/Warsaw" className="bg-[#1a1a1a]">Europa / Warszawa (CET)</option>
+              <option value="Europe/London" className="bg-[#1a1a1a]">Europa / Londyn (GMT)</option>
+              <option value="America/New_York" className="bg-[#1a1a1a]">Ameryka / Nowy Jork (EST)</option>
+              <option value="Asia/Dubai" className="bg-[#1a1a1a]">Azja / Dubaj (GST)</option>
+            </FSelect>
+          </div>
         </div>
       </section>
 
       <Rule />
 
-      <section className="space-y-6">
-        <div>
+      {/* Bezpieczeństwo / Hasło i Usuwanie */}
+      <section className="space-y-2">
+        <div className="mb-6">
           <h2 className="text-[18px] font-medium text-[#EAE8E1]">Bezpieczeństwo</h2>
-          <p className="text-[15px] text-[#A3A09A] mt-1">Zarządzaj hasłem do swojego konta</p>
+          <p className="text-[15px] text-[#A3A09A] mt-1">Zarządzaj hasłem i dostępem do swojego konta</p>
         </div>
 
         {err && (
-          <div className="flex items-start gap-3 p-4 bg-[#b56060]/10 border border-[#b56060]/20 rounded-xl text-[#b56060] text-[14px]">
+          <div className="flex items-start gap-3 p-4 bg-[#b56060]/10 border border-[#b56060]/20 rounded-xl text-[#b56060] text-[14px] mb-4">
             <AlertCircle className="size-5 shrink-0 mt-0.5" />{err}
           </div>
         )}
 
-        {!isChangingPassword ? (
-          <button 
-            onClick={() => setIsChangingPassword(true)}
-            className="flex items-center gap-2.5 px-5 py-3 border border-white/[0.1] text-[#EAE8E1] text-[14px] font-medium rounded-xl hover:bg-white/[0.04] transition-all"
-          >
-            <Lock className="size-4" /> Zmień hasło
-          </button>
-        ) : (
-          <div className="p-6 bg-white/[0.02] border border-white/[0.08] rounded-2xl space-y-5">
+        <div className="flex items-center justify-between py-5">
+          <span className="text-[15px] text-[#EAE8E1]">Hasło do konta</span>
+          {!isChangingPassword && (
+             <button 
+              onClick={() => setIsChangingPassword(true)}
+              className="px-5 py-2.5 border border-white/[0.12] hover:border-white/[0.2] hover:bg-white/[0.06] text-[#EAE8E1] text-[14px] font-medium rounded-xl transition-all"
+            >
+              Zmień hasło
+            </button>
+          )}
+        </div>
+
+        {isChangingPassword && (
+          <div className="p-6 bg-white/[0.02] border border-white/[0.08] rounded-2xl space-y-5 mb-4">
             <div className="grid grid-cols-2 gap-5">
               <div>
                 <FLabel>Nowe hasło</FLabel>
@@ -337,6 +346,15 @@ function ProfileTab() {
             </div>
           </div>
         )}
+
+        <Rule />
+
+        <div className="flex items-center justify-between py-5">
+          <span className="text-[15px] text-[#EAE8E1]">Usuń konto z platformy</span>
+          <button className="px-5 py-2.5 border border-[#b56060]/30 hover:border-[#b56060]/60 hover:bg-[#b56060]/10 text-[#b56060] text-[14px] font-medium rounded-xl transition-all">
+            Usuń konto
+          </button>
+        </div>
 
       </section>
 
