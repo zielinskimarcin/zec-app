@@ -3,8 +3,9 @@ import { motion, AnimatePresence } from 'motion/react';
 import { 
   Search, Mail, Globe, Calendar, X, 
   Clock, Send, ArrowUpDown, ChevronRight, 
-  Loader2, Instagram, Linkedin, Lock, Trash2, Plus, SlidersHorizontal
+  Loader2, Instagram, Linkedin, Lock, Trash2, Plus, SlidersHorizontal, Check, Users
 } from 'lucide-react';
+import { Link } from 'react-router';
 import { supabase } from '../lib/supabase';
 
 type LeadStatus = 'pending' | 'sent';
@@ -40,6 +41,7 @@ export function LeadsPage() {
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [activeTab, setActiveTab] = useState<'overview' | 'ig' | 'in'>('overview');
+  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
 
   // Stany filtrów i sortowania
   const [searchQuery, setSearchQuery] = useState('');
@@ -48,131 +50,57 @@ export function LeadsPage() {
   const [sortBy, setSortBy] = useState<'date_desc' | 'date_asc' | 'name_asc' | 'city_asc' | 'industry_asc'>('date_desc');
 
   useEffect(() => {
-  async function loadAndTransferLeads() {
-    setIsLoading(true);
-    const { data: { session } } = await supabase.auth.getSession();
-    
-    if (!session) {
-      setIsLoading(false);
-      return;
-    }
-
-    // 1. KRADNIEMY ZE SCHOWKA (Transfer z Landingu)
-    const tempLeads = localStorage.getItem('zec_temp_leads');
-    const tempQuery = localStorage.getItem('zec_temp_query');
-
-    if (tempLeads && tempQuery) {
-      try {
-        const userCreatedAt = new Date(session.user.created_at).getTime();
-        const isNewAccount = ((Date.now() - userCreatedAt) / (1000 * 60)) < 5;
-
-        if (isNewAccount) {
-          const parsedLeads = JSON.parse(tempLeads);
-          const parsedQuery = JSON.parse(tempQuery);
-
-          console.log("Nowe konto: Transferuję 3 darmowe leady z landingu do CRM...");
-
-          // Dla każdego leada z landingu:
-          for (const leadData of parsedLeads) {
-            // A. Dodajemy do global_leads (skarbiec)
-            const { data: globalLead, error: globalError } = await supabase
-              .from('global_leads')
-              .insert({
-                query_hash: 'landing-page-free',
-                company_name: leadData.company || leadData.name || 'Brak nazwy',
-                email: leadData.email || 'brak@email.pl',
-                website: leadData.website || `brak-${Math.random()}.pl`, // Zabezpieczenie przed duplikatem UNIQUE
-                city: parsedQuery.city,
-                industry: parsedQuery.industry
-              })
-              .select('id')
-              .single();
-
-            if (globalError) {
-              console.error("Błąd zapisu do global_leads:", globalError);
-              continue; // Pomijamy, jeśli coś poszło nie tak
-            }
-
-            // B. Przypisujemy leada bezpośrednio do użytkownika (Magazyn CRM)
-            await supabase
-              .from('user_leads')
-              .insert({
-                user_id: session.user.id,
-                global_lead_id: globalLead.id,
-                name: leadData.name || 'Kontakt',
-                status: 'pending',
-                summary: 'Lead pozyskany z darmowego pakietu testowego na stronie głównej.',
-                history: [
-                  { 
-                    date: new Date().toISOString(), 
-                    action: 'Zarejestrowano z Landingu', 
-                    details: 'Lead został automatycznie przeniesiony z Twojego darmowego testu.' 
-                  }
-                ]
-              });
-          }
-          console.log("✅ Sukces! Darmowe leady są w nowym systemie.");
-        }
-        
-        // SPRZĄTAMY, żeby nie dodało ich podwójnie przy odświeżeniu
-        localStorage.removeItem('zec_temp_leads');
-        localStorage.removeItem('zec_temp_query');
-
-      } catch (err) {
-        console.error("Błąd podczas transferu leadów:", err);
+    async function fetchLeads() {
+      setIsLoading(true);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setIsLoading(false);
+        return;
       }
+
+      const { data, error } = await supabase
+        .from('user_leads')
+        .select(`
+          id, name, status, created_at, summary, has_instagram, has_linkedin, instagram_data, linkedin_data, history, campaign_id,
+          global_leads ( company_name, email, website, city, industry ),
+          campaigns ( name )
+        `)
+        .eq('user_id', session.user.id);
+
+      if (error) {
+        console.error("Błąd pobierania leadów:", error);
+      } else if (data) {
+        const mappedLeads: Lead[] = data.map((item: any) => ({
+          id: item.id,
+          name: item.name || item.global_leads?.company_name || 'Brak nazwy',
+          company: item.global_leads?.company_name || 'Brak firmy',
+          email: item.global_leads?.email || 'brak@email.pl',
+          website: item.global_leads?.website || '',
+          city: item.global_leads?.city || '',
+          industry: item.global_leads?.industry || '',
+          status: item.status as LeadStatus || 'pending',
+          addedDate: item.created_at,
+          campaignId: item.campaign_id,
+          campaignName: item.campaigns?.name,
+          summary: item.summary,
+          hasInstagram: item.has_instagram,
+          hasLinkedin: item.has_linkedin,
+          instagramData: item.instagram_data,
+          linkedinData: item.linkedin_data,
+          history: item.history || []
+        }));
+        setLeads(mappedLeads);
+      }
+      setIsLoading(false);
     }
+    fetchLeads();
+  }, []);
 
-    // 2. POBIERAMY Z BAZY I RYSUJEMY FRONTEND (Tak jak w poprzednim kodzie)
-    const { data, error } = await supabase
-      .from('user_leads')
-      .select(`
-        id, name, status, created_at, summary, has_instagram, has_linkedin, instagram_data, linkedin_data, history, campaign_id,
-        global_leads ( company_name, email, website, city, industry ),
-        campaigns ( name )
-      `)
-      .eq('user_id', session.user.id);
-
-    if (data) {
-      const mappedLeads: Lead[] = data.map((item: any) => ({
-        id: item.id,
-        name: item.name || item.global_leads?.company_name || 'Brak nazwy',
-        company: item.global_leads?.company_name || 'Brak firmy',
-        email: item.global_leads?.email || 'brak@email.pl',
-        website: item.global_leads?.website || '',
-        city: item.global_leads?.city || '',
-        industry: item.global_leads?.industry || '',
-        status: item.status as LeadStatus || 'pending',
-        addedDate: item.created_at,
-        campaignId: item.campaign_id,
-        campaignName: item.campaigns?.name,
-        summary: item.summary,
-        hasInstagram: item.has_instagram || false,
-        hasLinkedin: item.has_linkedin || false,
-        instagramData: item.instagram_data,
-        linkedinData: item.linkedin_data,
-        history: item.history || []
-      }));
-      setLeads(mappedLeads);
-    }
-    setIsLoading(false);
-  }
-
-  loadAndTransferLeads();
-}, []);
-
-  // Przetwarzanie leadów (Szukanie -> Filtrowanie -> Sortowanie)
   const processedLeads = useMemo(() => {
     let result = leads.filter(lead => {
-      // Wyszukiwanie
-      const searchMatch = 
-        lead.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-        lead.company.toLowerCase().includes(searchQuery.toLowerCase());
-      
-      // Status
+      const searchMatch = lead.name.toLowerCase().includes(searchQuery.toLowerCase()) || lead.company.toLowerCase().includes(searchQuery.toLowerCase());
       const statusMatch = filterStatus === 'all' || lead.status === filterStatus;
       
-      // Źródło / Wzbogacenie
       let sourceMatch = true;
       if (filterSource === 'ig') sourceMatch = lead.hasInstagram;
       if (filterSource === 'in') sourceMatch = lead.hasLinkedin;
@@ -180,7 +108,6 @@ export function LeadsPage() {
       return searchMatch && statusMatch && sourceMatch;
     });
 
-    // Sortowanie
     result.sort((a, b) => {
       switch (sortBy) {
         case 'date_desc': return new Date(b.addedDate).getTime() - new Date(a.addedDate).getTime();
@@ -208,6 +135,28 @@ export function LeadsPage() {
     setSelectedIds(next);
   };
 
+  // Funkcja usuwania zaznaczonych leadów
+  const handleDeleteSelected = async () => {
+    if (!confirm(`Czy na pewno chcesz usunąć ${selectedIds.size} leadów z bazy?`)) return;
+
+    const idsToDelete = Array.from(selectedIds);
+    
+    // Optymistyczny update UI
+    setLeads(prev => prev.filter(lead => !selectedIds.has(lead.id)));
+    setSelectedIds(new Set());
+
+    // Usuwanie z bazy Supabase
+    const { error } = await supabase
+      .from('user_leads')
+      .delete()
+      .in('id', idsToDelete);
+
+    if (error) {
+      console.error('Błąd usuwania:', error);
+      alert('Wystąpił błąd podczas usuwania. Odśwież stronę.');
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
@@ -221,60 +170,95 @@ export function LeadsPage() {
       
       {/* Header */}
       <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}>
-        <h1 className="text-[28px] font-serif text-[#EAE8E1] tracking-tight mb-1">Magazyn leadów.</h1>
+        <h1 className="text-[28px] font-serif text-[#EAE8E1] tracking-tight mb-1">Baza leadów</h1>
         <p className="text-[15px] text-[#A3A09A]">Zarządzaj swoimi kontaktami. Wzbogacaj dane i przypisuj do kampanii.</p>
       </motion.div>
 
-      {/* Pasek narzędzi (Szukajka + Zaawansowane Filtry) */}
-      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-3">
+      {/* Pasek narzędzi (Szukajka + Toggle Filtrów) */}
+      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
         
-        <div className="relative w-full">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-[#827E78]" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Szukaj firmy, nazwiska lub branży..."
-            className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl pl-10 pr-4 py-3 text-[14px] text-[#EAE8E1] placeholder:text-[#827E78] focus:border-white/[0.2] focus:bg-white/[0.06] transition-all outline-none"
-          />
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3 p-1">
-          <div className="flex items-center gap-2 text-[#827E78] text-[13px] mr-2">
-            <SlidersHorizontal className="size-4" /> Filtruj:
+        <div className="flex items-center gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-[#827E78]" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Szukaj firmy, nazwiska lub branży..."
+              className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl pl-10 pr-4 py-3 text-[14px] text-[#EAE8E1] placeholder:text-[#827E78] focus:border-white/[0.2] focus:bg-white/[0.06] transition-all outline-none"
+            />
           </div>
-          
-          <select 
-            value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as any)}
-            className="bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-1.5 text-[13px] text-[#EAE8E1] outline-none"
+          <button 
+            onClick={() => setIsFiltersOpen(!isFiltersOpen)}
+            className={`px-5 py-3 rounded-xl border flex items-center gap-2 text-[14px] font-medium transition-all ${
+              isFiltersOpen || filterStatus !== 'all' || filterSource !== 'all' || sortBy !== 'date_desc'
+              ? 'bg-[#EAE8E1] text-[#0a0a0a] border-[#EAE8E1]' 
+              : 'bg-white/[0.04] text-[#EAE8E1] border-white/[0.08] hover:bg-white/[0.08]'
+            }`}
           >
-            <option value="all">Wszystkie statusy</option>
-            <option value="pending">Tylko Oczekujące</option>
-            <option value="sent">Tylko W Kampanii</option>
-          </select>
-
-          <select 
-            value={filterSource} onChange={(e) => setFilterSource(e.target.value as any)}
-            className="bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-1.5 text-[13px] text-[#EAE8E1] outline-none"
-          >
-            <option value="all">Wszystkie źródła</option>
-            <option value="ig">Zbadany Instagram</option>
-            <option value="in">Zbadany LinkedIn</option>
-          </select>
-
-          <div className="w-px h-4 bg-white/[0.1] mx-1" />
-
-          <select 
-            value={sortBy} onChange={(e) => setSortBy(e.target.value as any)}
-            className="bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-1.5 text-[13px] text-[#EAE8E1] outline-none"
-          >
-            <option value="date_desc">Najnowsze wpierw</option>
-            <option value="date_asc">Najstarsze wpierw</option>
-            <option value="name_asc">Alfabetycznie (A-Z)</option>
-            <option value="city_asc">Według Miasta</option>
-            <option value="industry_asc">Według Branży</option>
-          </select>
+            <SlidersHorizontal className="size-4" /> Filtry
+          </button>
         </div>
+
+        {/* Rozwijany panel filtrów */}
+        <AnimatePresence>
+          {isFiltersOpen && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="overflow-hidden"
+            >
+              <div className="p-5 border border-white/[0.06] bg-white/[0.02] rounded-2xl grid grid-cols-1 md:grid-cols-3 gap-6">
+                
+                {/* Status Dropdown */}
+                <div>
+                  <label className="block text-[12px] font-medium text-[#827E78] mb-2 uppercase tracking-wider">Status</label>
+                  <select 
+                    value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as any)}
+                    className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 text-[13px] text-[#EAE8E1] outline-none hover:bg-white/[0.06] transition-all cursor-pointer appearance-none"
+                    style={{ WebkitAppearance: 'none', backgroundImage: 'url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23A3A09A%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.7rem top 50%', backgroundSize: '0.65rem auto' }}
+                  >
+                    <option value="all" className="bg-[#1A1A1A]">Wszystkie statusy</option>
+                    <option value="pending" className="bg-[#1A1A1A]">Oczekujące</option>
+                    <option value="sent" className="bg-[#1A1A1A]">W Kampanii</option>
+                  </select>
+                </div>
+
+                {/* Typ danych Dropdown */}
+                <div>
+                  <label className="block text-[12px] font-medium text-[#827E78] mb-2 uppercase tracking-wider">Typ danych</label>
+                  <select 
+                    value={filterSource} onChange={(e) => setFilterSource(e.target.value as any)}
+                    className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 text-[13px] text-[#EAE8E1] outline-none hover:bg-white/[0.06] transition-all cursor-pointer appearance-none"
+                    style={{ WebkitAppearance: 'none', backgroundImage: 'url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23A3A09A%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.7rem top 50%', backgroundSize: '0.65rem auto' }}
+                  >
+                    <option value="all" className="bg-[#1A1A1A]">Wszystkie leady</option>
+                    <option value="ig" className="bg-[#1A1A1A]">Z Instagramem</option>
+                    <option value="in" className="bg-[#1A1A1A]">Z LinkedInem</option>
+                  </select>
+                </div>
+
+                {/* Sortowanie Dropdown */}
+                <div>
+                  <label className="block text-[12px] font-medium text-[#827E78] mb-2 uppercase tracking-wider">Sortowanie</label>
+                  <select 
+                    value={sortBy} onChange={(e) => setSortBy(e.target.value as any)}
+                    className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 text-[13px] text-[#EAE8E1] outline-none hover:bg-white/[0.06] transition-all cursor-pointer appearance-none"
+                    style={{ WebkitAppearance: 'none', backgroundImage: 'url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23A3A09A%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.7rem top 50%', backgroundSize: '0.65rem auto' }}
+                  >
+                    <option value="date_desc" className="bg-[#1A1A1A]">Najnowsze wpierw</option>
+                    <option value="date_asc" className="bg-[#1A1A1A]">Najstarsze wpierw</option>
+                    <option value="name_asc" className="bg-[#1A1A1A]">Alfabetycznie (A-Z)</option>
+                    <option value="city_asc" className="bg-[#1A1A1A]">Według Miasta</option>
+                    <option value="industry_asc" className="bg-[#1A1A1A]">Według Branży</option>
+                  </select>
+                </div>
+
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </motion.div>
 
       {/* Główna Tabela */}
@@ -283,8 +267,8 @@ export function LeadsPage() {
         {/* Nagłówki Tabeli */}
         <div className="grid grid-cols-12 gap-4 px-6 py-4 border-b border-white/[0.06] bg-white/[0.02]">
           <div className="col-span-5 flex items-center gap-4">
-            <button onClick={toggleSelectAll} className={`size-4 rounded border flex items-center justify-center transition-all ${selectedIds.size > 0 && selectedIds.size === processedLeads.length ? 'bg-[#EAE8E1] border-[#EAE8E1]' : 'border-white/[0.15] bg-white/[0.04] hover:border-white/[0.3]'}`}>
-              {selectedIds.size > 0 && <CheckCircle2 className="size-3 text-[#0a0a0a]" />}
+            <button onClick={toggleSelectAll} className={`size-4 rounded flex items-center justify-center transition-all border ${selectedIds.size > 0 && selectedIds.size === processedLeads.length ? 'bg-[#EAE8E1] border-[#EAE8E1]' : 'border-white/[0.15] bg-transparent hover:border-white/[0.3]'}`}>
+              {selectedIds.size > 0 && <Check strokeWidth={3} className="size-3 text-[#0a0a0a]" />}
             </button>
             <span className="text-[13px] font-medium text-[#827E78] flex items-center gap-1.5">Kontakt & Firma <ArrowUpDown className="size-3" /></span>
           </div>
@@ -293,11 +277,45 @@ export function LeadsPage() {
           <div className="col-span-2 text-[13px] font-medium text-[#827E78] text-right">Data</div>
         </div>
 
-        {/* Lista */}
+        {/* Lista (Z Empty State) */}
         <div className="divide-y divide-white/[0.04]">
           {processedLeads.length === 0 ? (
-            <div className="p-12 text-center">
-              <p className="text-[15px] text-[#A3A09A]">Brak leadów spełniających kryteria.</p>
+            <div className="px-8 py-20 text-center">
+              <div className="size-14 bg-white/[0.03] border border-white/[0.06] rounded-2xl flex items-center justify-center mx-auto mb-5 shadow-sm">
+                <Users className="size-6 text-[#A3A09A]" />
+              </div>
+              
+              {leads.length === 0 ? (
+                <>
+                  <p className="text-[18px] font-medium text-[#EAE8E1] mb-2">Brak zapisanych leadów</p>
+                  <p className="text-[14px] text-[#A3A09A] mb-8 max-w-[320px] mx-auto leading-relaxed">
+                    Skorzystaj z naszej wyszukiwarki i znajdź idealne firmy do swojej pierwszej kampanii.
+                  </p>
+                  <Link
+                    to="/app/prospecting"
+                    className="inline-flex items-center justify-center px-6 py-3 bg-[#EAE8E1] hover:bg-white text-[#1A1A1A] text-[14px] font-medium rounded-xl transition-all shadow-sm"
+                  >
+                    Wyszukaj nowe firmy
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <p className="text-[18px] font-medium text-[#EAE8E1] mb-2">Brak wyników wyszukiwania</p>
+                  <p className="text-[14px] text-[#A3A09A] mb-8 max-w-[320px] mx-auto leading-relaxed">
+                    Żaden z Twoich zapisanych leadów nie pasuje do obecnych kryteriów filtrowania.
+                  </p>
+                  <button
+                    onClick={() => {
+                      setSearchQuery('');
+                      setFilterStatus('all');
+                      setFilterSource('all');
+                    }}
+                    className="inline-flex items-center justify-center px-6 py-3 bg-white/[0.06] border border-white/[0.1] hover:bg-white/[0.1] text-[#EAE8E1] text-[14px] font-medium rounded-xl transition-all shadow-sm"
+                  >
+                    Wyczyść filtry
+                  </button>
+                </>
+              )}
             </div>
           ) : (
             processedLeads.map((lead) => {
@@ -308,8 +326,8 @@ export function LeadsPage() {
                 <div key={lead.id} onClick={() => setSelectedLead(lead)} className={`grid grid-cols-12 gap-4 px-6 py-4 items-center cursor-pointer transition-all ${isSelected ? 'bg-white/[0.04]' : 'hover:bg-white/[0.02]'}`}>
                   {/* Kontakt & Firma */}
                   <div className="col-span-5 flex items-center gap-4">
-                    <button onClick={(e) => toggleSelect(e, lead.id)} className={`size-4 rounded border flex items-center justify-center transition-all shrink-0 ${isSelected ? 'bg-[#EAE8E1] border-[#EAE8E1]' : 'border-white/[0.15] bg-white/[0.04] hover:border-white/[0.3]'}`}>
-                      {isSelected && <CheckCircle2 className="size-3 text-[#0a0a0a]" />}
+                    <button onClick={(e) => toggleSelect(e, lead.id)} className={`size-4 rounded flex items-center justify-center transition-all border shrink-0 ${isSelected ? 'bg-[#EAE8E1] border-[#EAE8E1]' : 'border-white/[0.15] bg-transparent hover:border-white/[0.3]'}`}>
+                      {isSelected && <Check strokeWidth={3} className="size-3 text-[#0a0a0a]" />}
                     </button>
                     <div className="min-w-0">
                       <p className="text-[14px] font-medium text-[#EAE8E1] truncate">{lead.name}</p>
@@ -371,7 +389,10 @@ export function LeadsPage() {
               <span className="text-[14px] text-[#A3A09A]">Wybrano leadów</span>
             </div>
             <div className="flex items-center gap-3">
-              <button className="flex items-center gap-2 px-4 py-2 text-[13px] font-medium text-[#b56060] hover:bg-[#b56060]/10 rounded-xl transition-all">
+              <button 
+                onClick={handleDeleteSelected}
+                className="flex items-center gap-2 px-4 py-2 text-[13px] font-medium text-[#b56060] hover:bg-[#b56060]/10 rounded-xl transition-all"
+              >
                 <Trash2 className="size-4" /> Usuń
               </button>
               <button className="flex items-center gap-2 px-5 py-2 bg-[#EAE8E1] hover:bg-white text-[#0a0a0a] text-[13px] font-semibold rounded-xl transition-all">
@@ -477,10 +498,38 @@ export function LeadsPage() {
                     )
                   )}
                 </div>
+
+                {/* Timeline / Historia Operacji */}
+                <div className="pt-8 border-t border-white/[0.06]">
+                  <h3 className="text-[14px] font-medium text-[#EAE8E1] mb-6">Historia operacji</h3>
+                  <div className="space-y-6 relative before:absolute before:inset-0 before:ml-[11px] before:h-full before:w-px before:bg-white/[0.08]">
+                    {selectedLead.history && selectedLead.history.map((event, i) => (
+                      <div key={i} className="relative flex gap-4">
+                        <div className="flex items-center justify-center w-6 h-6 rounded-full border border-white/[0.1] bg-[#0a0a0a] z-10 shrink-0">
+                          <div className="w-1.5 h-1.5 rounded-full bg-[#EAE8E1]"></div>
+                        </div>
+                        <div className="flex-1 bg-white/[0.02] border border-white/[0.04] p-4 rounded-xl">
+                          <div className="flex items-center justify-between mb-1.5">
+                            <span className="text-[13px] font-medium text-[#EAE8E1]">{event.action}</span>
+                            <span className="text-[11px] text-[#827E78] font-mono">{new Date(event.date).toLocaleDateString()}</span>
+                          </div>
+                          <p className="text-[13px] text-[#A3A09A] leading-relaxed">{event.details}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
               </div>
               
               <div className="p-6 border-t border-white/[0.06] bg-[#0a0a0a] flex gap-3">
-                <button className="flex-1 px-4 py-3 bg-[#EAE8E1] hover:bg-white text-[#0a0a0a] text-[14px] font-semibold rounded-xl transition-all">
+                <button 
+                  onClick={() => {
+                    setSelectedIds(prev => new Set([...prev, selectedLead.id]));
+                    setSelectedLead(null);
+                  }}
+                  className="flex-1 px-4 py-3 bg-[#EAE8E1] hover:bg-white text-[#0a0a0a] text-[14px] font-semibold rounded-xl transition-all"
+                >
                   Dodaj do Kampanii
                 </button>
               </div>
