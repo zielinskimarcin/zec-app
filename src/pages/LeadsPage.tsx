@@ -12,7 +12,6 @@ type LeadStatus = 'pending' | 'sent';
 
 interface Lead {
   id: string;
-  name: string;
   company: string;
   email: string;
   website: string;
@@ -47,7 +46,7 @@ export function LeadsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<LeadStatus | 'all'>('all');
   const [filterSource, setFilterSource] = useState<'all' | 'ig' | 'in'>('all');
-  const [sortBy, setSortBy] = useState<'date_desc' | 'date_asc' | 'name_asc' | 'city_asc' | 'industry_asc'>('date_desc');
+  const [sortBy, setSortBy] = useState<'date_desc' | 'date_asc' | 'company_asc' | 'city_asc' | 'industry_asc'>('date_desc');
 
   useEffect(() => {
     async function fetchLeads() {
@@ -61,7 +60,7 @@ export function LeadsPage() {
       const { data, error } = await supabase
         .from('user_leads')
         .select(`
-          id, name, status, created_at, summary, has_instagram, has_linkedin, instagram_data, linkedin_data, history, campaign_id,
+          id, status, created_at, summary, has_instagram, has_linkedin, instagram_data, linkedin_data, history, campaign_id,
           global_leads ( company_name, email, website, city, industry ),
           campaigns ( name )
         `)
@@ -72,7 +71,6 @@ export function LeadsPage() {
       } else if (data) {
         const mappedLeads: Lead[] = data.map((item: any) => ({
           id: item.id,
-          name: item.name || item.global_leads?.company_name || 'Brak nazwy',
           company: item.global_leads?.company_name || 'Brak firmy',
           email: item.global_leads?.email || 'brak@email.pl',
           website: item.global_leads?.website || '',
@@ -98,7 +96,12 @@ export function LeadsPage() {
 
   const processedLeads = useMemo(() => {
     let result = leads.filter(lead => {
-      const searchMatch = lead.name.toLowerCase().includes(searchQuery.toLowerCase()) || lead.company.toLowerCase().includes(searchQuery.toLowerCase());
+      const searchStr = searchQuery.toLowerCase();
+      const searchMatch = 
+        lead.company.toLowerCase().includes(searchStr) || 
+        lead.industry.toLowerCase().includes(searchStr) ||
+        lead.city.toLowerCase().includes(searchStr);
+        
       const statusMatch = filterStatus === 'all' || lead.status === filterStatus;
       
       let sourceMatch = true;
@@ -112,7 +115,7 @@ export function LeadsPage() {
       switch (sortBy) {
         case 'date_desc': return new Date(b.addedDate).getTime() - new Date(a.addedDate).getTime();
         case 'date_asc': return new Date(a.addedDate).getTime() - new Date(b.addedDate).getTime();
-        case 'name_asc': return a.name.localeCompare(b.name);
+        case 'company_asc': return a.company.localeCompare(b.company);
         case 'city_asc': return a.city.localeCompare(b.city);
         case 'industry_asc': return a.industry.localeCompare(b.industry);
         default: return 0;
@@ -135,22 +138,14 @@ export function LeadsPage() {
     setSelectedIds(next);
   };
 
-  // Funkcja usuwania zaznaczonych leadów
   const handleDeleteSelected = async () => {
     if (!confirm(`Czy na pewno chcesz usunąć ${selectedIds.size} leadów z bazy?`)) return;
 
     const idsToDelete = Array.from(selectedIds);
-    
-    // Optymistyczny update UI
     setLeads(prev => prev.filter(lead => !selectedIds.has(lead.id)));
     setSelectedIds(new Set());
 
-    // Usuwanie z bazy Supabase
-    const { error } = await supabase
-      .from('user_leads')
-      .delete()
-      .in('id', idsToDelete);
-
+    const { error } = await supabase.from('user_leads').delete().in('id', idsToDelete);
     if (error) {
       console.error('Błąd usuwania:', error);
       alert('Wystąpił błąd podczas usuwania. Odśwież stronę.');
@@ -174,9 +169,8 @@ export function LeadsPage() {
         <p className="text-[15px] text-[#A3A09A]">Zarządzaj swoimi kontaktami. Wzbogacaj dane i przypisuj do kampanii.</p>
       </motion.div>
 
-      {/* Pasek narzędzi (Szukajka + Toggle Filtrów) */}
+      {/* Pasek narzędzi */}
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-        
         <div className="flex items-center gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-[#827E78]" />
@@ -184,7 +178,7 @@ export function LeadsPage() {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Szukaj firmy, nazwiska lub branży..."
+              placeholder="Szukaj firmy, branży lub miasta..."
               className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl pl-10 pr-4 py-3 text-[14px] text-[#EAE8E1] placeholder:text-[#827E78] focus:border-white/[0.2] focus:bg-white/[0.06] transition-all outline-none"
             />
           </div>
@@ -203,15 +197,8 @@ export function LeadsPage() {
         {/* Rozwijany panel filtrów */}
         <AnimatePresence>
           {isFiltersOpen && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              className="overflow-hidden"
-            >
+            <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
               <div className="p-5 border border-white/[0.06] bg-white/[0.02] rounded-2xl grid grid-cols-1 md:grid-cols-3 gap-6">
-                
-                {/* Status Dropdown */}
                 <div>
                   <label className="block text-[12px] font-medium text-[#827E78] mb-2 uppercase tracking-wider">Status</label>
                   <select 
@@ -224,8 +211,6 @@ export function LeadsPage() {
                     <option value="sent" className="bg-[#1A1A1A]">W Kampanii</option>
                   </select>
                 </div>
-
-                {/* Typ danych Dropdown */}
                 <div>
                   <label className="block text-[12px] font-medium text-[#827E78] mb-2 uppercase tracking-wider">Typ danych</label>
                   <select 
@@ -238,8 +223,6 @@ export function LeadsPage() {
                     <option value="in" className="bg-[#1A1A1A]">Z LinkedInem</option>
                   </select>
                 </div>
-
-                {/* Sortowanie Dropdown */}
                 <div>
                   <label className="block text-[12px] font-medium text-[#827E78] mb-2 uppercase tracking-wider">Sortowanie</label>
                   <select 
@@ -249,12 +232,11 @@ export function LeadsPage() {
                   >
                     <option value="date_desc" className="bg-[#1A1A1A]">Najnowsze wpierw</option>
                     <option value="date_asc" className="bg-[#1A1A1A]">Najstarsze wpierw</option>
-                    <option value="name_asc" className="bg-[#1A1A1A]">Alfabetycznie (A-Z)</option>
+                    <option value="company_asc" className="bg-[#1A1A1A]">Alfabetycznie (A-Z)</option>
                     <option value="city_asc" className="bg-[#1A1A1A]">Według Miasta</option>
                     <option value="industry_asc" className="bg-[#1A1A1A]">Według Branży</option>
                   </select>
                 </div>
-
               </div>
             </motion.div>
           )}
@@ -270,50 +252,31 @@ export function LeadsPage() {
             <button onClick={toggleSelectAll} className={`size-4 rounded flex items-center justify-center transition-all border ${selectedIds.size > 0 && selectedIds.size === processedLeads.length ? 'bg-[#EAE8E1] border-[#EAE8E1]' : 'border-white/[0.15] bg-transparent hover:border-white/[0.3]'}`}>
               {selectedIds.size > 0 && <Check strokeWidth={3} className="size-3 text-[#0a0a0a]" />}
             </button>
-            <span className="text-[13px] font-medium text-[#827E78] flex items-center gap-1.5">Kontakt & Firma <ArrowUpDown className="size-3" /></span>
+            <span className="text-[13px] font-medium text-[#827E78] flex items-center gap-1.5">Firma & Lokalizacja <ArrowUpDown className="size-3" /></span>
           </div>
           <div className="col-span-3 text-[13px] font-medium text-[#827E78]">Dane kontaktowe</div>
           <div className="col-span-2 text-[13px] font-medium text-[#827E78]">Status</div>
           <div className="col-span-2 text-[13px] font-medium text-[#827E78] text-right">Data</div>
         </div>
 
-        {/* Lista (Z Empty State) */}
+        {/* Lista */}
         <div className="divide-y divide-white/[0.04]">
           {processedLeads.length === 0 ? (
             <div className="px-8 py-20 text-center">
               <div className="size-14 bg-white/[0.03] border border-white/[0.06] rounded-2xl flex items-center justify-center mx-auto mb-5 shadow-sm">
                 <Users className="size-6 text-[#A3A09A]" />
               </div>
-              
               {leads.length === 0 ? (
                 <>
                   <p className="text-[18px] font-medium text-[#EAE8E1] mb-2">Brak zapisanych leadów</p>
-                  <p className="text-[14px] text-[#A3A09A] mb-8 max-w-[320px] mx-auto leading-relaxed">
-                    Skorzystaj z naszej wyszukiwarki i znajdź idealne firmy do swojej pierwszej kampanii.
-                  </p>
-                  <Link
-                    to="/app/prospecting"
-                    className="inline-flex items-center justify-center px-6 py-3 bg-[#EAE8E1] hover:bg-white text-[#1A1A1A] text-[14px] font-medium rounded-xl transition-all shadow-sm"
-                  >
-                    Wyszukaj nowe firmy
-                  </Link>
+                  <p className="text-[14px] text-[#A3A09A] mb-8 max-w-[320px] mx-auto leading-relaxed">Skorzystaj z naszej wyszukiwarki i znajdź idealne firmy do swojej pierwszej kampanii.</p>
+                  <Link to="/app/prospecting" className="inline-flex items-center justify-center px-6 py-3 bg-[#EAE8E1] hover:bg-white text-[#1A1A1A] text-[14px] font-medium rounded-xl transition-all shadow-sm">Wyszukaj nowe firmy</Link>
                 </>
               ) : (
                 <>
                   <p className="text-[18px] font-medium text-[#EAE8E1] mb-2">Brak wyników wyszukiwania</p>
-                  <p className="text-[14px] text-[#A3A09A] mb-8 max-w-[320px] mx-auto leading-relaxed">
-                    Żaden z Twoich zapisanych leadów nie pasuje do obecnych kryteriów filtrowania.
-                  </p>
-                  <button
-                    onClick={() => {
-                      setSearchQuery('');
-                      setFilterStatus('all');
-                      setFilterSource('all');
-                    }}
-                    className="inline-flex items-center justify-center px-6 py-3 bg-white/[0.06] border border-white/[0.1] hover:bg-white/[0.1] text-[#EAE8E1] text-[14px] font-medium rounded-xl transition-all shadow-sm"
-                  >
-                    Wyczyść filtry
-                  </button>
+                  <p className="text-[14px] text-[#A3A09A] mb-8 max-w-[320px] mx-auto leading-relaxed">Żaden z Twoich zapisanych leadów nie pasuje do obecnych kryteriów filtrowania.</p>
+                  <button onClick={() => { setSearchQuery(''); setFilterStatus('all'); setFilterSource('all'); }} className="inline-flex items-center justify-center px-6 py-3 bg-white/[0.06] border border-white/[0.1] hover:bg-white/[0.1] text-[#EAE8E1] text-[14px] font-medium rounded-xl transition-all shadow-sm">Wyczyść filtry</button>
                 </>
               )}
             </div>
@@ -324,15 +287,15 @@ export function LeadsPage() {
 
               return (
                 <div key={lead.id} onClick={() => setSelectedLead(lead)} className={`grid grid-cols-12 gap-4 px-6 py-4 items-center cursor-pointer transition-all ${isSelected ? 'bg-white/[0.04]' : 'hover:bg-white/[0.02]'}`}>
-                  {/* Kontakt & Firma */}
+                  {/* Firma & Lokalizacja */}
                   <div className="col-span-5 flex items-center gap-4">
                     <button onClick={(e) => toggleSelect(e, lead.id)} className={`size-4 rounded flex items-center justify-center transition-all border shrink-0 ${isSelected ? 'bg-[#EAE8E1] border-[#EAE8E1]' : 'border-white/[0.15] bg-transparent hover:border-white/[0.3]'}`}>
                       {isSelected && <Check strokeWidth={3} className="size-3 text-[#0a0a0a]" />}
                     </button>
                     <div className="min-w-0">
-                      <p className="text-[14px] font-medium text-[#EAE8E1] truncate">{lead.name}</p>
+                      <p className="text-[14px] font-medium text-[#EAE8E1] truncate">{lead.company}</p>
                       <p className="text-[13px] text-[#827E78] truncate flex items-center gap-1.5">
-                        {lead.company} {lead.city && <><span className="w-1 h-1 rounded-full bg-white/[0.15]" /> {lead.city}</>}
+                        {lead.industry || 'Brak branży'} {lead.city && <><span className="w-1 h-1 rounded-full bg-white/[0.15]" /> {lead.city}</>}
                       </p>
                     </div>
                   </div>
@@ -389,10 +352,7 @@ export function LeadsPage() {
               <span className="text-[14px] text-[#A3A09A]">Wybrano leadów</span>
             </div>
             <div className="flex items-center gap-3">
-              <button 
-                onClick={handleDeleteSelected}
-                className="flex items-center gap-2 px-4 py-2 text-[13px] font-medium text-[#b56060] hover:bg-[#b56060]/10 rounded-xl transition-all"
-              >
+              <button onClick={handleDeleteSelected} className="flex items-center gap-2 px-4 py-2 text-[13px] font-medium text-[#b56060] hover:bg-[#b56060]/10 rounded-xl transition-all">
                 <Trash2 className="size-4" /> Usuń
               </button>
               <button className="flex items-center gap-2 px-5 py-2 bg-[#EAE8E1] hover:bg-white text-[#0a0a0a] text-[13px] font-semibold rounded-xl transition-all">
@@ -407,16 +367,19 @@ export function LeadsPage() {
       <AnimatePresence>
         {selectedLead && (
           <>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setSelectedLead(null)} className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40" />
+            {/* TUTAJ ZMIANA: top-[72px] sprawia, że blur i panel zaczynają się idealnie POD navbarem. 
+              Jeśli masz np. navbar 64px, zmień 72 na 64. 
+            */}
+            {/* 1. Backdrop (Rozmycie) */}
+<motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setSelectedLead(null)} className="fixed left-0 right-0 top-[72px] h-[calc(100vh-72px)] bg-black/60 backdrop-blur-sm z-30" />
 
-            <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 200 }} className="fixed right-0 top-0 bottom-0 w-full max-w-xl bg-[#0a0a0a] border-l border-white/[0.08] z-50 flex flex-col shadow-2xl">
-              
-              {/* Sidebar Header */}
+{/* 2. Sidebar (Panel) */}
+<motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 200 }} className="fixed right-0 top-[72px] h-[calc(100vh-72px)] w-full max-w-xl bg-[#0a0a0a] border-l border-white/[0.08] z-40 flex flex-col shadow-2xl">
               <div className="px-8 py-6 border-b border-white/[0.06] flex justify-between items-start bg-white/[0.02]">
                 <div>
-                  <h2 className="text-[22px] font-serif font-bold text-[#EAE8E1] mb-1">{selectedLead.name}</h2>
+                  <h2 className="text-[22px] font-serif text-[#EAE8E1] mb-1">{selectedLead.company}</h2>
                   <p className="text-[14px] text-[#A3A09A] flex items-center gap-2">
-                    {selectedLead.company} {selectedLead.industry && <><span className="size-1 rounded-full bg-white/[0.15]" /> {selectedLead.industry}</>}
+                    {selectedLead.industry || 'Brak branży'} {selectedLead.city && <><span className="size-1 rounded-full bg-white/[0.15]" /> {selectedLead.city}</>}
                   </p>
                 </div>
                 <button onClick={() => setSelectedLead(null)} className="p-2 bg-white/[0.04] hover:bg-white/[0.08] rounded-xl text-[#827E78] hover:text-[#EAE8E1] transition-all">
@@ -424,20 +387,15 @@ export function LeadsPage() {
                 </button>
               </div>
 
-              {/* Scrollable Content */}
               <div className="flex-1 overflow-y-auto p-8 space-y-8">
                 
-                {/* Minimalistyczne Podsumowanie AI */}
                 <div className="bg-white/[0.02] border border-white/[0.06] rounded-2xl p-6">
-                  <h3 className="text-[12px] font-medium text-[#A3A09A] mb-3 uppercase tracking-wider">
-                    Podsumowanie
-                  </h3>
+                  <h3 className="text-[12px] font-medium text-[#A3A09A] mb-3 uppercase tracking-wider">Podsumowanie</h3>
                   <p className="text-[14px] text-[#EAE8E1] leading-relaxed">
                     {selectedLead.summary || "Brak wygenerowanego podsumowania dla tego leada."}
                   </p>
                 </div>
 
-                {/* Zakładki z danymi */}
                 <div>
                   <div className="flex gap-2 border-b border-white/[0.06] pb-4 mb-6">
                     {[{ id: 'overview', label: 'Ogólne', icon: Globe }, { id: 'ig', label: 'Instagram', icon: Instagram }, { id: 'in', label: 'LinkedIn', icon: Linkedin }].map(tab => (
@@ -473,9 +431,7 @@ export function LeadsPage() {
                       </div>
                     ) : (
                       <div className="p-5 border border-white/[0.06] rounded-xl bg-white/[0.02]">
-                        <pre className="text-[12px] text-[#A3A09A] font-mono whitespace-pre-wrap">
-                          {JSON.stringify(selectedLead.instagramData, null, 2)}
-                        </pre>
+                        <pre className="text-[12px] text-[#A3A09A] font-mono whitespace-pre-wrap">{JSON.stringify(selectedLead.instagramData, null, 2)}</pre>
                       </div>
                     )
                   )}
@@ -491,15 +447,12 @@ export function LeadsPage() {
                       </div>
                     ) : (
                       <div className="p-5 border border-white/[0.06] rounded-xl bg-white/[0.02]">
-                        <pre className="text-[12px] text-[#A3A09A] font-mono whitespace-pre-wrap">
-                          {JSON.stringify(selectedLead.linkedinData, null, 2)}
-                        </pre>
+                        <pre className="text-[12px] text-[#A3A09A] font-mono whitespace-pre-wrap">{JSON.stringify(selectedLead.linkedinData, null, 2)}</pre>
                       </div>
                     )
                   )}
                 </div>
 
-                {/* Timeline / Historia Operacji */}
                 <div className="pt-8 border-t border-white/[0.06]">
                   <h3 className="text-[14px] font-medium text-[#EAE8E1] mb-6">Historia operacji</h3>
                   <div className="space-y-6 relative before:absolute before:inset-0 before:ml-[11px] before:h-full before:w-px before:bg-white/[0.08]">
