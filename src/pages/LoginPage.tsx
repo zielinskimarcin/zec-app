@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { motion } from 'motion/react';
-import { Sparkles, Mail, Lock, ArrowRight, Loader2, AlertCircle, ArrowLeft, Check } from 'lucide-react';
+import { Mail, Lock, ArrowRight, Loader2, AlertCircle, ArrowLeft, Check } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 export function LoginPage() {
@@ -55,7 +55,7 @@ export function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#111111] flex items-center justify-center p-6 text-white font-sans relative overflow-hidden">
+    <div className="min-h-screen bg-[#111111] flex items-center justify-center p-6 text-[#EAE8E1] font-sans relative overflow-hidden">
       
       {/* Subtelna siatka w tle */}
       <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:64px_64px] [mask-image:radial-gradient(ellipse_80%_50%_at_50%_0%,#000_70%,transparent_100%)]" />
@@ -63,7 +63,7 @@ export function LoginPage() {
       {/* Przycisk powrotu w lewym górnym rogu */}
       <Link 
         to="/" 
-        className="absolute top-6 left-6 md:top-8 md:left-8 flex items-center gap-2 text-sm text-gray-500 hover:text-white transition-colors group z-20"
+        className="absolute top-6 left-6 md:top-8 md:left-8 flex items-center gap-2 text-sm text-[#827E78] hover:text-[#EAE8E1] transition-colors group z-20"
       >
         <ArrowLeft className="size-4 group-hover:-translate-x-1 transition-transform" />
         Strona główna
@@ -75,11 +75,17 @@ export function LoginPage() {
         transition={{ duration: 0.4 }}
         className="relative w-full max-w-md z-10"
       >
-        <Link to="/" className="flex items-center justify-center gap-2 mb-8">
-          <div className="size-8 bg-white rounded-md flex items-center justify-center shadow-[0_0_15px_rgba(255,255,255,0.1)]">
-            <Sparkles className="size-5 text-black fill-black" />
+        {/* NOWE LOGO ZEC */}
+        <Link to="/" className="flex items-center justify-center gap-[10px] mb-8 group">
+          <div className="w-8 h-8 bg-white/[0.06] border border-white/[0.12] rounded-lg flex items-center justify-center shadow-sm group-hover:bg-white/[0.1] transition-all p-0.5">
+            <img src="/logo.png" alt="ZEC Logo" className="w-5 h-5 object-contain opacity-90 invert brightness-0" />
           </div>
-          <span className="text-2xl font-bold tracking-tight">ZEC</span>
+          <span 
+            className="text-[26px] font-semibold lowercase text-[#EAE8E1] tracking-[0.08em] -mt-[2px]" 
+            style={{ fontFamily: "'Outfit', sans-serif" }}
+          >
+            zec
+          </span>
         </Link>
 
         {/* Karta */}
@@ -87,12 +93,12 @@ export function LoginPage() {
           
           <div className="text-center mb-8">
             <h1 
-              className="text-4xl font-bold mb-3 tracking-tight" 
+              className="text-4xl font-bold mb-3 tracking-tight text-[#EAE8E1]" 
               style={{ fontFamily: "'Libre Baskerville', serif" }}
             >
               Witaj ponownie
             </h1>
-            <p className="text-gray-400 text-sm">Zaloguj się do swojego konta.</p>
+            <p className="text-[#A3A09A] text-sm">Zaloguj się do swojego konta.</p>
           </div>
 
           {error && (
@@ -105,13 +111,13 @@ export function LoginPage() {
           <form onSubmit={handleSubmit} noValidate className="space-y-4">
             <div>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-500" />
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-[#827E78]" />
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   disabled={loading}
-                  className="w-full pl-10 pr-4 py-2.5 bg-white/[0.02] border border-white/10 rounded-lg text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-white/30 focus:bg-white/5 transition-all disabled:opacity-50"
+                  className="w-full pl-10 pr-4 py-2.5 bg-white/[0.02] border border-white/10 rounded-lg text-sm text-[#EAE8E1] placeholder:text-[#827E78] focus:outline-none focus:border-white/30 focus:bg-white/5 transition-all disabled:opacity-50"
                   placeholder="Adres email"
                 />
               </div>
@@ -119,13 +125,13 @@ export function LoginPage() {
 
             <div>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-500" />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-[#827E78]" />
                 <input
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   disabled={loading}
-                  className="w-full pl-10 pr-4 py-2.5 bg-white/[0.02] border border-white/10 rounded-lg text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-white/30 focus:bg-white/5 transition-all disabled:opacity-50"
+                  className="w-full pl-10 pr-4 py-2.5 bg-white/[0.02] border border-white/10 rounded-lg text-sm text-[#EAE8E1] placeholder:text-[#827E78] focus:outline-none focus:border-white/30 focus:bg-white/5 transition-all disabled:opacity-50"
                   placeholder="Hasło"
                 />
               </div>
@@ -141,13 +147,13 @@ export function LoginPage() {
                     onChange={(e) => setRememberMe(e.target.checked)}
                     className="peer sr-only"
                   />
-                  <div className="absolute inset-0 rounded border border-white/20 bg-white/5 peer-checked:bg-white peer-checked:border-white transition-all group-hover:border-white/40" />
-                  <Check className="size-3 text-black opacity-0 peer-checked:opacity-100 relative z-10 transition-opacity" strokeWidth={3} />
+                  <div className="absolute inset-0 rounded border border-white/20 bg-white/5 peer-checked:bg-[#EAE8E1] peer-checked:border-[#EAE8E1] transition-all group-hover:border-white/40" />
+                  <Check className="size-3 text-[#1A1A1A] opacity-0 peer-checked:opacity-100 relative z-10 transition-opacity" strokeWidth={3} />
                 </div>
-                <span className="text-xs text-gray-400 group-hover:text-gray-300 transition-colors">Zapamiętaj mnie</span>
+                <span className="text-xs text-[#A3A09A] group-hover:text-[#EAE8E1] transition-colors">Zapamiętaj mnie</span>
               </label>
 
-              <Link to="/forgot-password" className="text-xs text-gray-400 hover:text-white transition-colors underline decoration-white/20 underline-offset-2">
+              <Link to="/forgot-password" className="text-xs text-[#A3A09A] hover:text-[#EAE8E1] transition-colors underline decoration-white/20 underline-offset-2">
                 Zapomniałeś hasła?
               </Link>
             </div>
@@ -155,7 +161,7 @@ export function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full mt-2 py-3 px-4 bg-white text-black rounded-lg text-sm font-bold hover:bg-gray-200 transition-all flex items-center justify-center gap-2 group disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_15px_rgba(255,255,255,0.05)]"
+              className="w-full mt-2 py-3 px-4 bg-[#EAE8E1] text-[#1A1A1A] rounded-lg text-sm font-bold hover:bg-white transition-all flex items-center justify-center gap-2 group disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_15px_rgba(255,255,255,0.05)]"
             >
               {loading ? (
                 <Loader2 className="size-4 animate-spin" />
@@ -171,7 +177,7 @@ export function LoginPage() {
           {/* Separator */}
           <div className="relative my-6">
             <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-white/5" /></div>
-            <div className="relative flex justify-center text-[10px] uppercase tracking-widest"><span className="px-3 bg-[#0f0f0f] text-gray-500 font-semibold">lub</span></div>
+            <div className="relative flex justify-center text-[10px] uppercase tracking-widest"><span className="px-3 bg-[#0f0f0f] text-[#827E78] font-semibold">lub</span></div>
           </div>
 
           {/* Minimalistyczne przyciski Social na dole */}
@@ -181,7 +187,7 @@ export function LoginPage() {
               type="button"
               className="py-2.5 bg-white/[0.03] hover:bg-white/[0.08] border border-white/10 rounded-lg transition-all flex items-center justify-center group"
             >
-              <svg className="size-5 opacity-70 group-hover:opacity-100 transition-opacity" viewBox="0 0 24 24">
+              <svg className="size-5 text-[#EAE8E1] opacity-70 group-hover:opacity-100 transition-opacity" viewBox="0 0 24 24">
                 <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
                 <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
                 <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
@@ -193,15 +199,15 @@ export function LoginPage() {
               type="button"
               className="py-2.5 bg-white/[0.03] hover:bg-white/[0.08] border border-white/10 rounded-lg transition-all flex items-center justify-center group"
             >
-              <svg className="size-5 opacity-70 group-hover:opacity-100 transition-opacity" viewBox="0 0 24 24" fill="currentColor">
+              <svg className="size-5 text-[#EAE8E1] opacity-70 group-hover:opacity-100 transition-opacity" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M11.4 24H0V12.6h11.4V24zM24 24H12.6V12.6H24V24zM11.4 11.4H0V0h11.4v11.4zm12.6 0H12.6V0H24v11.4z" />
               </svg>
             </button>
           </div>
         </div>
 
-        <p className="mt-6 text-center text-sm text-gray-500">
-          Nie masz konta? <Link to="/register" className="text-white hover:underline decoration-white/30 underline-offset-4">Zarejestruj się</Link>
+        <p className="mt-6 text-center text-sm text-[#827E78]">
+          Nie masz konta? <Link to="/register" className="text-[#EAE8E1] hover:underline decoration-white/30 underline-offset-4">Zarejestruj się</Link>
         </p>
       </motion.div>
     </div>

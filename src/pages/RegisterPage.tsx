@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { motion } from 'motion/react';
-import { Sparkles, Mail, Lock, User, ArrowRight, Loader2, AlertCircle, CheckCircle2, ArrowLeft, Check } from 'lucide-react';
+import { Mail, Lock, User, ArrowRight, Loader2, AlertCircle, CheckCircle2, ArrowLeft, Check } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 export function RegisterPage() {
@@ -74,53 +74,58 @@ export function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#111111] flex items-center justify-center p-6 text-white font-sans relative overflow-hidden">
+    <div className="min-h-screen bg-[#111111] flex items-center justify-center p-6 text-[#EAE8E1] font-sans relative overflow-hidden">
       
       <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:64px_64px] [mask-image:radial-gradient(ellipse_80%_50%_at_50%_0%,#000_70%,transparent_100%)]" />
 
       <Link 
         to="/" 
-        className="absolute top-6 left-6 md:top-8 md:left-8 flex items-center gap-2 text-sm text-gray-500 hover:text-white transition-colors group z-20"
+        className="absolute top-6 left-6 md:top-8 md:left-8 flex items-center gap-2 text-sm text-[#827E78] hover:text-[#EAE8E1] transition-colors group z-20"
       >
         <ArrowLeft className="size-4 group-hover:-translate-x-1 transition-transform" />
         Strona główna
       </Link>
 
-      {/* Przywrócona szerokość max-w-md */}
       <motion.div
         initial={{ opacity: 0, scale: 0.98, y: 10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         transition={{ duration: 0.4 }}
         className="relative w-full max-w-md z-10"
       >
-        <Link to="/" className="flex items-center justify-center gap-2 mb-8">
-          <div className="size-8 bg-white rounded-md flex items-center justify-center shadow-[0_0_15px_rgba(255,255,255,0.1)]">
-            <Sparkles className="size-5 text-black fill-black" />
+        {/* NOWE LOGO ZEC */}
+        <Link to="/" className="flex items-center justify-center gap-[10px] mb-8 group">
+          <div className="w-8 h-8 bg-white/[0.06] border border-white/[0.12] rounded-lg flex items-center justify-center shadow-sm group-hover:bg-white/[0.1] transition-all p-0.5">
+            <img src="/logo.png" alt="ZEC Logo" className="w-5 h-5 object-contain opacity-90 invert brightness-0" />
           </div>
-          <span className="text-2xl font-bold tracking-tight">ZEC</span>
+          <span 
+            className="text-[26px] font-semibold lowercase text-[#EAE8E1] tracking-[0.08em] -mt-[2px]" 
+            style={{ fontFamily: "'Outfit', sans-serif" }}
+          >
+            zec
+          </span>
         </Link>
 
         <div className="bg-[#0f0f0f] border border-[#1f1f1f] rounded-2xl p-8 shadow-2xl relative">
           
           <div className="text-center mb-8">
             <h1 
-              className="text-4xl font-bold mb-3 tracking-tight" 
+              className="text-4xl font-bold mb-3 tracking-tight text-[#EAE8E1]" 
               style={{ fontFamily: "'Libre Baskerville', serif" }}
             >
               Załóż konto
             </h1>
-            <p className="text-gray-400 text-sm">Zachowaj historię leadów i odblokuj limity.</p>
+            <p className="text-[#A3A09A] text-sm">Zachowaj historię leadów i odblokuj limity.</p>
           </div>
 
           {error && (
-            <div className="mb-6 p-3 rounded-lg bg-red-500/10 border border-red-500/20 flex items-center gap-2 text-red-400 text-sm">
+            <div className="mb-6 p-3 rounded-lg bg-[#b56060]/10 border border-[#b56060]/20 flex items-center gap-2 text-[#b56060] text-sm">
               <AlertCircle className="size-4 shrink-0" />
               <span>{error}</span>
             </div>
           )}
 
           {successMessage && (
-            <div className="mb-6 p-3 rounded-lg bg-green-500/10 border border-green-500/20 flex flex-col items-center text-green-400 text-sm text-center">
+            <div className="mb-6 p-3 rounded-lg bg-[#5d9970]/10 border border-[#5d9970]/20 flex flex-col items-center text-[#5d9970] text-sm text-center">
               <CheckCircle2 className="size-6 mb-1" />
               <span>{successMessage}</span>
             </div>
@@ -131,13 +136,13 @@ export function RegisterPage() {
               <form onSubmit={handleSubmit} noValidate className="space-y-4">
                 <div>
                   <div className="relative">
-                    <User className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-500" />
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-[#827E78]" />
                     <input
                       type="text"
                       value={fullName}
                       onChange={(e) => setFullName(e.target.value)}
                       disabled={loading}
-                      className="w-full pl-10 pr-4 py-2.5 bg-white/[0.02] border border-white/10 rounded-lg text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-white/30 focus:bg-white/5 transition-all disabled:opacity-50"
+                      className="w-full pl-10 pr-4 py-2.5 bg-white/[0.04] border border-white/[0.08] rounded-lg text-sm text-[#EAE8E1] placeholder:text-[#827E78] focus:outline-none focus:border-white/[0.2] focus:bg-white/[0.06] transition-all disabled:opacity-50"
                       placeholder="Imię i nazwisko"
                     />
                   </div>
@@ -145,13 +150,13 @@ export function RegisterPage() {
 
                 <div>
                   <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-500" />
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-[#827E78]" />
                     <input
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       disabled={loading}
-                      className="w-full pl-10 pr-4 py-2.5 bg-white/[0.02] border border-white/10 rounded-lg text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-white/30 focus:bg-white/5 transition-all disabled:opacity-50"
+                      className="w-full pl-10 pr-4 py-2.5 bg-white/[0.04] border border-white/[0.08] rounded-lg text-sm text-[#EAE8E1] placeholder:text-[#827E78] focus:outline-none focus:border-white/[0.2] focus:bg-white/[0.06] transition-all disabled:opacity-50"
                       placeholder="Adres email"
                     />
                   </div>
@@ -159,13 +164,13 @@ export function RegisterPage() {
 
                 <div>
                   <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-500" />
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-[#827E78]" />
                     <input
                       type="password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       disabled={loading}
-                      className="w-full pl-10 pr-4 py-2.5 bg-white/[0.02] border border-white/10 rounded-lg text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-white/30 focus:bg-white/5 transition-all disabled:opacity-50"
+                      className="w-full pl-10 pr-4 py-2.5 bg-white/[0.04] border border-white/[0.08] rounded-lg text-sm text-[#EAE8E1] placeholder:text-[#827E78] focus:outline-none focus:border-white/[0.2] focus:bg-white/[0.06] transition-all disabled:opacity-50"
                       placeholder="Hasło (min. 6 znaków)"
                     />
                   </div>
@@ -180,18 +185,18 @@ export function RegisterPage() {
                       onChange={(e) => setTermsAccepted(e.target.checked)}
                       className="peer sr-only"
                     />
-                    <div className="absolute inset-0 rounded border border-white/20 bg-white/5 peer-checked:bg-white peer-checked:border-white transition-all group-hover:border-white/40" />
-                    <Check className="size-3 text-black opacity-0 peer-checked:opacity-100 relative z-10 transition-opacity" strokeWidth={3} />
+                    <div className="absolute inset-0 rounded border border-white/[0.15] bg-transparent peer-checked:bg-[#EAE8E1] peer-checked:border-[#EAE8E1] transition-all group-hover:border-white/[0.3]" />
+                    <Check className="size-3 text-[#1A1A1A] opacity-0 peer-checked:opacity-100 relative z-10 transition-opacity" strokeWidth={3} />
                   </div>
-                  <span className="text-xs text-gray-500 leading-relaxed group-hover:text-gray-400 transition-colors">
-                    Akceptuję <Link to="/terms" onClick={(e) => e.stopPropagation()} className="text-gray-400 hover:text-white transition-colors underline decoration-white/20 underline-offset-2">regulamin</Link> i <Link to="/privacy" onClick={(e) => e.stopPropagation()} className="text-gray-400 hover:text-white transition-colors underline decoration-white/20 underline-offset-2">politykę prywatności</Link>
+                  <span className="text-xs text-[#827E78] leading-relaxed group-hover:text-[#A3A09A] transition-colors">
+                    Akceptuję <Link to="/terms" onClick={(e) => e.stopPropagation()} className="text-[#A3A09A] hover:text-[#EAE8E1] transition-colors underline decoration-white/[0.2] underline-offset-2">regulamin</Link> i <Link to="/privacy" onClick={(e) => e.stopPropagation()} className="text-[#A3A09A] hover:text-[#EAE8E1] transition-colors underline decoration-white/[0.2] underline-offset-2">politykę prywatności</Link>
                   </span>
                 </label>
 
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full mt-2 py-3 px-4 bg-white text-black rounded-lg text-sm font-bold hover:bg-gray-200 transition-all flex items-center justify-center gap-2 group disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_15px_rgba(255,255,255,0.05)]"
+                  className="w-full mt-2 py-3 px-4 bg-[#EAE8E1] text-[#1A1A1A] rounded-lg text-sm font-bold hover:bg-white transition-all flex items-center justify-center gap-2 group disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_15px_rgba(255,255,255,0.02)]"
                 >
                   {loading ? (
                     <Loader2 className="size-4 animate-spin" />
@@ -205,15 +210,15 @@ export function RegisterPage() {
               </form>
 
               <div className="relative my-6">
-                <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-white/5" /></div>
-                <div className="relative flex justify-center text-[10px] uppercase tracking-widest"><span className="px-3 bg-[#0f0f0f] text-gray-500 font-semibold">lub</span></div>
+                <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-white/[0.06]" /></div>
+                <div className="relative flex justify-center text-[10px] uppercase tracking-widest"><span className="px-3 bg-[#0f0f0f] text-[#827E78] font-semibold">lub</span></div>
               </div>
 
               <div className="grid grid-cols-2 gap-3 mb-2">
                 <button
                   onClick={() => handleSocialSignup('google')}
                   type="button"
-                  className="py-2.5 bg-white/[0.03] hover:bg-white/[0.08] border border-white/10 rounded-lg transition-all flex items-center justify-center group"
+                  className="py-2.5 bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] rounded-lg transition-all flex items-center justify-center group text-[#EAE8E1]"
                 >
                   <svg className="size-5 opacity-70 group-hover:opacity-100 transition-opacity" viewBox="0 0 24 24">
                     <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -225,7 +230,7 @@ export function RegisterPage() {
                 <button
                   onClick={() => handleSocialSignup('azure')}
                   type="button"
-                  className="py-2.5 bg-white/[0.03] hover:bg-white/[0.08] border border-white/10 rounded-lg transition-all flex items-center justify-center group"
+                  className="py-2.5 bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] rounded-lg transition-all flex items-center justify-center group text-[#EAE8E1]"
                 >
                   <svg className="size-5 opacity-70 group-hover:opacity-100 transition-opacity" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M11.4 24H0V12.6h11.4V24zM24 24H12.6V12.6H24V24zM11.4 11.4H0V0h11.4v11.4zm12.6 0H12.6V0H24v11.4z" />
@@ -236,8 +241,8 @@ export function RegisterPage() {
           )}
         </div>
 
-        <p className="mt-6 text-center text-sm text-gray-500">
-          Masz już konto? <Link to="/login" className="text-white hover:underline decoration-white/30 underline-offset-4">Zaloguj się</Link>
+        <p className="mt-6 text-center text-sm text-[#827E78]">
+          Masz już konto? <Link to="/login" className="text-[#EAE8E1] hover:underline decoration-white/[0.3] underline-offset-4">Zaloguj się</Link>
         </p>
       </motion.div>
     </div>

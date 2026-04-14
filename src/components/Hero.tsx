@@ -5,7 +5,7 @@ import { Sparkles, Search, Loader2 } from 'lucide-react';
 import { LeadRow } from './LeadRow';
 import { SearchCombobox } from './SearchCombobox';
 import { INDUSTRIES, CITIES } from '../data/searchOptions';
-import { supabase } from '../lib/supabase'; // Dodany import Supabase
+import { supabase } from '../lib/supabase';
 
 interface Lead {
   id: number;
@@ -180,11 +180,11 @@ export function Hero() {
   };
 
   return (
-    <div className="relative bg-[#0a0a0a] overflow-hidden min-h-screen">
+    <div className="relative bg-[#111111] overflow-hidden min-h-screen">
       <header className="absolute top-0 left-0 right-0 z-50 px-6 py-5">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           
-          {/* --- NOWE LOGO --- */}
+          {/* NOWE LOGO */}
           <Link to="/" className="flex items-center gap-[10px] group">
             <div className="w-7 h-7 bg-white/[0.06] border border-white/[0.12] rounded-lg flex items-center justify-center shadow-sm group-hover:bg-white/[0.1] transition-all p-0.5">
               <img src="/logo.png" alt="ZEC Logo" className="w-4 h-4 object-contain opacity-90 invert brightness-0" />
@@ -198,17 +198,17 @@ export function Hero() {
           </Link>
 
           <div className="flex items-center gap-6">
-            <a href="#features" className="text-sm text-[#A3A09A] hover:text-[#EAE8E1] transition-colors">
+            <a href="#features" className="text-sm text-[#827E78] hover:text-[#EAE8E1] transition-colors">
               Features
             </a>
-            <a href="#pricing" className="text-sm text-[#A3A09A] hover:text-[#EAE8E1] transition-colors">
+            <a href="#pricing" className="text-sm text-[#827E78] hover:text-[#EAE8E1] transition-colors">
               Pricing
             </a>
             
             {/* --- ZMODYFIKOWANA SEKCJA PRZYCISKÓW --- */}
             {!isLoadingAuth && (
               isLoggedIn ? (
-                <Link to="/app" className="text-sm px-5 py-2 bg-[#EAE8E1] text-[#1A1A1A] rounded-lg hover:bg-white transition-all font-medium">
+                <Link to="/app" className="text-sm px-5 py-2 bg-white text-[#1A1A1A] rounded-lg hover:bg-gray-200 transition-all font-medium">
                   Przejdź do panelu
                 </Link>
               ) : (
@@ -216,7 +216,7 @@ export function Hero() {
                   <Link to="/login" className="text-sm text-[#A3A09A] hover:text-[#EAE8E1] transition-colors">
                     Logowanie
                   </Link>
-                  <Link to="/register" className="text-sm px-4 py-2 bg-[#EAE8E1] text-[#1A1A1A] rounded-lg hover:bg-white transition-all font-medium">
+                  <Link to="/register" className="text-sm px-4 py-2 bg-white text-[#1A1A1A] rounded-lg hover:bg-gray-200 transition-all font-medium">
                     Zacznij za darmo
                   </Link>
                 </>
@@ -267,8 +267,8 @@ export function Hero() {
           >
             <div className="absolute -inset-[1px] bg-gradient-to-b from-white/20 to-white/5 rounded-2xl" />
 
-            <div className="relative bg-[#1A1A1A] border border-white/[0.08] rounded-2xl">
-              <div className="p-6 md:p-8 border-b border-white/[0.08]">
+            <div className="relative bg-[#0f0f0f] border border-[#1f1f1f] rounded-2xl">
+              <div className="p-6 md:p-8 border-b border-white/10">
                 <div className="flex flex-col md:flex-row gap-4">
                   <div className="flex-1">
                     <label className="block text-sm text-[#A3A09A] mb-2 font-medium">
@@ -300,7 +300,7 @@ export function Hero() {
                     <button
                       onClick={handleSearch}
                       disabled={isSearching || !industry || !city}
-                      className="w-full md:w-auto h-[48px] md:h-[50px] px-8 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-medium bg-[#EAE8E1] text-[#1A1A1A] hover:bg-white shadow-lg shadow-white/[0.05]"
+                      className="w-full md:w-auto h-[48px] md:h-[50px] px-8 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-medium bg-white text-[#1A1A1A] hover:bg-gray-200 shadow-lg shadow-white/10"
                     >
                       {isSearching ? (
                         <>
@@ -318,7 +318,7 @@ export function Hero() {
                 </div>
               </div>
 
-              <div className="bg-[#0a0a0a]/50 backdrop-blur-sm" style={{ height: '500px', overflowY: 'auto' }}>
+              <div className="bg-black/20 backdrop-blur-sm" style={{ height: '500px', overflowY: 'auto' }}>
                 <div className="p-6 md:p-8">
                   <AnimatePresence>
                     {leads.length > 0 && (
@@ -363,7 +363,7 @@ export function Hero() {
                           {[1, 2, 3, 4, 5].map((i) => (
                             <div
                               key={`blur-${i}`}
-                              className="rounded-xl border bg-white/[0.04] border-white/[0.08] backdrop-blur-xl p-6 opacity-50 blur-sm"
+                              className="rounded-xl border bg-white/5 border-white/10 backdrop-blur-xl p-6 opacity-50 blur-sm"
                             >
                               <div className="space-y-4">
                                 <div className="h-5 rounded w-1/3 bg-white/20" />
@@ -381,8 +381,8 @@ export function Hero() {
                         <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-b from-transparent via-[#0a0a0a]/90 to-[#0a0a0a] backdrop-blur-md">
                           <div className="text-center px-6 py-12 max-w-md">
                             <div className="mb-6">
-                              <div className="inline-flex items-center gap-3 px-6 py-3 rounded-full bg-white/[0.04] border border-white/[0.08] backdrop-blur-xl mb-4">
-                                <div className="size-2 bg-[#A3A09A] rounded-full" />
+                              <div className="inline-flex items-center gap-3 px-6 py-3 rounded-full bg-white/5 border border-white/10 backdrop-blur-xl mb-4">
+                                <div className="size-2 bg-gray-400 rounded-full" />
                                 <span className="text-[#EAE8E1] text-sm font-medium">
                                   {resultsCount ?? 420}+ leadów gotowych
                                 </span>
@@ -397,7 +397,7 @@ export function Hero() {
                               Zdobądź dostęp do {resultsCount ?? 420}+ zweryfikowanych leadów z personalizowanymi wiadomościami AI
                             </p>
 
-                            <Link to="/pricing" className="block w-full px-8 py-4 rounded-lg text-base font-semibold transition-all bg-[#EAE8E1] text-[#1A1A1A] hover:bg-white">
+                            <Link to="/pricing" className="block w-full px-8 py-4 rounded-lg text-base font-semibold transition-all bg-white text-[#1A1A1A] hover:bg-gray-100">
                               Upgrade do Premium
                             </Link>
 
@@ -415,7 +415,7 @@ export function Hero() {
                       {[1, 2, 3].map((i) => (
                         <div
                           key={i}
-                          className="rounded-lg p-6 border bg-white/[0.04] border-white/[0.08]"
+                          className="rounded-lg p-6 border bg-white/5 border-white/10"
                         >
                           <div className="animate-pulse space-y-4">
                             <div className="h-5 rounded w-1/4 bg-white/10" />
@@ -433,7 +433,7 @@ export function Hero() {
 
                   {!isSearching && leads.length === 0 && (
                     <div className="text-center py-20">
-                      <div className="size-16 rounded-full flex items-center justify-center mx-auto mb-4 bg-white/[0.04]">
+                      <div className="size-16 rounded-full flex items-center justify-center mx-auto mb-4 bg-white/5">
                         <Search className="size-8 text-[#A3A09A]" />
                       </div>
                       <h3 className="text-lg font-medium mb-2 text-[#EAE8E1]">
