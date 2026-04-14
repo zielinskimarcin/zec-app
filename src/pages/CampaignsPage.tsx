@@ -187,7 +187,6 @@ function MailPreview({ lead, onClose }: { lead: CampaignLead; onClose: () => voi
       transition={{ duration: 0.18 }}
       className="fixed right-0 top-0 bottom-0 w-full max-w-lg bg-[#1a1a1a] border-l border-white/[0.08] z-40 flex flex-col shadow-2xl"
     >
-      {/* Header */}
       <div className="flex items-center justify-between px-8 py-6 border-b border-white/[0.06]">
         <div>
           <p className="text-[16px] font-medium text-[#EAE8E1]">{lead.company_name}</p>
@@ -198,14 +197,12 @@ function MailPreview({ lead, onClose }: { lead: CampaignLead; onClose: () => voi
         </button>
       </div>
 
-      {/* Meta */}
       <div className="px-8 py-4 border-b border-white/[0.06] flex items-center gap-5 text-[13px] text-[#827E78]">
         <span>Wysłano: <span className="text-[#A3A09A]">{formatDate(lead.sent_at)}</span></span>
         <span className="text-white/[0.1]">·</span>
         <span>Ze skrzynki: <span className="text-[#A3A09A]">{lead.sent_from || '—'}</span></span>
       </div>
 
-      {/* Content */}
       <div className="flex-1 overflow-y-auto px-8 py-6">
         {lead.mail_content ? (
           <p className="text-[15px] text-[#EAE8E1] leading-[1.8] whitespace-pre-wrap font-serif">
@@ -216,7 +213,6 @@ function MailPreview({ lead, onClose }: { lead: CampaignLead; onClose: () => voi
         )}
       </div>
 
-      {/* Footer */}
       <div className="px-8 py-5 border-t border-white/[0.06]">
         <button className="flex items-center gap-2 text-[13px] font-medium text-[#827E78] hover:text-[#EAE8E1] transition-colors">
           <Download className="size-4" /> Eksportuj jako .txt
@@ -247,7 +243,6 @@ function CampaignDetail({ campaign, onBack }: { campaign: Campaign; onBack: () =
   return (
     <div className="max-w-5xl mx-auto space-y-8 pb-12">
 
-      {/* Back + header */}
       <div>
         <button onClick={onBack} className="flex items-center gap-2 text-[13px] text-[#827E78] hover:text-[#EAE8E1] transition-colors mb-6">
           <ArrowLeft className="size-4" /> Wszystkie kampanie
@@ -266,7 +261,6 @@ function CampaignDetail({ campaign, onBack }: { campaign: Campaign; onBack: () =
             </p>
           </div>
 
-          {/* Akcje kampanii */}
           <div className="flex items-center gap-3">
             {campaign.status === 'active' && (
               <button className="flex items-center gap-2 px-4 py-2.5 border border-white/[0.1] hover:border-white/[0.2] text-[#A3A09A] hover:text-[#EAE8E1] text-[13px] font-medium rounded-xl transition-all">
@@ -285,7 +279,6 @@ function CampaignDetail({ campaign, onBack }: { campaign: Campaign; onBack: () =
         </div>
       </div>
 
-      {/* Inline stats */}
       <div className="flex items-center gap-6 text-[14px] py-5 border-y border-white/[0.06]">
         {[
           { label: 'Wysłanych', value: campaign.sent },
@@ -301,7 +294,6 @@ function CampaignDetail({ campaign, onBack }: { campaign: Campaign; onBack: () =
             </div>
           </div>
         ))}
-        {/* Progress bar */}
         <div className="flex-1 ml-4">
           <div className="flex justify-between text-[12px] text-[#827E78] mb-2">
             <span>Postęp wysyłki</span>
@@ -318,7 +310,6 @@ function CampaignDetail({ campaign, onBack }: { campaign: Campaign; onBack: () =
         </div>
       </div>
 
-      {/* Info o kolejkowaniu */}
       {campaign.status === 'active' && (
         <div className="flex items-start gap-3 p-5 rounded-2xl bg-white/[0.02] border border-white/[0.06]">
           <Info className="size-4 text-[#827E78] shrink-0 mt-0.5" />
@@ -330,9 +321,7 @@ function CampaignDetail({ campaign, onBack }: { campaign: Campaign; onBack: () =
         </div>
       )}
 
-      {/* Lista leadów */}
       <div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] overflow-hidden">
-        {/* Header tabeli */}
         <div className="grid grid-cols-12 gap-4 px-6 py-3 border-b border-white/[0.06] text-[11px] font-medium text-[#3a3a3a] uppercase tracking-wider">
           <div className="col-span-4">Firma</div>
           <div className="col-span-3">E-mail</div>
@@ -347,7 +336,6 @@ function CampaignDetail({ campaign, onBack }: { campaign: Campaign; onBack: () =
             return (
               <div key={lead.id} className="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-white/[0.02] transition-all">
 
-                {/* Firma */}
                 <div className="col-span-4 flex items-center gap-2.5">
                   {lead.priority && (
                     <span className="size-1.5 bg-[#a3956a] rounded-full shrink-0" title="Priorytet" />
@@ -355,12 +343,10 @@ function CampaignDetail({ campaign, onBack }: { campaign: Campaign; onBack: () =
                   <p className="text-[14px] font-medium text-[#EAE8E1] truncate">{lead.company_name}</p>
                 </div>
 
-                {/* Email */}
                 <div className="col-span-3">
                   <p className="text-[13px] text-[#827E78] truncate">{lead.email}</p>
                 </div>
 
-                {/* Status */}
                 <div className="col-span-2">
                   <div className={`flex items-center gap-1.5 text-[12px] font-medium ${ls.cls}`}>
                     {ls.icon}
@@ -371,46 +357,28 @@ function CampaignDetail({ campaign, onBack }: { campaign: Campaign; onBack: () =
                   </div>
                 </div>
 
-                {/* Data */}
                 <div className="col-span-2">
                   <p className="text-[12px] text-[#3a3a3a]">{lead.sent_at ? formatDate(lead.sent_at) : '—'}</p>
                 </div>
 
-                {/* Akcje */}
                 <div className="col-span-1 flex items-center justify-end gap-1">
                   {lead.status === 'sent' && (
                     <>
-                      <button
-                        onClick={() => setPreviewLead(lead)}
-                        className="p-1.5 text-[#3a3a3a] hover:text-[#A3A09A] hover:bg-white/[0.06] rounded-lg transition-all"
-                        title="Podgląd maila"
-                      >
+                      <button onClick={() => setPreviewLead(lead)} className="p-1.5 text-[#3a3a3a] hover:text-[#A3A09A] hover:bg-white/[0.06] rounded-lg transition-all" title="Podgląd maila">
                         <Eye className="size-3.5" />
                       </button>
-                      <button
-                        onClick={() => markReplied(lead.id)}
-                        className="p-1.5 text-[#3a3a3a] hover:text-[#5d9970] hover:bg-[#5d9970]/5 rounded-lg transition-all"
-                        title="Oznacz jako odpowiedział"
-                      >
+                      <button onClick={() => markReplied(lead.id)} className="p-1.5 text-[#3a3a3a] hover:text-[#5d9970] hover:bg-[#5d9970]/5 rounded-lg transition-all" title="Oznacz jako odpowiedział">
                         <Check className="size-3.5" />
                       </button>
                     </>
                   )}
                   {lead.status === 'replied' && (
-                    <button
-                      onClick={() => setPreviewLead(lead)}
-                      className="p-1.5 text-[#3a3a3a] hover:text-[#A3A09A] hover:bg-white/[0.06] rounded-lg transition-all"
-                      title="Podgląd maila"
-                    >
+                    <button onClick={() => setPreviewLead(lead)} className="p-1.5 text-[#3a3a3a] hover:text-[#A3A09A] hover:bg-white/[0.06] rounded-lg transition-all" title="Podgląd maila">
                       <Eye className="size-3.5" />
                     </button>
                   )}
                   {lead.status === 'queued' && (
-                    <button
-                      onClick={() => togglePriority(lead.id)}
-                      className={`p-1.5 rounded-lg transition-all ${lead.priority ? 'text-[#a3956a]' : 'text-[#2e2e2e] hover:text-[#a3956a]'} hover:bg-white/[0.04]`}
-                      title={lead.priority ? 'Usuń priorytet' : 'Ustaw jako priorytet'}
-                    >
+                    <button onClick={() => togglePriority(lead.id)} className={`p-1.5 rounded-lg transition-all ${lead.priority ? 'text-[#a3956a]' : 'text-[#2e2e2e] hover:text-[#a3956a]'} hover:bg-white/[0.04]`} title={lead.priority ? 'Usuń priorytet' : 'Ustaw jako priorytet'}>
                       <ChevronUp className="size-3.5" />
                     </button>
                   )}
@@ -421,7 +389,6 @@ function CampaignDetail({ campaign, onBack }: { campaign: Campaign; onBack: () =
         </div>
       </div>
 
-      {/* Mail preview drawer */}
       <AnimatePresence>
         {previewLead && (
           <MailPreview lead={previewLead} onClose={() => setPreviewLead(null)} />
@@ -440,17 +407,24 @@ function CampaignsList({ onSelect }: { onSelect: (c: Campaign) => void }) {
   const [archiveTarget, setArchiveTarget] = useState<Campaign | null>(null);
   const [skipArchiveWarning, setSkipArchiveWarning] = useState(false);
   
+  const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [isArchiveOpen, setIsArchiveOpen] = useState(false);
   const [toast, setToast] = useState<{ icon: any, text: string } | null>(null);
 
-  const activeCampaigns = campaigns.filter(c => !c.isArchived);
-  const archivedCampaigns = campaigns.filter(c => c.isArchived);
+  // Dynamiczne filtrowanie po nazwie kampanii
+  const filteredCampaigns = campaigns.filter(c => 
+    c.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
-  // Stats z aktywnych kampanii
-  const totalSent = activeCampaigns.reduce((sum, c) => sum + c.sent, 0);
-  const totalQueued = activeCampaigns.reduce((sum, c) => sum + c.queued, 0);
-  const totalBounced = activeCampaigns.reduce((sum, c) => sum + c.bounced, 0);
+  const activeCampaignsList = campaigns.filter(c => !c.isArchived); // Używane do decyzji czy pokazać Empty State
+  const displayedActive = filteredCampaigns.filter(c => !c.isArchived);
+  const displayedArchived = filteredCampaigns.filter(c => c.isArchived);
+
+  // Globalne statystyki liczone z wszystkich aktywnych kampanii w systemie (ignorując wyszukiwarkę)
+  const totalSent = activeCampaignsList.reduce((sum, c) => sum + c.sent, 0);
+  const totalQueued = activeCampaignsList.reduce((sum, c) => sum + c.queued, 0);
+  const totalBounced = activeCampaignsList.reduce((sum, c) => sum + c.bounced, 0);
 
   const showToast = (Icon: any, text: string) => {
     setToast({ icon: Icon, text });
@@ -488,12 +462,12 @@ function CampaignsList({ onSelect }: { onSelect: (c: Campaign) => void }) {
   const handlePermanentDelete = (c: Campaign) => {
     setCampaigns(prev => prev.filter(x => x.id !== c.id));
     setDeleteTarget(null);
+    showToast(Trash2, 'Kampania została usunięta');
   };
 
   return (
     <div className="max-w-5xl mx-auto space-y-8 pb-12 relative">
 
-      {/* Header */}
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-[28px] font-serif text-[#EAE8E1] tracking-tight">Kampanie</h1>
@@ -504,7 +478,7 @@ function CampaignsList({ onSelect }: { onSelect: (c: Campaign) => void }) {
         </button>
       </div>
 
-      {activeCampaigns.length === 0 ? (
+      {activeCampaignsList.length === 0 ? (
         <div className="text-center py-20 rounded-2xl border border-dashed border-white/[0.08]">
           <div className="size-12 bg-white/[0.04] rounded-2xl flex items-center justify-center mx-auto mb-5">
             <Mail className="size-6 text-[#A3A09A]" />
@@ -519,31 +493,36 @@ function CampaignsList({ onSelect }: { onSelect: (c: Campaign) => void }) {
         </div>
       ) : (
         <>
-          {/* Pasek Statystyk i Filtrów (Tylko jeśli są aktywne kampanie) */}
-          <div className="flex items-center justify-between py-5 border-y border-white/[0.06]">
-            <div className="flex items-center gap-6 text-[14px]">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between py-5 border-y border-white/[0.06] gap-4">
+            <div className="flex flex-wrap items-center gap-6 text-[14px]">
               {[
                 { label: 'Wysłanych', value: totalSent },
                 { label: 'W kolejce', value: totalQueued },
                 { label: 'Zwrócone kredyty', value: totalBounced },
               ].map((s, i) => (
                 <div key={s.label} className="flex items-center gap-6">
-                  {i > 0 && <div className="h-4 w-px bg-white/[0.08]" />}
-                  <div className="flex items-center gap-2">
+                  {i > 0 && <div className="hidden sm:block h-4 w-px bg-white/[0.08]" />}
+                  <div>
                     <span className="text-[24px] font-medium text-[#EAE8E1] tracking-tight">{s.value}</span>
-                    <span className="text-[#827E78]">{s.label}</span>
+                    <span className="text-[#827E78] ml-2">{s.label}</span>
                   </div>
                 </div>
               ))}
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 self-end sm:self-auto">
               <AnimatePresence>
                 {showFilters && (
                   <motion.div initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: 'auto' }} exit={{ opacity: 0, width: 0 }} className="overflow-hidden">
                     <div className="relative w-48 mr-2">
                       <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-[#827E78]" />
-                      <input type="text" placeholder="Szukaj..." className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg pl-8 pr-3 py-2 text-[12px] text-[#EAE8E1] placeholder:text-[#827E78] outline-none focus:border-white/[0.2]" />
+                      <input 
+                        type="text" 
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="Szukaj..." 
+                        className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg pl-8 pr-3 py-2 text-[12px] text-[#EAE8E1] placeholder:text-[#827E78] outline-none focus:border-white/[0.2]" 
+                      />
                     </div>
                   </motion.div>
                 )}
@@ -554,7 +533,6 @@ function CampaignsList({ onSelect }: { onSelect: (c: Campaign) => void }) {
             </div>
           </div>
 
-          {/* Tabela Aktywnych Kampanii */}
           <div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] overflow-hidden">
             <div className="grid grid-cols-12 gap-4 px-6 py-3 border-b border-white/[0.06] text-[11px] font-medium text-[#3a3a3a] uppercase tracking-wider">
               <div className="col-span-4">Nazwa kampanii</div>
@@ -564,82 +542,81 @@ function CampaignsList({ onSelect }: { onSelect: (c: Campaign) => void }) {
             </div>
 
             <div className="divide-y divide-white/[0.04]">
-              {activeCampaigns.map(campaign => {
-                const st = statusLabel(campaign.status);
-                const pct = campaign.total > 0 ? (campaign.sent / campaign.total) * 100 : 0;
+              {displayedActive.length === 0 ? (
+                 <div className="px-6 py-8 text-center text-[13px] text-[#827E78]">Brak wyników wyszukiwania.</div>
+              ) : (
+                displayedActive.map(campaign => {
+                  const st = statusLabel(campaign.status);
+                  const pct = campaign.total > 0 ? (campaign.sent / campaign.total) * 100 : 0;
 
-                return (
-                  <div
-                    key={campaign.id}
-                    className="grid grid-cols-12 gap-4 px-6 py-5 items-center hover:bg-white/[0.02] transition-all cursor-pointer group"
-                    onClick={() => onSelect(campaign)}
-                  >
-                    {/* Nazwa */}
-                    <div className="col-span-4">
-                      <p className="text-[15px] font-medium text-[#EAE8E1] group-hover:text-white transition-colors">
-                        {campaign.name}
-                      </p>
-                      <p className="text-[12px] text-[#3a3a3a] mt-0.5">{formatDate(campaign.created_at)}</p>
-                    </div>
-
-                    {/* Status */}
-                    <div className="col-span-2">
-                      <span className={`text-[12px] font-medium px-2.5 py-1 rounded-full ${st.cls}`}>
-                        {st.label}
-                      </span>
-                    </div>
-
-                    {/* Postęp */}
-                    <div className="col-span-4 pr-6">
-                      <div className="flex items-center gap-4 text-[12px] text-[#827E78] mb-2">
-                        <span><span className="text-[#A3A09A] font-mono">{campaign.sent}</span> wysłanych</span>
-                        <span>·</span>
-                        <span><span className="text-[#5d9970] font-mono">{campaign.replies}</span> odpowiedzi</span>
-                        <span>·</span>
-                        <span><span className="text-[#827E78] font-mono">{campaign.queued}</span> w kolejce</span>
+                  return (
+                    <div
+                      key={campaign.id}
+                      className="grid grid-cols-12 gap-4 px-6 py-5 items-center hover:bg-white/[0.02] transition-all cursor-pointer group"
+                      onClick={() => onSelect(campaign)}
+                    >
+                      <div className="col-span-4">
+                        <p className="text-[15px] font-medium text-[#EAE8E1] group-hover:text-white transition-colors">
+                          {campaign.name}
+                        </p>
+                        <p className="text-[12px] text-[#3a3a3a] mt-0.5">{formatDate(campaign.created_at)}</p>
                       </div>
-                      <div className="h-px bg-white/[0.06] rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-[#A3A09A] rounded-full transition-all"
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
-                    </div>
 
-                    {/* Akcje */}
-                    <div className="col-span-2 flex items-center justify-end gap-1" onClick={e => e.stopPropagation()}>
-                      {(campaign.status === 'active' || campaign.status === 'paused') && (
+                      <div className="col-span-2">
+                        <span className={`text-[12px] font-medium px-2.5 py-1 rounded-full ${st.cls}`}>
+                          {st.label}
+                        </span>
+                      </div>
+
+                      <div className="col-span-4 pr-2 xl:pr-6">
+                        {/* Wymuszenie whitespace-nowrap zapobiega łamaniu liczb i tekstu na 13" Macach */}
+                        <div className="flex items-center gap-2 lg:gap-2.5 text-[11.5px] lg:text-[12px] text-[#827E78] mb-2 whitespace-nowrap">
+                          <span><span className="text-[#A3A09A] font-mono">{campaign.sent}</span> wysłanych</span>
+                          <span>·</span>
+                          <span><span className="text-[#5d9970] font-mono">{campaign.replies}</span> odpowiedzi</span>
+                          <span>·</span>
+                          <span><span className="text-[#827E78] font-mono">{campaign.queued}</span> w kolejce</span>
+                        </div>
+                        <div className="h-px bg-white/[0.06] rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-[#A3A09A] rounded-full transition-all"
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="col-span-2 flex items-center justify-end gap-1" onClick={e => e.stopPropagation()}>
+                        {(campaign.status === 'active' || campaign.status === 'paused') && (
+                          <button
+                            onClick={(e) => togglePause(campaign.id, e)}
+                            className="p-2 text-[#827E78] hover:text-[#EAE8E1] hover:bg-white/[0.06] rounded-lg transition-all"
+                            title={campaign.status === 'active' ? 'Wstrzymaj' : 'Wznów'}
+                          >
+                            {campaign.status === 'active' ? <Pause className="size-4" /> : <Play className="size-4" />}
+                          </button>
+                        )}
                         <button
-                          onClick={(e) => togglePause(campaign.id, e)}
-                          className="p-2 text-[#827E78] hover:text-[#EAE8E1] hover:bg-white/[0.06] rounded-lg transition-all"
-                          title={campaign.status === 'active' ? 'Wstrzymaj' : 'Wznów'}
+                          onClick={(e) => handleArchiveClick(campaign, e)}
+                          className="p-2 text-[#827E78] hover:text-[#a3956a] hover:bg-[#a3956a]/10 rounded-lg transition-all"
+                          title="Zakończ i przenieś do archiwum"
                         >
-                          {campaign.status === 'active' ? <Pause className="size-4" /> : <Play className="size-4" />}
+                          <X className="size-4" />
                         </button>
-                      )}
-                      
-                      <button
-                        onClick={(e) => handleArchiveClick(campaign, e)}
-                        className="p-2 text-[#827E78] hover:text-[#a3956a] hover:bg-[#a3956a]/10 rounded-lg transition-all"
-                        title="Zakończ i Archiwizuj"
-                      >
-                        <X className="size-4" />
-                      </button>
-                      
-                      <ArrowRight className="size-4 text-[#827E78] group-hover:text-[#EAE8E1] transition-colors ml-1" />
+                        <ArrowRight className="size-4 text-[#827E78] group-hover:text-[#EAE8E1] transition-colors ml-1" />
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
             </div>
           </div>
         </>
       )}
 
-      {/* Zwijane Archiwum - widoczne zawsze pod spodem */}
+      {/* Archiwum - widoczne zawsze pod spodem niezależnie od tego czy mamy puste kampanie czy nie */}
       <div className="pt-8">
         <button onClick={() => setIsArchiveOpen(!isArchiveOpen)} className="flex items-center w-full gap-4 group cursor-pointer outline-none">
-          <span className="text-[12px] font-medium uppercase tracking-wider text-[#827E78] group-hover:text-[#A3A09A] transition-colors">Archiwum ({archivedCampaigns.length})</span>
+          <span className="text-[12px] font-medium uppercase tracking-wider text-[#827E78] group-hover:text-[#A3A09A] transition-colors">Archiwum ({displayedArchived.length})</span>
           <div className="flex-1 h-px bg-white/[0.04] group-hover:bg-white/[0.08] transition-colors" />
           <ChevronDown className={`size-4 text-[#827E78] group-hover:text-[#A3A09A] transition-all ${isArchiveOpen ? 'rotate-180' : ''}`} />
         </button>
@@ -648,11 +625,11 @@ function CampaignsList({ onSelect }: { onSelect: (c: Campaign) => void }) {
           {isArchiveOpen && (
             <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
               <div className="mt-4">
-                {archivedCampaigns.length === 0 ? (
+                {displayedArchived.length === 0 ? (
                   <div className="py-8 text-center text-[13px] text-[#827E78]">Archiwum jest puste.</div>
                 ) : (
                   <div className="divide-y divide-white/[0.02]">
-                    {archivedCampaigns.map(campaign => {
+                    {displayedArchived.map(campaign => {
                       const st = statusLabel(campaign.status);
                       return (
                         <div key={campaign.id} className="flex items-center justify-between py-3 group cursor-pointer" onClick={() => onSelect(campaign)}>
@@ -661,7 +638,7 @@ function CampaignsList({ onSelect }: { onSelect: (c: Campaign) => void }) {
                               <p className="text-[13px] font-medium text-[#A3A09A] group-hover:text-[#EAE8E1] transition-colors truncate">{campaign.name}</p>
                             </div>
                             <span className={`text-[11px] font-medium px-2 py-0.5 rounded-md ${st.cls}`}>{st.label}</span>
-                            <span className="text-[12px] text-[#827E78] font-mono">{campaign.sent} wysłanych</span>
+                            <span className="text-[12px] text-[#827E78] font-mono whitespace-nowrap">{campaign.sent} wysłanych</span>
                           </div>
                           
                           <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
@@ -680,7 +657,6 @@ function CampaignsList({ onSelect }: { onSelect: (c: Campaign) => void }) {
         </AnimatePresence>
       </div>
 
-      {/* Delete Modal (Permanent) */}
       <AnimatePresence>
         {deleteTarget && (
           <DeleteModal
@@ -691,7 +667,6 @@ function CampaignsList({ onSelect }: { onSelect: (c: Campaign) => void }) {
         )}
       </AnimatePresence>
 
-      {/* Archive Warning Modal */}
       <AnimatePresence>
         {archiveTarget && (
           <ArchiveModal
@@ -702,7 +677,6 @@ function CampaignsList({ onSelect }: { onSelect: (c: Campaign) => void }) {
         )}
       </AnimatePresence>
 
-      {/* Action Feedback Toast */}
       <AnimatePresence>
         {toast && (
           <motion.div initial={{ opacity: 0, y: 20, x: '-50%' }} animate={{ opacity: 1, y: 0, x: '-50%' }} exit={{ opacity: 0, y: 20, x: '-50%' }} className="fixed bottom-8 left-1/2 z-50 bg-[#1A1A1A] border border-white/[0.1] shadow-2xl rounded-full px-5 py-2.5 flex items-center gap-2">
