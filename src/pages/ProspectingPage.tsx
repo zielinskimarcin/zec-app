@@ -437,7 +437,6 @@ export function ProspectingPage() {
         </div>
       </motion.div>
 
-      {/* Wyniki */}
       {leads.length > 0 && (
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
           className="rounded-2xl border border-white/[0.06] bg-white/[0.02] overflow-hidden"
@@ -459,7 +458,6 @@ export function ProspectingPage() {
             )}
           </div>
 
-          {/* Header tabeli */}
           <div className="grid grid-cols-12 gap-3 px-5 py-2.5 text-[10px] font-medium text-[#333] uppercase tracking-wider border-b border-white/[0.04]">
             <div className="col-span-1 flex items-center">
               <label className="relative flex items-center justify-center size-3.5 cursor-pointer">
@@ -475,12 +473,10 @@ export function ProspectingPage() {
             <div className="col-span-1">Akcja</div>
           </div>
 
-          {/* Wiersze */}
           <div className="divide-y divide-white/[0.04]">
             {leads.map(lead => (
               <div key={lead.id} className={`grid grid-cols-12 gap-3 px-5 py-3.5 transition-all hover:bg-white/[0.02] ${selectedLeads.includes(lead.id) ? 'bg-white/[0.03]' : ''}`}>
 
-                {/* Checkbox */}
                 <div className="col-span-1 flex items-center">
                   <label className="relative flex items-center justify-center size-3.5 cursor-pointer">
                     <input type="checkbox" checked={selectedLeads.includes(lead.id)} onChange={() => toggleLead(lead.id)} className="peer sr-only" />
@@ -489,19 +485,23 @@ export function ProspectingPage() {
                   </label>
                 </div>
 
-                {/* Firma */}
+                {/* Firma — bez telefonu */}
                 <div className="col-span-3 flex flex-col justify-center">
                   <p className="text-[13px] font-semibold text-[#c8c8c8] leading-tight">{lead.companyName}</p>
                   <p className="text-[11px] text-[#444] mt-0.5 flex items-center gap-1"><MapPin className="size-2.5" />{lead.city}</p>
-                  {lead.phone && <p className="text-[11px] text-[#444] flex items-center gap-1 mt-0.5"><Phone className="size-2.5" />{lead.phone}</p>}
                 </div>
 
-                {/* Kontakt */}
+                {/* Kontakt — z telefonem */}
                 <div className="col-span-2 flex flex-col justify-center gap-1">
                   {lead.website && (
                     <a href={`https://${lead.domain}`} target="_blank" rel="noopener noreferrer" className="text-[11px] text-[#444] hover:text-[#888] flex items-center gap-1 truncate transition-colors">
                       <ExternalLink className="size-2.5 shrink-0" />{lead.domain}
                     </a>
+                  )}
+                  {lead.phone && (
+                    <p className="text-[11px] text-[#444] flex items-center gap-1">
+                      <Phone className="size-2.5 shrink-0" />{lead.phone}
+                    </p>
                   )}
                   {lead.emailFound
                     ? <p className="text-[11px] text-green-600/70 flex items-center gap-1 truncate"><Mail className="size-2.5 shrink-0" />{lead.emailAddress}</p>
@@ -511,7 +511,6 @@ export function ProspectingPage() {
 
                 {/* Metryki */}
                 <div className="col-span-2 flex flex-col justify-center gap-1">
-                  {/* Google */}
                   <div className="flex items-center gap-1.5">
                     <div className="flex items-center gap-1 px-1.5 py-0.5 bg-white/[0.03] rounded-lg border border-white/[0.06] text-[11px]">
                       <Star className="size-2.5 text-[#777]" />
@@ -519,8 +518,6 @@ export function ProspectingPage() {
                     </div>
                     <span className="text-[11px] text-[#444]">{lead.reviewsCount} op.</span>
                   </div>
-
-                  {/* Instagram */}
                   {(lead.package === 'instagram' || lead.package === 'full') && (
                     lead.instagram?.available && lead.instagram?.followers ? (
                       <div className="flex items-center gap-1 text-[11px] text-[#888]">
@@ -535,8 +532,6 @@ export function ProspectingPage() {
                       </div>
                     )
                   )}
-
-                  {/* LinkedIn */}
                   {(lead.package === 'linkedin' || lead.package === 'full') && (
                     lead.linkedin?.available ? (
                       <>
@@ -551,12 +546,6 @@ export function ProspectingPage() {
                           <div className="flex items-center gap-1 text-[11px] text-[#555]">
                             <Briefcase className="size-2.5 shrink-0" />
                             <span className="truncate">{lead.linkedin.industry}</span>
-                          </div>
-                        )}
-                        {lead.linkedin.size && (
-                          <div className="flex items-center gap-1 text-[11px] text-[#444]">
-                            <Building2 className="size-2.5 shrink-0 text-[#333]" />
-                            <span>{lead.linkedin.size} os.</span>
                           </div>
                         )}
                       </>
@@ -606,7 +595,6 @@ export function ProspectingPage() {
         </motion.div>
       )}
 
-      {/* Modal podglądu maila */}
       <AnimatePresence>
         {previewLead && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -626,7 +614,6 @@ export function ProspectingPage() {
                   <X className="size-5" />
                 </button>
               </div>
-
               <div className="space-y-4">
                 <div className="p-3 bg-white/[0.03] rounded-xl border border-white/[0.06]">
                   <p className="text-[10px] text-[#444] uppercase tracking-wider mb-1">Temat</p>
@@ -645,7 +632,6 @@ export function ProspectingPage() {
                   </div>
                 )}
               </div>
-
               <div className="flex gap-3 mt-6">
                 <button onClick={() => setPreviewLead(null)} className="flex-1 py-2.5 border border-white/[0.08] text-[#555] hover:text-[#888] text-[13px] rounded-xl transition-all">
                   Zamknij
@@ -663,7 +649,6 @@ export function ProspectingPage() {
         )}
       </AnimatePresence>
 
-      {/* Floating bar */}
       <AnimatePresence>
         {selectedLeads.length > 0 && (
           <motion.div initial={{ y: 80, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 80, opacity: 0 }}
