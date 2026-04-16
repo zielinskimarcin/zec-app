@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router';
 import { supabase } from '../lib/supabase';
+import { CampaignCreator } from '../components/CampaignCreator';
 
 type LeadStatus = 'pending' | 'sent';
 
@@ -48,6 +49,8 @@ export function LeadsPage() {
   const [filterSource, setFilterSource] = useState<'all' | 'ig' | 'in'>('all');
   const [sortBy, setSortBy] = useState<'date_desc' | 'date_asc' | 'company_asc' | 'city_asc' | 'industry_asc'>('date_desc');
   const [isAddingMock, setIsAddingMock] = useState(false);
+  const [isCreatorOpen, setIsCreatorOpen] = useState(false);
+  const [creatorLeadIds, setCreatorLeadIds] = useState<string[]>([]);
 
   async function fetchLeads() {
     setIsLoading(true);
@@ -448,7 +451,9 @@ export function LeadsPage() {
               <button onClick={handleDeleteSelected} className="flex items-center gap-2 px-4 py-2 text-[13px] font-medium text-[#b56060] hover:bg-[#b56060]/10 rounded-xl transition-all">
                 <Trash2 className="size-4" /> Usuń
               </button>
-              <button className="flex items-center gap-2 px-5 py-2 bg-[#EAE8E1] hover:bg-white text-[#0a0a0a] text-[13px] font-semibold rounded-xl transition-all">
+              <button
+                onClick={() => { setCreatorLeadIds([...selectedIds]); setIsCreatorOpen(true); }}
+                className="flex items-center gap-2 px-5 py-2 bg-[#EAE8E1] hover:bg-white text-[#0a0a0a] text-[13px] font-semibold rounded-xl transition-all">
                 <Plus className="size-4" /> Utwórz Kampanię
               </button>
             </div>
@@ -572,20 +577,27 @@ export function LeadsPage() {
               </div>
               
               <div className="p-6 border-t border-white/[0.06] bg-[#0a0a0a] flex gap-3">
-                <button 
+                <button
                   onClick={() => {
-                    setSelectedIds(prev => new Set([...prev, selectedLead.id]));
+                    setCreatorLeadIds([selectedLead.id]);
                     setSelectedLead(null);
+                    setIsCreatorOpen(true);
                   }}
                   className="flex-1 px-4 py-3 bg-[#EAE8E1] hover:bg-white text-[#0a0a0a] text-[14px] font-semibold rounded-xl transition-all"
                 >
-                  Dodaj do Kampanii
+                  Utwórz kampanię dla tego leada
                 </button>
               </div>
             </motion.div>
           </>
         )}
       </AnimatePresence>
+
+      <CampaignCreator
+        isOpen={isCreatorOpen}
+        onClose={() => setIsCreatorOpen(false)}
+        preselectedLeadIds={creatorLeadIds}
+      />
 
       {/* --- DEV BUTTON: DODAJ TESTOWE LEADY --- */}
       <div className="fixed bottom-4 right-4 z-50">

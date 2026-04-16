@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   X, ArrowRight, ArrowLeft, Check, Search, Loader2,
@@ -6,6 +6,7 @@ import {
   ChevronRight, Clock, Building2, Globe, Hash, Info,
   Server, CheckCircle2
 } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 
 // ─── Brand logos ──────────────────────────────────────────────────────────────
 
@@ -74,17 +75,7 @@ interface CampaignCreatorProps {
   preselectedLeadIds?: string[];
 }
 
-// ─── Mock data ────────────────────────────────────────────────────────────────
-
-const mockDatabaseLeads: DatabaseLead[] = [
-  { id: '101', company: 'Studio Nowak', industry: 'Architektura', email: 'kontakt@studionowak.pl', city: 'Kraków' },
-  { id: '102', company: 'TechFlow Sp. z o.o.', industry: 'Software House', email: 'hello@techflow.dev', city: 'Wrocław' },
-  { id: '103', company: 'BudMaster', industry: 'Budownictwo', email: 'biuro@budmaster.pl', city: 'Warszawa' },
-  { id: '104', company: 'Green Build', industry: 'Nieruchomości', email: 'info@greenbuild.com', city: 'Gdańsk' },
-  { id: '105', company: 'SEO Ninjas', industry: 'Marketing', email: 'contact@seoninjas.pl', city: 'Poznań' },
-  { id: '106', company: 'Architekci Krakowscy', industry: 'Architektura', email: 'hello@ark.pl', city: 'Kraków' },
-  { id: '107', company: 'Metropolis Invest', industry: 'Nieruchomości', email: 'office@metropolis.pl', city: 'Warszawa' },
-];
+// ─── Mock data (mailboxes only — leads are fetched from Supabase) ─────────────
 
 const mockMailboxes: Mailbox[] = [
   { id: 'm1', email: 'jan.kowalski@twojafirma.pl', provider: 'google' },
@@ -274,6 +265,8 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
   // Step 1
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([]);
+  const [databaseLeads, setDatabaseLeads] = useState<DatabaseLead[]>([]);
+  const [isLoadingLeads, setIsLoadingLeads] = useState(false);
 
   // Step 2
   const [campaignName, setCampaignName] = useState('');
@@ -299,20 +292,40 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
   const totalSelected = selectedLeadIds.length;
   const estimatedMinutes = Math.ceil((totalSelected * 8) / 60) || 1;
 
-  // Reset on open
+  // Reset on open + fetch leads from Supabase
   useEffect(() => {
-    if (isOpen) {
-      setStep(1);
-      setSearchQuery('');
-      setSelectedLeadIds(preselectedLeadIds?.length ? preselectedLeadIds : []);
-      setCampaignName('');
-      setPromptAngle('');
-      setSelectedMailboxIds([]);
-      setGeneratedLeads([]);
-      setCurrentIndex(0);
-      setEditingIndex(null);
-      setLaunched(false);
-    }
+    if (!isOpen) return;
+    setStep(1);
+    setSearchQuery('');
+    setSelectedLeadIds(preselectedLeadIds?.length ? preselectedLeadIds : []);
+    setCampaignName('');
+    setPromptAngle('');
+    setSelectedMailboxIds([]);
+    setGeneratedLeads([]);
+    setCurrentIndex(0);
+    setEditingIndex(null);
+    setLaunched(false);
+
+    const fetchLeads = async () => {
+      setIsLoadingLeads(true);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { setIsLoadingLeads(false); return; }
+      const { data, error } = await supabase
+        .from('user_leads')
+        .select('id, global_leads ( company_name, email, city, industry )')
+        .eq('user_id', session.user.id);
+      if (!error && data) {
+        setDatabaseLeads(data.map((item: any) => ({
+          id: item.id,
+          company: item.global_leads?.company_name || 'Brak firmy',
+          industry: item.global_leads?.industry || '',
+          email: item.global_leads?.email || '',
+          city: item.global_leads?.city || '',
+        })));
+      }
+      setIsLoadingLeads(false);
+    };
+    fetchLeads();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
@@ -337,7 +350,7 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
     });
   }, [step]);
 
-  const filteredLeads = mockDatabaseLeads.filter(l =>
+  const filteredLeads = databaseLeads.filter((l: DatabaseLead) =>
     l.company.toLowerCase().includes(searchQuery.toLowerCase()) ||
     l.industry.toLowerCase().includes(searchQuery.toLowerCase()) ||
     (l.city || '').toLowerCase().includes(searchQuery.toLowerCase())
@@ -498,7 +511,16 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
                           <div className="col-span-2">Email</div>
                         </div>
                         <div className="flex-1 overflow-y-auto divide-y divide-white/[0.04]">
-                          {filteredLeads.map(lead => {
+                          {isLoadingLeads ? (
+                            <div className="flex items-center justify-center py-16">
+                              <Loader2 className="size-5 text-[#827E78] animate-spin" />
+                            </div>
+                          ) : filteredLeads.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center py-16 text-center px-8">
+                              <p className="text-[15px] font-medium text-[#EAE8E1] mb-2">Brak leadów w bazie</p>
+                              <p className="text-[13px] text-[#A3A09A]">Najpierw znajdź firmy w zakładce Prospecting i zapisz je do bazy.</p>
+                            </div>
+                          ) : filteredLeads.map(lead => {
                             const sel = selectedLeadIds.includes(lead.id);
                             return (
                               <div key={lead.id} onClick={() => toggleLead(lead.id)}
@@ -522,6 +544,7 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
                 )}
 
                 {/* ═══ STEP 2: CONFIG ═══ */}
+
                 {step === 2 && (
                   <motion.div key="s2" initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 12 }} className="absolute inset-0 p-8 overflow-y-auto">
                     <div className="max-w-2xl mx-auto space-y-8">

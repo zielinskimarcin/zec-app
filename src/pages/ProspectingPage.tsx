@@ -5,7 +5,7 @@ import {
   ArrowRight, Coins, ChevronDown, ChevronUp, AlertCircle,
   Loader2, Users, TrendingUp, BarChart2,
   ExternalLink, SlidersHorizontal, Phone, Eye, X, Briefcase,
-  BookmarkPlus, Sparkles
+  BookmarkPlus, Sparkles, PlusCircle // Dodano ikonę PlusCircle
 } from 'lucide-react';
 import { Instagram, Linkedin } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -106,6 +106,9 @@ export function ProspectingPage() {
   const [availableTokens, setAvailableTokens] = useState<number>(0);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  
+  // Stan dla przycisku deweloperskiego
+  const [isAddingCredits, setIsAddingCredits] = useState(false);
 
   const [selectedPlatforms, setSelectedPlatforms] = useState<Platform[]>(['google']);
   const [common, setCommon] = useState({ industry: '', country: 'Polska', city: '', keywords: '', maxLeads: 10 });
@@ -190,6 +193,36 @@ export function ProspectingPage() {
   const toggleLead = (id: number) => setSelectedLeads(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
   const toggleAll = () => selectedLeads.length === leads.length ? setSelectedLeads([]) : setSelectedLeads(leads.map(l => l.id));
 
+  // Funkcja deweloperska dodająca 9999 kredytów
+  const handleAddDevCredits = async () => {
+    setIsAddingCredits(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        alert('Musisz być zalogowany, aby dodać kredyty.');
+        setIsAddingCredits(false);
+        return;
+      }
+
+      const newCreditsAmount = availableTokens + 9999;
+
+      const { error } = await supabase
+        .from('profiles')
+        .update({ credits: newCreditsAmount })
+        .eq('id', session.user.id);
+
+      if (error) throw error;
+
+      setAvailableTokens(newCreditsAmount);
+      alert('Dodano 9999 kredytów (DEV).');
+    } catch (err: any) {
+      console.error('Błąd dodawania kredytów:', err);
+      alert('Nie udało się dodać kredytów.');
+    } finally {
+      setIsAddingCredits(false);
+    }
+  };
+
   return (
     <div className="space-y-4 max-w-7xl mx-auto">
 
@@ -208,6 +241,15 @@ export function ProspectingPage() {
               <p className="text-[10px] text-[#333] uppercase tracking-wider">Kredyty</p>
               <p className="text-[15px] font-bold text-[#c8c8c8] font-mono leading-none">{availableTokens.toLocaleString('pl-PL')}</p>
             </div>
+            {/* Przycisk DEV: Dodaj 9999 Kredytów */}
+            <button 
+              onClick={handleAddDevCredits} 
+              disabled={isAddingCredits}
+              title="DEV: Dodaj 9999 Kredytów"
+              className="ml-2 text-green-500/70 hover:text-green-500 bg-green-500/10 hover:bg-green-500/20 p-1.5 rounded-lg transition-colors flex items-center justify-center border border-green-500/20 disabled:opacity-50"
+            >
+              {isAddingCredits ? <Loader2 className="size-3 animate-spin" /> : <PlusCircle className="size-3" />}
+            </button>
           </div>
           <button className="text-[12px] text-[#444] hover:text-[#888] border border-white/[0.07] hover:border-white/[0.12] px-3 py-1.5 rounded-xl transition-all">Doładuj</button>
         </div>
