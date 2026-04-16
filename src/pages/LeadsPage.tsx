@@ -47,7 +47,7 @@ export function LeadsPage() {
   const [filterStatus, setFilterStatus] = useState<LeadStatus | 'all'>('all');
   const [filterSource, setFilterSource] = useState<'all' | 'ig' | 'in'>('all');
   const [sortBy, setSortBy] = useState<'date_desc' | 'date_asc' | 'company_asc' | 'city_asc' | 'industry_asc'>('date_desc');
-  const [isAddingMock, setIsAddingMock] = useState(false); // Stan dla guzika DEV
+  const [isAddingMock, setIsAddingMock] = useState(false);
 
   async function fetchLeads() {
     setIsLoading(true);
@@ -164,29 +164,50 @@ export function LeadsPage() {
       return;
     }
 
+    const rand = Math.floor(Math.random() * 100000);
+    const mockHistory = [{ date: new Date().toISOString(), action: 'Wyszukano', details: 'Zescrapowano z Google Maps. Dodano przez Dev-Button.' }];
+
+    // Zmiana JSONa na zwykły tekst w punktach
+    const igDataText = `• Obserwujący: 14 500\n• Bio: 🚀 Skalujemy Twój biznes | Agencja 360\n• Ostatnie posty:\n  - Prezentacja nowego case-study z branży e-commerce (wzrost konwersji o 150%).\n  - Zdjęcia z integracji zespołu w górach - mocny nacisk na kulturę pracy.\n  - Promocja nowej usługi automatyzacji marketingu przy użyciu AI.`;
+
+    const inDataText = `• Wielkość firmy: 11-50 pracowników\n• Założona: 2018 (Polska)\n• Ostatnie posty:\n  - Ogłoszenie o poszukiwaniu Mid/Senior React Developera na projekt zagraniczny.\n  - Komentarz CEO dotyczący przyszłości sztucznej inteligencji w B2B SaaS.\n  - Podsumowanie kwartału: pozyskanie 3 nowych, dużych klientów z rynku brytyjskiego.`;
+
     const mockData = [
-      { c: 'Studio Nowak', e: 'kontakt@studionowak.pl', ind: 'Architektura', loc: 'Kraków', ig: true, in: false },
-      { c: 'TechFlow Sp. z o.o.', e: 'hello@techflow.dev', ind: 'Software House', loc: 'Wrocław', ig: false, in: true },
-      { id: '103', c: 'BudMaster', e: 'biuro@budmaster.pl', ind: 'Budownictwo', loc: 'Warszawa', ig: false, in: false },
-      { c: 'Green Build', e: 'info@greenbuild.com', ind: 'Nieruchomości', loc: 'Gdańsk', ig: true, in: true },
-      { c: 'SEO Ninjas', e: 'contact@seoninjas.pl', ind: 'Marketing', loc: 'Poznań', ig: false, in: true },
-      { c: 'Architekci Krakowscy', e: 'hello@ark.pl', ind: 'Architektura', loc: 'Kraków', ig: true, in: true },
-      { c: 'Metropolis Invest', e: 'office@metropolis.pl', ind: 'Nieruchomości', loc: 'Warszawa', ig: false, in: false },
-      { c: 'Kancelaria Lex', e: 'prawo@lex.pl', ind: 'Prawo', loc: 'Łódź', ig: false, in: true },
-      { c: 'Auto Detailing Pro', e: 'serwis@detailing.pl', ind: 'Motoryzacja', loc: 'Katowice', ig: true, in: false },
-      { c: 'Klinika Urody', e: 'recepcja@klinikaurody.pl', ind: 'Beauty', loc: 'Wrocław', ig: true, in: false },
+      { c: `Digital Growth ${rand}`, e: `kontakt${rand}@digitalgrowth.pl`, ind: 'Agencja Marketingowa', loc: 'Warszawa', person: 'Anna Nowak', ig: true, in: true, status: 'sent', summary: 'Dynamiczna agencja reklamowa. Mocno aktywna na LinkedIn, szukają rozwiązań do automatyzacji.' },
+      { c: `Code Crafters ${rand}`, e: `hello${rand}@codecrafters.io`, ind: 'Software House', loc: 'Kraków', person: 'Piotr Zieliński', ig: false, in: true, status: 'pending', summary: 'Firma IT tworząca aplikacje webowe. Zatrudniają około 50 osób. Nie prowadzą Instagrama.' },
+      { c: `Beauty Med Clinic ${rand}`, e: `recepcja${rand}@beautymed.pl`, ind: 'Medycyna Estetyczna', loc: 'Wrocław', person: 'Marta Kowal', ig: true, in: false, status: 'pending', summary: 'Klinika medycyny estetycznej premium. Mają świetny i angażujący profil na Instagramie.' },
+      { c: `Logistix B2B ${rand}`, e: `biuro${rand}@logistix.com.pl`, ind: 'Logistyka', loc: 'Poznań', person: 'Jan Kowalski', ig: false, in: false, status: 'pending', summary: 'Tradycyjna firma logistyczna, stara strona www. Potrzebują digitalizacji.' },
+      { c: `Eco Store E-commerce ${rand}`, e: `sklep${rand}@ecostore.pl`, ind: 'E-commerce', loc: 'Gdańsk', person: 'Tomasz Lis', ig: true, in: true, status: 'sent', summary: 'Szybko rosnący e-commerce z kosmetykami naturalnymi. Skalują się na rynki zagraniczne.' },
+      { c: `Archi Studio ${rand}`, e: `design${rand}@archistudio.pl`, ind: 'Architektura', loc: 'Warszawa', person: 'Katarzyna Zając', ig: true, in: false, status: 'pending', summary: 'Biuro projektowe z nagrodami. Publikują piękne realizacje na swoim profilu.' },
+      { c: `Fin-Tech Polska ${rand}`, e: `contact${rand}@fintech.pl`, ind: 'Finanse', loc: 'Warszawa', person: 'Michał Wiśniewski', ig: false, in: true, status: 'sent', summary: 'Startup technologiczny w branży finansowej. Właśnie zebrali drugą rundę finansowania.' },
+      { c: `Green Solar Energy ${rand}`, e: `biuro${rand}@greensolar.pl`, ind: 'OZE', loc: 'Rzeszów', person: 'Adam Małysz', ig: false, in: false, status: 'pending', summary: 'Lokalny instalator fotowoltaiki. Dużo negatywnych opinii w Google Maps, trzeba podejść ostrożnie.' },
+      { c: `Next Gen AI ${rand}`, e: `hello${rand}@nextgen.ai`, ind: 'SaaS', loc: 'Kraków', person: 'Julia Wieniawa', ig: true, in: true, status: 'pending', summary: 'Nowoczesny SaaS. Mocny content marketing i świetny Employer Branding na LinkedInie.' },
+      { c: `Real Estate Pro ${rand}`, e: `agents${rand}@realestate.com`, ind: 'Nieruchomości', loc: 'Gdynia', person: 'Robert Lewandowski', ig: false, in: true, status: 'sent', summary: 'Agencja nieruchomości premium z Trójmiasta. Oferują obsługę inwestorów z zagranicy.' },
     ];
 
     try {
+      let addedCount = 0;
+
       for (const m of mockData) {
         // 1. Wstaw do global_leads
         const { data: globalData, error: globalErr } = await supabase
           .from('global_leads')
-          .insert({ company_name: m.c, email: m.e, industry: m.ind, city: m.loc, website: `www.${m.c.toLowerCase().replace(/\s+/g, '')}.pl` })
+          .insert({ 
+            query_hash: `dev-mock-${rand}-${addedCount}`, 
+            company_name: m.c, 
+            email: m.e, 
+            industry: m.ind, 
+            city: m.loc, 
+            website: `www.${m.c.toLowerCase().replace(/\s+/g, '')}.pl` 
+          })
           .select('id')
           .single();
 
-        if (globalErr) { console.error('Błąd global_leads:', globalErr); continue; }
+        if (globalErr) { 
+          console.error('Błąd global_leads:', globalErr); 
+          alert(`Błąd dodawania do global_leads: ${globalErr.message}`);
+          continue; 
+        }
 
         // 2. Wstaw do user_leads przypisane do usera
         const { error: userErr } = await supabase
@@ -194,20 +215,31 @@ export function LeadsPage() {
           .insert({
             user_id: session.user.id,
             global_lead_id: globalData.id,
-            status: 'pending',
+            name: m.person,
+            status: m.status,
+            summary: m.summary,
             has_instagram: m.ig,
             has_linkedin: m.in,
-            history: [{ date: new Date().toISOString(), action: 'Dodano do bazy', details: 'Zescrapowane z Map Google (MOCK)' }]
+            instagram_data: m.ig ? igDataText : null,
+            linkedin_data: m.in ? inDataText : null,
+            history: mockHistory
           });
 
-        if (userErr) console.error('Błąd user_leads:', userErr);
+        if (userErr) {
+          console.error('Błąd user_leads:', userErr);
+          alert(`Błąd dodawania do user_leads: ${userErr.message}`);
+        } else {
+          addedCount++;
+        }
       }
       
-      alert('Dodano 10 leadów testowych!');
-      fetchLeads(); // Odśwież listę
+      if (addedCount > 0) {
+        alert(`Dodano ${addedCount} leadów testowych!`);
+        fetchLeads(); // Odśwież listę po udanym dodaniu
+      }
     } catch (err) {
       console.error(err);
-      alert('Wystąpił błąd podczas dodawania mocków.');
+      alert('Wystąpił nieoczekiwany błąd podczas dodawania mocków.');
     } finally {
       setIsAddingMock(false);
     }
@@ -487,7 +519,11 @@ export function LeadsPage() {
                       </div>
                     ) : (
                       <div className="p-5 border border-white/[0.06] rounded-xl bg-white/[0.02]">
-                        <pre className="text-[12px] text-[#A3A09A] font-mono whitespace-pre-wrap">{JSON.stringify(selectedLead.instagramData, null, 2)}</pre>
+                        <div className="text-[13px] text-[#A3A09A] whitespace-pre-wrap leading-relaxed">
+                          {typeof selectedLead.instagramData === 'string' 
+                            ? selectedLead.instagramData 
+                            : JSON.stringify(selectedLead.instagramData, null, 2)}
+                        </div>
                       </div>
                     )
                   )}
@@ -503,7 +539,11 @@ export function LeadsPage() {
                       </div>
                     ) : (
                       <div className="p-5 border border-white/[0.06] rounded-xl bg-white/[0.02]">
-                        <pre className="text-[12px] text-[#A3A09A] font-mono whitespace-pre-wrap">{JSON.stringify(selectedLead.linkedinData, null, 2)}</pre>
+                        <div className="text-[13px] text-[#A3A09A] whitespace-pre-wrap leading-relaxed">
+                          {typeof selectedLead.linkedinData === 'string' 
+                            ? selectedLead.linkedinData 
+                            : JSON.stringify(selectedLead.linkedinData, null, 2)}
+                        </div>
                       </div>
                     )
                   )}
