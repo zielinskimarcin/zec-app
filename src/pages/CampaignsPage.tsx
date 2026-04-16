@@ -6,6 +6,7 @@ import {
   Eye, X, Download, ArrowRight, Info, Archive, SlidersHorizontal, Search, ChevronDown
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { CampaignCreator } from "../components/CampaignCreator";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -412,16 +413,18 @@ function CampaignsList({ onSelect }: { onSelect: (c: Campaign) => void }) {
   const [isArchiveOpen, setIsArchiveOpen] = useState(false);
   const [toast, setToast] = useState<{ icon: any, text: string } | null>(null);
 
+  const [isCreatorOpen, setIsCreatorOpen] = useState(false); // <-- DODANY STAN DLA MODALA
+
   // Dynamiczne filtrowanie po nazwie kampanii
   const filteredCampaigns = campaigns.filter(c => 
     c.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const activeCampaignsList = campaigns.filter(c => !c.isArchived); // Używane do decyzji czy pokazać Empty State
+  const activeCampaignsList = campaigns.filter(c => !c.isArchived); 
   const displayedActive = filteredCampaigns.filter(c => !c.isArchived);
   const displayedArchived = filteredCampaigns.filter(c => c.isArchived);
 
-  // Globalne statystyki liczone z wszystkich aktywnych kampanii w systemie (ignorując wyszukiwarkę)
+  // Globalne statystyki
   const totalSent = activeCampaignsList.reduce((sum, c) => sum + c.sent, 0);
   const totalQueued = activeCampaignsList.reduce((sum, c) => sum + c.queued, 0);
   const totalBounced = activeCampaignsList.reduce((sum, c) => sum + c.bounced, 0);
@@ -473,7 +476,8 @@ function CampaignsList({ onSelect }: { onSelect: (c: Campaign) => void }) {
           <h1 className="text-[28px] font-serif text-[#EAE8E1] tracking-tight">Kampanie</h1>
           <p className="text-[15px] text-[#A3A09A] mt-1.5">Zarządzaj kampaniami i śledź postęp wysyłki</p>
         </div>
-        <button className="flex items-center gap-2.5 px-5 py-3 bg-[#EAE8E1] hover:bg-white text-[#1A1A1A] text-[14px] font-medium rounded-xl transition-all">
+        {/* PODPIĘTY PRZYCISK NOWEJ KAMPANII */}
+        <button onClick={() => setIsCreatorOpen(true)} className="flex items-center gap-2.5 px-5 py-3 bg-[#EAE8E1] hover:bg-white text-[#1A1A1A] text-[14px] font-medium rounded-xl transition-all">
           <Plus className="size-4" /> Nowa kampania
         </button>
       </div>
@@ -487,7 +491,8 @@ function CampaignsList({ onSelect }: { onSelect: (c: Campaign) => void }) {
           <p className="text-[14px] text-[#A3A09A] mb-7 max-w-xs mx-auto leading-relaxed">
             Stwórz pierwszą kampanię i zacznij wysyłać spersonalizowane maile.
           </p>
-          <button className="inline-flex items-center gap-2 px-6 py-3 bg-[#EAE8E1] hover:bg-white text-[#1A1A1A] text-[14px] font-medium rounded-xl transition-all">
+          {/* PODPIĘTY PRZYCISK NOWEJ KAMPANII W PUSTYM STANIE */}
+          <button onClick={() => setIsCreatorOpen(true)} className="inline-flex items-center gap-2 px-6 py-3 bg-[#EAE8E1] hover:bg-white text-[#1A1A1A] text-[14px] font-medium rounded-xl transition-all">
             <Plus className="size-4" /> Nowa kampania
           </button>
         </div>
@@ -569,7 +574,6 @@ function CampaignsList({ onSelect }: { onSelect: (c: Campaign) => void }) {
                       </div>
 
                       <div className="col-span-4 pr-2 xl:pr-6">
-                        {/* Wymuszenie whitespace-nowrap zapobiega łamaniu liczb i tekstu na 13" Macach */}
                         <div className="flex items-center gap-2 lg:gap-2.5 text-[11.5px] lg:text-[12px] text-[#827E78] mb-2 whitespace-nowrap">
                           <span><span className="text-[#A3A09A] font-mono">{campaign.sent}</span> wysłanych</span>
                           <span>·</span>
@@ -613,7 +617,6 @@ function CampaignsList({ onSelect }: { onSelect: (c: Campaign) => void }) {
         </>
       )}
 
-      {/* Archiwum - widoczne zawsze pod spodem niezależnie od tego czy mamy puste kampanie czy nie */}
       <div className="pt-8">
         <button onClick={() => setIsArchiveOpen(!isArchiveOpen)} className="flex items-center w-full gap-4 group cursor-pointer outline-none">
           <span className="text-[12px] font-medium uppercase tracking-wider text-[#827E78] group-hover:text-[#A3A09A] transition-colors">Archiwum ({displayedArchived.length})</span>
@@ -685,6 +688,10 @@ function CampaignsList({ onSelect }: { onSelect: (c: Campaign) => void }) {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* --- DODANE WYWOŁANIE MODALA KREATORA KAMPANII --- */}
+      <CampaignCreator isOpen={isCreatorOpen} onClose={() => setIsCreatorOpen(false)} />
+
     </div>
   );
 }

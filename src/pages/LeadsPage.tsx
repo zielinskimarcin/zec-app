@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { 
   Search, Mail, Globe, Calendar, X, 
   Clock, Send, ArrowUpDown, ChevronRight, 
-  Loader2, Instagram, Linkedin, Lock, Trash2, Plus, SlidersHorizontal, Check, Users
+  Loader2, Instagram, Linkedin, Lock, Trash2, Plus, SlidersHorizontal, Check, Users, ShieldAlert
 } from 'lucide-react';
 import { Link } from 'react-router';
 import { supabase } from '../lib/supabase';
@@ -47,50 +47,52 @@ export function LeadsPage() {
   const [filterStatus, setFilterStatus] = useState<LeadStatus | 'all'>('all');
   const [filterSource, setFilterSource] = useState<'all' | 'ig' | 'in'>('all');
   const [sortBy, setSortBy] = useState<'date_desc' | 'date_asc' | 'company_asc' | 'city_asc' | 'industry_asc'>('date_desc');
+  const [isAddingMock, setIsAddingMock] = useState(false); // Stan dla guzika DEV
+
+  async function fetchLeads() {
+    setIsLoading(true);
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      setIsLoading(false);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from('user_leads')
+      .select(`
+        id, status, created_at, summary, has_instagram, has_linkedin, instagram_data, linkedin_data, history, campaign_id,
+        global_leads ( company_name, email, website, city, industry ),
+        campaigns ( name )
+      `)
+      .eq('user_id', session.user.id);
+
+    if (error) {
+      console.error("Błąd pobierania leadów:", error);
+    } else if (data) {
+      const mappedLeads: Lead[] = data.map((item: any) => ({
+        id: item.id,
+        company: item.global_leads?.company_name || 'Brak firmy',
+        email: item.global_leads?.email || 'brak@email.pl',
+        website: item.global_leads?.website || '',
+        city: item.global_leads?.city || '',
+        industry: item.global_leads?.industry || '',
+        status: item.status as LeadStatus || 'pending',
+        addedDate: item.created_at,
+        campaignId: item.campaign_id,
+        campaignName: item.campaigns?.name,
+        summary: item.summary,
+        hasInstagram: item.has_instagram,
+        hasLinkedin: item.has_linkedin,
+        instagramData: item.instagram_data,
+        linkedinData: item.linkedin_data,
+        history: item.history || []
+      }));
+      setLeads(mappedLeads);
+    }
+    setIsLoading(false);
+  }
 
   useEffect(() => {
-    async function fetchLeads() {
-      setIsLoading(true);
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        setIsLoading(false);
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from('user_leads')
-        .select(`
-          id, status, created_at, summary, has_instagram, has_linkedin, instagram_data, linkedin_data, history, campaign_id,
-          global_leads ( company_name, email, website, city, industry ),
-          campaigns ( name )
-        `)
-        .eq('user_id', session.user.id);
-
-      if (error) {
-        console.error("Błąd pobierania leadów:", error);
-      } else if (data) {
-        const mappedLeads: Lead[] = data.map((item: any) => ({
-          id: item.id,
-          company: item.global_leads?.company_name || 'Brak firmy',
-          email: item.global_leads?.email || 'brak@email.pl',
-          website: item.global_leads?.website || '',
-          city: item.global_leads?.city || '',
-          industry: item.global_leads?.industry || '',
-          status: item.status as LeadStatus || 'pending',
-          addedDate: item.created_at,
-          campaignId: item.campaign_id,
-          campaignName: item.campaigns?.name,
-          summary: item.summary,
-          hasInstagram: item.has_instagram,
-          hasLinkedin: item.has_linkedin,
-          instagramData: item.instagram_data,
-          linkedinData: item.linkedin_data,
-          history: item.history || []
-        }));
-        setLeads(mappedLeads);
-      }
-      setIsLoading(false);
-    }
     fetchLeads();
   }, []);
 
@@ -149,6 +151,65 @@ export function LeadsPage() {
     if (error) {
       console.error('Błąd usuwania:', error);
       alert('Wystąpił błąd podczas usuwania. Odśwież stronę.');
+    }
+  };
+
+  // --- FUNKCJA DEWELOPERSKA: DODAJ MOCK LEADY ---
+  const handleAddMockLeads = async () => {
+    setIsAddingMock(true);
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      alert('Musisz być zalogowany.');
+      setIsAddingMock(false);
+      return;
+    }
+
+    const mockData = [
+      { c: 'Studio Nowak', e: 'kontakt@studionowak.pl', ind: 'Architektura', loc: 'Kraków', ig: true, in: false },
+      { c: 'TechFlow Sp. z o.o.', e: 'hello@techflow.dev', ind: 'Software House', loc: 'Wrocław', ig: false, in: true },
+      { id: '103', c: 'BudMaster', e: 'biuro@budmaster.pl', ind: 'Budownictwo', loc: 'Warszawa', ig: false, in: false },
+      { c: 'Green Build', e: 'info@greenbuild.com', ind: 'Nieruchomości', loc: 'Gdańsk', ig: true, in: true },
+      { c: 'SEO Ninjas', e: 'contact@seoninjas.pl', ind: 'Marketing', loc: 'Poznań', ig: false, in: true },
+      { c: 'Architekci Krakowscy', e: 'hello@ark.pl', ind: 'Architektura', loc: 'Kraków', ig: true, in: true },
+      { c: 'Metropolis Invest', e: 'office@metropolis.pl', ind: 'Nieruchomości', loc: 'Warszawa', ig: false, in: false },
+      { c: 'Kancelaria Lex', e: 'prawo@lex.pl', ind: 'Prawo', loc: 'Łódź', ig: false, in: true },
+      { c: 'Auto Detailing Pro', e: 'serwis@detailing.pl', ind: 'Motoryzacja', loc: 'Katowice', ig: true, in: false },
+      { c: 'Klinika Urody', e: 'recepcja@klinikaurody.pl', ind: 'Beauty', loc: 'Wrocław', ig: true, in: false },
+    ];
+
+    try {
+      for (const m of mockData) {
+        // 1. Wstaw do global_leads
+        const { data: globalData, error: globalErr } = await supabase
+          .from('global_leads')
+          .insert({ company_name: m.c, email: m.e, industry: m.ind, city: m.loc, website: `www.${m.c.toLowerCase().replace(/\s+/g, '')}.pl` })
+          .select('id')
+          .single();
+
+        if (globalErr) { console.error('Błąd global_leads:', globalErr); continue; }
+
+        // 2. Wstaw do user_leads przypisane do usera
+        const { error: userErr } = await supabase
+          .from('user_leads')
+          .insert({
+            user_id: session.user.id,
+            global_lead_id: globalData.id,
+            status: 'pending',
+            has_instagram: m.ig,
+            has_linkedin: m.in,
+            history: [{ date: new Date().toISOString(), action: 'Dodano do bazy', details: 'Zescrapowane z Map Google (MOCK)' }]
+          });
+
+        if (userErr) console.error('Błąd user_leads:', userErr);
+      }
+      
+      alert('Dodano 10 leadów testowych!');
+      fetchLeads(); // Odśwież listę
+    } catch (err) {
+      console.error(err);
+      alert('Wystąpił błąd podczas dodawania mocków.');
+    } finally {
+      setIsAddingMock(false);
     }
   };
 
@@ -367,14 +428,9 @@ export function LeadsPage() {
       <AnimatePresence>
         {selectedLead && (
           <>
-            {/* TUTAJ ZMIANA: top-[72px] sprawia, że blur i panel zaczynają się idealnie POD navbarem. 
-              Jeśli masz np. navbar 64px, zmień 72 na 64. 
-            */}
-            {/* 1. Backdrop (Rozmycie) */}
-<motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setSelectedLead(null)} className="fixed left-0 right-0 top-[72px] h-[calc(100vh-72px)] bg-black/60 backdrop-blur-sm z-30" />
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setSelectedLead(null)} className="fixed left-0 right-0 top-[72px] h-[calc(100vh-72px)] bg-black/60 backdrop-blur-sm z-30" />
 
-{/* 2. Sidebar (Panel) */}
-<motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 200 }} className="fixed right-0 top-[72px] h-[calc(100vh-72px)] w-full max-w-xl bg-[#0a0a0a] border-l border-white/[0.08] z-40 flex flex-col shadow-2xl">
+            <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 200 }} className="fixed right-0 top-[72px] h-[calc(100vh-72px)] w-full max-w-xl bg-[#0a0a0a] border-l border-white/[0.08] z-40 flex flex-col shadow-2xl">
               <div className="px-8 py-6 border-b border-white/[0.06] flex justify-between items-start bg-white/[0.02]">
                 <div>
                   <h2 className="text-[22px] font-serif text-[#EAE8E1] mb-1">{selectedLead.company}</h2>
@@ -490,6 +546,19 @@ export function LeadsPage() {
           </>
         )}
       </AnimatePresence>
+
+      {/* --- DEV BUTTON: DODAJ TESTOWE LEADY --- */}
+      <div className="fixed bottom-4 right-4 z-50">
+        <button 
+          onClick={handleAddMockLeads} 
+          disabled={isAddingMock}
+          className="flex items-center gap-2 px-3 py-1.5 bg-[#b56060]/10 border border-[#b56060]/30 hover:bg-[#b56060]/20 text-[#b56060] text-[11px] font-mono rounded-md transition-all opacity-50 hover:opacity-100 disabled:opacity-30 disabled:cursor-not-allowed"
+        >
+          {isAddingMock ? <Loader2 className="size-3 animate-spin" /> : <ShieldAlert className="size-3" />}
+          DEV: Wstaw 10 Mocków
+        </button>
+      </div>
+
     </div>
   );
 }
