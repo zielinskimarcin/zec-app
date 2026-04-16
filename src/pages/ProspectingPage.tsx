@@ -4,7 +4,8 @@ import {
   Search, Globe, MapPin, Building2, Star, Mail, Check,
   ArrowRight, Coins, ChevronDown, ChevronUp, AlertCircle,
   Loader2, Users, TrendingUp, BarChart2,
-  ExternalLink, SlidersHorizontal, Phone, Send, Eye, X, Briefcase
+  ExternalLink, SlidersHorizontal, Phone, Eye, X, Briefcase,
+  BookmarkPlus, Sparkles
 } from 'lucide-react';
 import { Instagram, Linkedin } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -24,13 +25,12 @@ interface Lead {
   reviewsCount: number;
   emailFound: boolean;
   emailAddress: string | null;
-  subject: string | null;
-  body: string | null;
-  status: 'ready' | 'no_email' | 'sent';
+  brief: string | null;
+  briefSources: string[];
+  status: 'new' | 'saved';
   package: string | null;
   instagram: { available: boolean; followers: number | null; handle: string | null; bio: string | null };
   linkedin: { available: boolean; industry: string | null; employeeCount: number | null; size: string | null };
-  personalizationUsed: string[];
 }
 
 interface UserProfile {
@@ -101,16 +101,14 @@ export function ProspectingPage() {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [previewLead, setPreviewLead] = useState<Lead | null>(null);
-  const [sendingLeads, setSendingLeads] = useState<number[]>([]);
+  const [savedLeads, setSavedLeads] = useState<number[]>([]);
 
   const [availableTokens, setAvailableTokens] = useState<number>(0);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
 
   const [selectedPlatforms, setSelectedPlatforms] = useState<Platform[]>(['google']);
-
   const [common, setCommon] = useState({ industry: '', country: 'Polska', city: '', keywords: '', maxLeads: 10 });
-
   const [gFilters, setGFilters] = useState({ minRating: 4.0, minReviews: 10, requireWebsite: true, requireEmail: false, requirePhone: false, requireOpenNow: false });
   const [igFilters, setIgFilters] = useState({ minFollowers: 1000, maxFollowers: 500000, minEngagementRate: 1, minPosts: 12, businessAccountOnly: true, requireEmail: false, requireWebsite: false });
   const [liFilters, setLiFilters] = useState({ minEmployees: 1, maxEmployees: 250, companySize: [] as string[], requireWebsite: true, hasActiveJobs: false, requireEmail: false, foundedAfter: '' });
@@ -179,22 +177,14 @@ export function ProspectingPage() {
     }
   };
 
-  const handleSendEmail = async (lead: Lead) => {
-    if (!lead.emailAddress || !lead.subject || !lead.body) return;
-    setSendingLeads(prev => [...prev, lead.id]);
-    try {
-      await fetch('https://n8n.srv1579942.hstgr.cloud/webhook/send-email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to: lead.emailAddress, subject: lead.subject, body: lead.body, fromName: userProfile?.full_name, fromEmail: userEmail }),
-      });
-      setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, status: 'sent' } : l));
-    } catch(e) { console.error(e); }
-    finally { setSendingLeads(prev => prev.filter(id => id !== lead.id)); }
+  const handleSaveLead = (lead: Lead) => {
+    setSavedLeads(prev => [...prev, lead.id]);
+    setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, status: 'saved' } : l));
+    // TODO: zapisz do Supabase gdy będzie gotowe
   };
 
-  const handleSendSelected = () => {
-    leads.filter(l => selectedLeads.includes(l.id) && l.status === 'ready').forEach(l => handleSendEmail(l));
+  const handleSaveSelected = () => {
+    leads.filter(l => selectedLeads.includes(l.id) && l.status !== 'saved').forEach(l => handleSaveLead(l));
   };
 
   const toggleLead = (id: number) => setSelectedLeads(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
@@ -203,12 +193,13 @@ export function ProspectingPage() {
   return (
     <div className="space-y-4 max-w-7xl mx-auto">
 
+      {/* Top bar */}
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
         className="flex items-center justify-between bg-white/[0.02] border border-white/[0.06] rounded-2xl px-5 py-3.5"
       >
         <div>
           <h1 className="text-[18px] font-semibold text-[#c8c8c8] tracking-tight">Wyszukiwarka leadów</h1>
-          <p className="text-[12px] text-[#444] mt-0.5">Wybierz platformy, ustaw filtry i pobierz gotowe leady B2B</p>
+          <p className="text-[12px] text-[#444] mt-0.5">Znajdź firmy, poznaj je i zapisz do bazy leadów</p>
         </div>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
@@ -228,6 +219,7 @@ export function ProspectingPage() {
         </div>
       )}
 
+      {/* Platformy */}
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
         className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-5"
       >
@@ -254,6 +246,7 @@ export function ProspectingPage() {
         )}
       </motion.div>
 
+      {/* Filtry */}
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
         className="rounded-2xl border border-white/[0.06] bg-white/[0.02] overflow-hidden"
       >
@@ -437,27 +430,29 @@ export function ProspectingPage() {
         </div>
       </motion.div>
 
+      {/* Wyniki */}
       {leads.length > 0 && (
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
           className="rounded-2xl border border-white/[0.06] bg-white/[0.02] overflow-hidden"
         >
           <div className="px-5 py-4 border-b border-white/[0.05] flex items-center justify-between">
             <div>
-              <p className="text-[14px] font-semibold text-[#c8c8c8]">Wyniki — {leads.length} leadów</p>
+              <p className="text-[14px] font-semibold text-[#c8c8c8]">Wyniki — {leads.length} firm</p>
               <p className="text-[12px] text-[#444] mt-0.5">
-                {leads.filter(l => l.emailFound).length} z e-mailem · {leads.filter(l => l.status === 'sent').length} wysłanych
+                {leads.filter(l => l.emailFound).length} z e-mailem · {leads.filter(l => l.status === 'saved').length} zapisanych
               </p>
             </div>
             {selectedLeads.length > 0 && (
-              <button onClick={handleSendSelected}
+              <button onClick={handleSaveSelected}
                 className="flex items-center gap-2 px-4 py-2 bg-[#c8c8c8] hover:bg-white text-[#111] text-[12px] font-semibold rounded-xl transition-all"
               >
-                <Send className="size-3.5" />
-                Wyślij zaznaczone ({selectedLeads.filter(id => leads.find(l => l.id === id)?.status === 'ready').length})
+                <BookmarkPlus className="size-3.5" />
+                Zapisz zaznaczone do leadów ({selectedLeads.length})
               </button>
             )}
           </div>
 
+          {/* Header */}
           <div className="grid grid-cols-12 gap-3 px-5 py-2.5 text-[10px] font-medium text-[#333] uppercase tracking-wider border-b border-white/[0.04]">
             <div className="col-span-1 flex items-center">
               <label className="relative flex items-center justify-center size-3.5 cursor-pointer">
@@ -469,10 +464,11 @@ export function ProspectingPage() {
             <div className="col-span-3">Firma</div>
             <div className="col-span-2">Kontakt</div>
             <div className="col-span-2">Metryki</div>
-            <div className="col-span-3">Mail AI</div>
+            <div className="col-span-3">Brief AI</div>
             <div className="col-span-1">Akcja</div>
           </div>
 
+          {/* Wiersze */}
           <div className="divide-y divide-white/[0.04]">
             {leads.map(lead => (
               <div key={lead.id} className={`grid grid-cols-12 gap-3 px-5 py-3.5 transition-all hover:bg-white/[0.02] ${selectedLeads.includes(lead.id) ? 'bg-white/[0.03]' : ''}`}>
@@ -485,13 +481,14 @@ export function ProspectingPage() {
                   </label>
                 </div>
 
-                {/* Firma — bez telefonu */}
+                {/* Firma */}
                 <div className="col-span-3 flex flex-col justify-center">
                   <p className="text-[13px] font-semibold text-[#c8c8c8] leading-tight">{lead.companyName}</p>
                   <p className="text-[11px] text-[#444] mt-0.5 flex items-center gap-1"><MapPin className="size-2.5" />{lead.city}</p>
+                  {lead.category && <p className="text-[11px] text-[#333] mt-0.5">{lead.category}</p>}
                 </div>
 
-                {/* Kontakt — z telefonem */}
+                {/* Kontakt */}
                 <div className="col-span-2 flex flex-col justify-center gap-1">
                   {lead.website && (
                     <a href={`https://${lead.domain}`} target="_blank" rel="noopener noreferrer" className="text-[11px] text-[#444] hover:text-[#888] flex items-center gap-1 truncate transition-colors">
@@ -527,8 +524,7 @@ export function ProspectingPage() {
                       </div>
                     ) : (
                       <div className="flex items-center gap-1 text-[11px] text-[#2e2e2e]">
-                        <Instagram className="size-2.5 shrink-0" />
-                        <span>Brak profilu IG</span>
+                        <Instagram className="size-2.5 shrink-0" /><span>Brak profilu IG</span>
                       </div>
                     )
                   )}
@@ -551,50 +547,64 @@ export function ProspectingPage() {
                       </>
                     ) : (
                       <div className="flex items-center gap-1 text-[11px] text-[#2e2e2e]">
-                        <Linkedin className="size-2.5 shrink-0" />
-                        <span>Brak profilu LI</span>
+                        <Linkedin className="size-2.5 shrink-0" /><span>Brak profilu LI</span>
                       </div>
                     )
                   )}
                 </div>
 
-                {/* Mail AI */}
+                {/* Brief AI */}
                 <div className="col-span-3 flex flex-col justify-center">
-                  {lead.subject ? (
+                  {lead.brief ? (
                     <>
-                      <p className="text-[12px] font-medium text-[#888] leading-tight truncate">{lead.subject}</p>
-                      <p className="text-[11px] text-[#444] mt-0.5 line-clamp-2 leading-relaxed">{lead.body}</p>
+                      <div className="flex items-center gap-1 mb-1">
+                        <Sparkles className="size-2.5 text-[#555]" />
+                        <span className="text-[10px] text-[#444] uppercase tracking-wider font-medium">Brief AI</span>
+                      </div>
+                      <p className="text-[11px] text-[#666] leading-relaxed line-clamp-3">{lead.brief}</p>
                       <button onClick={() => setPreviewLead(lead)} className="text-[11px] text-[#555] hover:text-[#888] flex items-center gap-1 mt-1 transition-colors">
-                        <Eye className="size-3" /> Podgląd maila
+                        <Eye className="size-3" /> Czytaj więcej
                       </button>
                     </>
                   ) : (
-                    <p className="text-[11px] text-[#333]">Brak — e-mail nieznaleziony</p>
+                    <p className="text-[11px] text-[#333]">Brak briefu</p>
                   )}
                 </div>
 
                 {/* Akcja */}
                 <div className="col-span-1 flex items-center justify-center">
-                  {lead.status === 'sent' ? (
+                  {lead.status === 'saved' ? (
                     <div className="flex items-center gap-1 text-green-600/70 text-[11px]">
-                      <Check className="size-3" strokeWidth={3} /> Wysłano
+                      <Check className="size-3" strokeWidth={3} /> Zapisano
                     </div>
-                  ) : lead.emailFound ? (
-                    <button onClick={() => handleSendEmail(lead)} disabled={sendingLeads.includes(lead.id)}
-                      className="flex items-center gap-1 px-2.5 py-1.5 bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.08] text-[#888] hover:text-[#c8c8c8] text-[11px] rounded-lg transition-all disabled:opacity-50"
-                    >
-                      {sendingLeads.includes(lead.id) ? <Loader2 className="size-3 animate-spin" /> : <Send className="size-3" />}
-                    </button>
                   ) : (
-                    <span className="text-[11px] text-[#2e2e2e]">—</span>
+                    <button onClick={() => handleSaveLead(lead)}
+                      className="flex items-center gap-1 px-2.5 py-1.5 bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.08] text-[#888] hover:text-[#c8c8c8] text-[11px] rounded-lg transition-all"
+                    >
+                      <BookmarkPlus className="size-3" />
+                    </button>
                   )}
                 </div>
               </div>
             ))}
           </div>
+
+          {/* Następny krok */}
+          {leads.filter(l => l.status === 'saved').length > 0 && (
+            <div className="px-5 py-4 border-t border-white/[0.05] flex items-center justify-between bg-white/[0.01]">
+              <p className="text-[12px] text-[#555]">
+                Zapisano {leads.filter(l => l.status === 'saved').length} leadów do bazy
+              </p>
+              <a href="/app/campaigns" className="flex items-center gap-2 text-[13px] font-semibold text-[#c8c8c8] hover:text-white transition-colors">
+                Stwórz kampanię dla tych leadów
+                <ArrowRight className="size-4" />
+              </a>
+            </div>
+          )}
         </motion.div>
       )}
 
+      {/* Modal podglądu briefu */}
       <AnimatePresence>
         {previewLead && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -607,40 +617,66 @@ export function ProspectingPage() {
             >
               <div className="flex items-center justify-between mb-5">
                 <div>
-                  <p className="text-[14px] font-semibold text-[#c8c8c8]">Podgląd maila</p>
-                  <p className="text-[12px] text-[#444] mt-0.5">Do: {previewLead.emailAddress}</p>
+                  <p className="text-[14px] font-semibold text-[#c8c8c8]">{previewLead.companyName}</p>
+                  <p className="text-[12px] text-[#444] mt-0.5">{previewLead.city} · {previewLead.category}</p>
                 </div>
                 <button onClick={() => setPreviewLead(null)} className="text-[#444] hover:text-[#888] transition-colors">
                   <X className="size-5" />
                 </button>
               </div>
+
               <div className="space-y-4">
-                <div className="p-3 bg-white/[0.03] rounded-xl border border-white/[0.06]">
-                  <p className="text-[10px] text-[#444] uppercase tracking-wider mb-1">Temat</p>
-                  <p className="text-[13px] font-medium text-[#c8c8c8]">{previewLead.subject}</p>
-                </div>
-                <div className="p-3 bg-white/[0.03] rounded-xl border border-white/[0.06]">
-                  <p className="text-[10px] text-[#444] uppercase tracking-wider mb-2">Treść</p>
-                  <p className="text-[13px] text-[#888] leading-relaxed whitespace-pre-wrap">{previewLead.body}</p>
-                </div>
-                {previewLead.personalizationUsed?.length > 0 && (
-                  <div className="flex gap-2 flex-wrap">
-                    <p className="text-[11px] text-[#444] w-full">Użyta personalizacja:</p>
-                    {previewLead.personalizationUsed.map(p => (
-                      <span key={p} className="text-[10px] px-2 py-0.5 bg-white/[0.05] border border-white/[0.08] rounded-full text-[#666] font-mono">{p}</span>
-                    ))}
+                {previewLead.brief && (
+                  <div className="p-4 bg-white/[0.03] rounded-xl border border-white/[0.06]">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Sparkles className="size-3.5 text-[#555]" />
+                      <p className="text-[11px] text-[#444] uppercase tracking-wider font-medium">Brief AI</p>
+                    </div>
+                    <p className="text-[13px] text-[#888] leading-relaxed">{previewLead.brief}</p>
                   </div>
                 )}
+
+                <div className="grid grid-cols-2 gap-3">
+                  {previewLead.emailFound && (
+                    <div className="p-3 bg-white/[0.03] rounded-xl border border-white/[0.06]">
+                      <p className="text-[10px] text-[#444] uppercase tracking-wider mb-1">E-mail</p>
+                      <p className="text-[12px] text-green-600/80">{previewLead.emailAddress}</p>
+                    </div>
+                  )}
+                  {previewLead.phone && (
+                    <div className="p-3 bg-white/[0.03] rounded-xl border border-white/[0.06]">
+                      <p className="text-[10px] text-[#444] uppercase tracking-wider mb-1">Telefon</p>
+                      <p className="text-[12px] text-[#888]">{previewLead.phone}</p>
+                    </div>
+                  )}
+                  <div className="p-3 bg-white/[0.03] rounded-xl border border-white/[0.06]">
+                    <p className="text-[10px] text-[#444] uppercase tracking-wider mb-1">Ocena Google</p>
+                    <p className="text-[12px] text-[#888]">{previewLead.rating}/5 · {previewLead.reviewsCount} opinii</p>
+                  </div>
+                  {previewLead.instagram?.available && (
+                    <div className="p-3 bg-white/[0.03] rounded-xl border border-white/[0.06]">
+                      <p className="text-[10px] text-[#444] uppercase tracking-wider mb-1">Instagram</p>
+                      <p className="text-[12px] text-[#888]">{previewLead.instagram.followers?.toLocaleString()} obserwujących</p>
+                    </div>
+                  )}
+                  {previewLead.linkedin?.available && (
+                    <div className="p-3 bg-white/[0.03] rounded-xl border border-white/[0.06]">
+                      <p className="text-[10px] text-[#444] uppercase tracking-wider mb-1">LinkedIn</p>
+                      <p className="text-[12px] text-[#888]">{previewLead.linkedin.employeeCount} pracowników · {previewLead.linkedin.industry}</p>
+                    </div>
+                  )}
+                </div>
               </div>
+
               <div className="flex gap-3 mt-6">
                 <button onClick={() => setPreviewLead(null)} className="flex-1 py-2.5 border border-white/[0.08] text-[#555] hover:text-[#888] text-[13px] rounded-xl transition-all">
                   Zamknij
                 </button>
-                {previewLead.status !== 'sent' && (
-                  <button onClick={() => { handleSendEmail(previewLead); setPreviewLead(null); }}
+                {previewLead.status !== 'saved' && (
+                  <button onClick={() => { handleSaveLead(previewLead); setPreviewLead(null); }}
                     className="flex-1 py-2.5 bg-[#d4d4d4] hover:bg-white text-[#111] text-[13px] font-semibold rounded-xl transition-all flex items-center justify-center gap-2"
                   >
-                    <Send className="size-4" /> Wyślij ten mail
+                    <BookmarkPlus className="size-4" /> Zapisz do leadów
                   </button>
                 )}
               </div>
@@ -649,6 +685,7 @@ export function ProspectingPage() {
         )}
       </AnimatePresence>
 
+      {/* Floating bar */}
       <AnimatePresence>
         {selectedLeads.length > 0 && (
           <motion.div initial={{ y: 80, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 80, opacity: 0 }}
@@ -661,14 +698,14 @@ export function ProspectingPage() {
                   <Check className="size-3 text-white" strokeWidth={3} />
                 </div>
                 <span className="font-semibold text-[#111] text-[13px]">
-                  {selectedLeads.length} {selectedLeads.length === 1 ? 'lead wybrany' : 'leadów wybranych'}
+                  {selectedLeads.length} {selectedLeads.length === 1 ? 'firma wybrana' : 'firm wybranych'}
                 </span>
               </div>
-              <button onClick={handleSendSelected}
+              <button onClick={handleSaveSelected}
                 className="flex items-center gap-1.5 bg-[#111] hover:bg-[#222] text-white text-[13px] font-semibold px-5 py-2.5 rounded-xl transition-all group"
               >
-                <Send className="size-3.5" />
-                Wyślij zaznaczone
+                <BookmarkPlus className="size-3.5" />
+                Zapisz do leadów
                 <ArrowRight className="size-3.5 group-hover:translate-x-0.5 transition-transform" />
               </button>
             </div>
