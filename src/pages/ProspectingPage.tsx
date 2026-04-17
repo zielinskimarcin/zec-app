@@ -151,7 +151,7 @@ export function ProspectingPage() {
     if (!common.industry || !common.city) { setError('Branża i miasto są wymagane.'); return; }
     setIsSearching(true);
     try {
-      const webhookUrl = 'https://n8n.srv1579942.hstgr.cloud/webhook/36f18c9a-7027-4260-a666-fecbc697eedb';
+      const webhookUrl = 'https://n8n.srv1579942.hstgr.cloud/webhook/c09267cb-9b52-45e1-84a4-cdb53bbeaa77';
       const response = await fetch(webhookUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
