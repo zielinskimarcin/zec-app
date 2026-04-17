@@ -198,24 +198,85 @@ export function DashboardPage() {
         )}
       </AnimatePresence>
 
-      {/* Statystyki — tylko gdy onboarding ukończony */}
+      {/* Lista kroków — tylko gdy onboarding ukończony */}
       {!showOnboarding && (
         <motion.div
-          initial={{ opacity: 0, y: 8 }}
+          initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
-          className="grid grid-cols-3 gap-4"
+          transition={{ duration: 0.18 }}
+          className="rounded-2xl border border-white/[0.08] bg-white/[0.04] overflow-hidden"
         >
-          {[
-            { label: 'Wysłane wiadomości', value: sentCount.toLocaleString('pl-PL'), sub: 'łącznie' },
-            { label: 'Aktywne kampanie', value: campaigns.filter(c => c.status === 'active').length.toString(), sub: 'w toku' },
-            { label: 'Podłączone skrzynki', value: hasMailbox ? '1+' : '0', sub: 'aktywnych' },
-          ].map(stat => (
-            <div key={stat.label} className="rounded-2xl border border-white/[0.08] bg-white/[0.04] px-7 py-6">
-              <p className="text-[13px] text-[#827E78] mb-3">{stat.label}</p>
-              <p className="text-[32px] font-medium text-[#EAE8E1] tracking-tight leading-none mb-1">{stat.value}</p>
-              <p className="text-[13px] text-[#3a3a3a]">{stat.sub}</p>
+          <button
+            onClick={() => setChecklistOpen(v => !v)}
+            className="w-full flex items-center justify-between px-7 py-5 hover:bg-white/[0.02] transition-all"
+          >
+            <div className="flex items-center gap-5">
+              <div className="flex items-center gap-3">
+                <div className="flex gap-1">
+                  {onboardingSteps.map(step => (
+                    <div
+                      key={step.id}
+                      className={`h-1 w-6 rounded-full transition-all ${step.isCompleted ? 'bg-[#EAE8E1]' : 'bg-white/[0.1]'}`}
+                    />
+                  ))}
+                </div>
+                <span className="text-[13px] text-[#827E78] font-mono">{completedSteps}/{onboardingSteps.length}</span>
+              </div>
+
+              <div className="h-4 w-px bg-white/[0.08]" />
+
+              <div className="flex items-center gap-2.5">
+                <CheckCircle2 className="size-3.5 text-[#5d9970]" />
+                <span className="text-[14px] text-[#A3A09A]">
+                  Wszystkie kroki ukończone
+                </span>
+              </div>
             </div>
-          ))}
+
+            <div className="flex items-center gap-3">
+              {checklistOpen
+                ? <ChevronUp className="size-4 text-[#827E78]" />
+                : <ChevronDown className="size-4 text-[#827E78]" />}
+            </div>
+          </button>
+
+          <AnimatePresence>
+            {checklistOpen && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.18 }}
+                className="overflow-hidden border-t border-white/[0.05]"
+              >
+                <div className="px-7 py-4 space-y-0">
+                  {onboardingSteps.map((step, i) => (
+                    <div key={step.id}>
+                      <div className="flex items-center justify-between py-3.5">
+                        <div className="flex items-center gap-3.5">
+                          {step.isCompleted
+                            ? <CheckCircle2 className="size-4 text-[#5d9970] shrink-0" />
+                            : <Circle className="size-4 text-[#2e2e2e] shrink-0" />}
+                          <span className={`text-[14px] ${step.isCompleted ? 'text-[#4a4a4a] line-through decoration-[#2e2e2e]' : 'text-[#c8c8c8]'}`}>
+                            {step.title}
+                          </span>
+                        </div>
+                        {!step.isCompleted && (
+                          <Link
+                            to={step.href}
+                            className="text-[12px] font-medium text-[#827E78] hover:text-[#EAE8E1] transition-colors"
+                          >
+                            {step.actionText} →
+                          </Link>
+                        )}
+                      </div>
+                      {i < onboardingSteps.length - 1 && <div className="h-px bg-white/[0.04]" />}
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </motion.div>
       )}
 
