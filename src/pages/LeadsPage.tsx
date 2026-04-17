@@ -51,6 +51,10 @@ export function LeadsPage() {
   const [isAddingMock, setIsAddingMock] = useState(false);
   const [isCreatorOpen, setIsCreatorOpen] = useState(false);
   const [creatorLeadIds, setCreatorLeadIds] = useState<string[]>([]);
+  const openCreator = (ids: string[]) => {
+    setCreatorLeadIds(ids);
+    setIsCreatorOpen(true);
+  };
 
   async function fetchLeads() {
     setIsLoading(true);
@@ -452,7 +456,7 @@ export function LeadsPage() {
                 <Trash2 className="size-4" /> Usuń
               </button>
               <button
-                onClick={() => { setCreatorLeadIds([...selectedIds]); setIsCreatorOpen(true); }}
+                onClick={() => openCreator([...selectedIds])}
                 className="flex items-center gap-2 px-5 py-2 bg-[#EAE8E1] hover:bg-white text-[#0a0a0a] text-[13px] font-semibold rounded-xl transition-all">
                 <Plus className="size-4" /> Utwórz Kampanię
               </button>
@@ -579,9 +583,8 @@ export function LeadsPage() {
               <div className="p-6 border-t border-white/[0.06] bg-[#0a0a0a] flex gap-3">
                 <button
                   onClick={() => {
-                    setCreatorLeadIds([selectedLead.id]);
                     setSelectedLead(null);
-                    setIsCreatorOpen(true);
+                    openCreator([selectedLead.id]);
                   }}
                   className="flex-1 px-4 py-3 bg-[#EAE8E1] hover:bg-white text-[#0a0a0a] text-[14px] font-semibold rounded-xl transition-all"
                 >

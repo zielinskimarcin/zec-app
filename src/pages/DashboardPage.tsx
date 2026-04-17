@@ -2,10 +2,11 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Mail, ArrowRight, Search, Loader2, Circle,
-  CheckCircle2, Settings, ChevronDown, ChevronUp
+  CheckCircle2, Settings, ChevronDown, ChevronUp, ShieldAlert
 } from 'lucide-react';
 import { Link } from 'react-router';
 import { supabase } from '../lib/supabase';
+import { useOnboarding } from '../contexts/OnboardingContext';
 
 interface Campaign {
   id: string;
@@ -18,6 +19,7 @@ interface Campaign {
 }
 
 export function DashboardPage() {
+  const onboarding = useOnboarding();
   const [isLoading, setIsLoading] = useState(true);
   const [userName, setUserName] = useState('');
   const [hasMailbox, setHasMailbox] = useState(false);
@@ -84,6 +86,7 @@ export function DashboardPage() {
   }
 
   return (
+    <>
     <div className="max-w-5xl mx-auto space-y-8 pb-12">
 
       {/* Header */}
@@ -327,5 +330,16 @@ export function DashboardPage() {
         </motion.div>
       </div>
     </div>
+
+      {/* DEV: toggle onboarding */}
+      <div className="fixed bottom-4 right-4 z-50">
+        <button
+          onClick={() => onboarding.toggleDev()}
+          className="flex items-center gap-2 px-3 py-1.5 bg-[#b56060]/10 border border-[#b56060]/30 hover:bg-[#b56060]/20 text-[#b56060] text-[11px] font-mono rounded-md transition-all opacity-50 hover:opacity-100"
+        >
+          <ShieldAlert className="size-3" /> DEV: onboarding {onboarding.needsOnboarding ? 'ON→OFF' : 'OFF→ON'}
+        </button>
+      </div>
+    </>
   );
 }

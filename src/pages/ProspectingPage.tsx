@@ -106,7 +106,8 @@ export function ProspectingPage() {
   const [availableTokens, setAvailableTokens] = useState<number>(0);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  
+  const [userId, setUserId] = useState<string | null>(null);
+
   // Stan dla przycisku deweloperskiego
   const [isAddingCredits, setIsAddingCredits] = useState(false);
 
@@ -121,6 +122,7 @@ export function ProspectingPage() {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         setUserEmail(session.user.email ?? null);
+        setUserId(session.user.id);
         const { data } = await supabase.from('profiles').select('credits, full_name, offer, package').eq('id', session.user.id).single();
         if (data) {
           setAvailableTokens(data.credits ?? 0);
@@ -180,10 +182,32 @@ export function ProspectingPage() {
     }
   };
 
-  const handleSaveLead = (lead: Lead) => {
+  const handleSaveLead = async (lead: Lead) => {
+    if (!userId || lead.status === 'saved') return;
     setSavedLeads(prev => [...prev, lead.id]);
     setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, status: 'saved' } : l));
-    // TODO: zapisz do Supabase gdy będzie gotowe
+
+    const queryHash = `${lead.companyName}_${lead.city}`.toLowerCase().replace(/\s+/g, '_');
+    const { data: globalData, error: globalErr } = await supabase
+      .from('global_leads')
+      .upsert({ query_hash: queryHash, company_name: lead.companyName, email: lead.emailAddress, city: lead.city, industry: lead.category, website: lead.website }, { onConflict: 'query_hash' })
+      .select('id')
+      .single();
+
+    if (globalErr || !globalData) { console.error('global_leads error:', globalErr); return; }
+
+    await supabase.from('user_leads').insert({
+      user_id: userId,
+      global_lead_id: globalData.id,
+      status: 'pending',
+      summary: lead.brief,
+      has_instagram: lead.instagram?.available ?? false,
+      has_linkedin: lead.linkedin?.available ?? false,
+      instagram_data: lead.instagram?.available ? lead.instagram : null,
+      linkedin_data: lead.linkedin?.available ? lead.linkedin : null,
+      history: [{ date: new Date().toISOString(), action: 'Wyszukano', details: 'Znaleziono przez wyszukiwarkę ZEC.' }],
+    });
+
   };
 
   const handleSaveSelected = () => {
