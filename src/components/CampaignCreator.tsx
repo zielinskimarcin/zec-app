@@ -49,11 +49,25 @@ interface DatabaseLead {
 interface Mailbox {
   id: string;
   email: string;
+  sender_name?: string;
   provider: 'google' | 'microsoft' | 'other';
+  daily_limit?: number;
+  sent_today?: number;
+  status?: string;
+}
+
+interface CompanyInfo {
+  name: string;
+  website: string;
+  industry: string;
+  short_description: string;
+  ideal_customer_profile: string;
+  competitive_advantages: string;
+  ai_context: string;
 }
 
 interface GeneratedLead {
-  id: number;
+  id: string;
   company: string;
   person: string;
   industry: string;
@@ -75,45 +89,67 @@ interface CampaignCreatorProps {
   preselectedLeadIds?: string[];
 }
 
-// ─── Mock data (mailboxes only — leads are fetched from Supabase) ─────────────
+interface CampaignDraft {
+  step: Step;
+  selectedLeadIds: string[];
+  campaignName: string;
+  promptAngle: string;
+  selectedMailboxIds: string[];
+  savedAt: string;
+}
 
-const mockMailboxes: Mailbox[] = [
-  { id: 'm1', email: 'jan.kowalski@twojafirma.pl', provider: 'google' },
-  { id: 'm2', email: 'kontakt@twojafirma.pl', provider: 'microsoft' },
-  { id: 'm3', email: 'sales@twojafirma.pl', provider: 'google' },
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function detectMailboxProvider(email: string, smtpHost?: string): 'google' | 'microsoft' | 'other' {
+  const e = email.toLowerCase();
+  const h = (smtpHost || '').toLowerCase();
+  if (e.includes('@gmail.com') || h.includes('gmail') || h.includes('google')) return 'google';
+  if (e.includes('@outlook.') || e.includes('@hotmail.') || h.includes('office365') || h.includes('microsoft')) return 'microsoft';
+  return 'other';
+}
+
+const DRAFT_KEY = 'zec_campaign_draft';
+
+function saveDraftToStorage(draft: CampaignDraft) {
+  try { localStorage.setItem(DRAFT_KEY, JSON.stringify(draft)); } catch {}
+}
+
+function loadDraftFromStorage(): CampaignDraft | null {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY);
+    if (!raw) return null;
+    const d = JSON.parse(raw) as CampaignDraft;
+    const age = Date.now() - new Date(d.savedAt).getTime();
+    if (age > 7 * 24 * 60 * 60 * 1000) { localStorage.removeItem(DRAFT_KEY); return null; }
+    return d;
+  } catch { return null; }
+}
+
+function clearDraftFromStorage() {
+  try { localStorage.removeItem(DRAFT_KEY); } catch {}
+}
+
+// ─── Mock data (fake content only) ───────────────────────────────────────────
+
+const fakeTemplates = [
+  {
+    subject: 'Szybkie pytanie o realizację z portfolio',
+    body: 'Cześć,\n\nGratuluję świetnych realizacji! Widziałem Wasze najnowsze wpisy i dbałość o detale robi wrażenie.\n\nZauważyłem, że przy projektach premium firmy często tracą czas na ręczne przygotowywanie dokumentacji. Zbudowaliśmy system, który to automatyzuje, oszczędzając ok. 10 godzin tygodniowo.\n\nCzy szukacie obecnie optymalizacji w tym obszarze?\n\nPozdrawiam,\nJan'
+  },
+  {
+    subject: 'Skalowanie procesów i rekrutacja',
+    body: 'Dzień dobry,\n\nWidziałem informacje o nowym projekcie – świetny kierunek rozwoju. Szybki wzrost oznacza jednak często wąskie gardła organizacyjne.\n\nPomagamy firmom w optymalizacji wdrażania i procesów operacyjnych, skracając time-to-productivity o 40%.\n\nCzy chwila na krótką rozmowę w przyszłym tygodniu miałaby sens?\n\nZ poważaniem,\nJan'
+  },
+  {
+    subject: 'Automatyzacja procesów projektowych',
+    body: 'Dzień dobry,\n\nŚledzę Wasz rozwój na LinkedIn i widzę, że realizujecie coraz więcej złożonych projektów.\n\nWiemy, że koordynacja wielu zadań naraz to ogromne wyzwanie. Nasz system AI pomaga automatyzować komunikację z zespołem i klientami.\n\nCzy to coś, co mogłoby Was zainteresować?\n\nPozdrawiam,\nJan'
+  }
 ];
 
-const mockGeneratedLeads: Omit<GeneratedLead, 'reviewStatus' | 'isGenerating'>[] = [
-  {
-    id: 1, company: 'Studio Nowak', person: 'Michał Nowak', industry: 'Architektura', website: 'studionowak.pl',
-    intel: {
-      social: '"Właśnie oddaliśmy klucze do nowej inwestycji na Żoliborzu! Dziękujemy całemu zespołowi za ciężką pracę. #architektura #premium"',
-      keywords: ['Premium', 'Wnętrza', 'Nieruchomości', 'Projekty pod klucz'],
-      summary: 'Krakowskie biuro architektoniczne specjalizujące się w wysokiej klasy apartamentach i przestrzeniach komercjalnych. Aktywni na Instagramie i LinkedIn.',
-    },
-    subject: 'Szybkie pytanie o realizację na Żoliborzu',
-    body: 'Cześć Michał,\n\nGratuluję oddania nowej inwestycji na Żoliborzu! Widziałem zdjęcia na LinkedIn – dbałość o detale w częściach wspólnych robi niesamowite wrażenie.\n\nZauważyłem, że przy tego typu projektach premium, biura architektoniczne często tracą mnóstwo czasu na ręczne przepisywanie specyfikacji materiałowych dla podwykonawców.\n\nZbudowaliśmy system, który automatyzuje ten proces, oszczędzając ok. 10 godzin tygodniowo na każdym projekcie.\n\nCzy to jest obszar, w którym szukacie obecnie optymalizacji?\n\nPozdrawiam,\nJan',
-  },
-  {
-    id: 2, company: 'TechFlow Sp. z o.o.', person: 'Anna Kowal', industry: 'Software House', website: 'techflow.dev',
-    intel: {
-      social: '"Szukamy React Developerów do naszego nowego, zagranicznego projektu z branży FinTech. Aplikujcie!"',
-      keywords: ['React', 'FinTech', 'Outsourcing', 'Skalowanie'],
-      summary: 'Szybko rosnący software house z Wrocławia. Obsługują głównie klientów z USA i UK. Skupieni na skalowaniu zespołu.',
-    },
-    subject: 'Optymalizacja procesów rekrutacyjnych w TechFlow',
-    body: 'Dzień dobry Pani Anno,\n\nWidziałem Wasze ostatnie ogłoszenia o rekrutacji React Developerów do projektów FinTech. Szybki wzrost to świetna wiadomość, ale często oznacza też wąskie gardła w onboardingu.\n\nPomagamy software house\'om takim jak TechFlow automatyzować proces wdrażania nowych pracowników, co skraca time-to-productivity o 40%.\n\nCzy chwila na krótką rozmowę w przyszłym tygodniu miałaby sens?\n\nZ poważaniem,\nJan',
-  },
-  {
-    id: 3, company: 'BudMaster', person: 'Tomasz Budny', industry: 'Budownictwo', website: 'budmaster.pl',
-    intel: {
-      social: '"Zaczynamy kolejny etap budowy osiedla przy ul. Klonowej. Postęp prac zgodny z harmonogramem!"',
-      keywords: ['Budownictwo', 'Osiedle', 'Harmonogram', 'Deweloper'],
-      summary: 'Średniej wielkości firma budowlana działająca w Warszawie i okolicach. Specjalizują się w budownictwie mieszkaniowym.',
-    },
-    subject: 'Automatyzacja dokumentacji budowlanej — BudMaster',
-    body: 'Dzień dobry,\n\nGratulacje z postępami przy osiedlu Klonowa — harmonogram na plus!\n\nWiemy, że przy prowadzeniu kilku budów jednocześnie, dokumentacja potrafi zajmować więcej czasu niż sama robota. Nasz system pomaga automatyzować raporty i koordynację z podwykonawcami.\n\nCzy warto porozmawiać?\n\nPozdrawiam,\nJan',
-  },
+const fakeIntels = [
+  { person: 'Jan', website: 'strona-firmowa.pl', social: '"Ukończyliśmy właśnie kluczowy projekt. Dziękujemy zespołowi!"', keywords: ['Premium', 'Rozwój', 'B2B'], summary: 'Dynamicznie rosnąca firma z aktywną obecnością w social mediach.' },
+  { person: 'Piotr', website: 'studio-pro.pl', social: '"Poszukujemy nowych talentów do naszego zespołu w Warszawie."', keywords: ['Skalowanie', 'Rekrutacja', 'Projekty'], summary: 'Skupieni na budowaniu zespołu do nowych rynków zagranicznych.' },
+  { person: 'Anna', website: 'tech-dev.pl', social: '"Kolejny udany kwartał za nami! Wyniki przerosły oczekiwania."', keywords: ['Wzrost', 'Innowacje', 'Tech'], summary: 'Rozwijają własny produkt, otwarci na optymalizację.' }
 ];
 
 // ─── Step progress bar ────────────────────────────────────────────────────────
@@ -154,7 +190,7 @@ function StepBar({ current, total }: { current: Step; total: number }) {
   );
 }
 
-// ─── Mailbox add modal (same as settings) ────────────────────────────────────
+// ─── Mailbox add modal (kept for reference) ───────────────────────────────────
 
 function AddMailboxModal({ onClose, onAdd }: { onClose: () => void; onAdd: (m: Mailbox) => void }) {
   const [step, setStep] = useState<1 | 2>(1);
@@ -262,6 +298,11 @@ function AddMailboxModal({ onClose, onAdd }: { onClose: () => void; onAdd: (m: M
 export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: CampaignCreatorProps) {
   const [step, setStep] = useState<Step>(1);
 
+  // Supabase
+  const [dbCampaignId, setDbCampaignId] = useState<string | null>(null);
+  const [lastScheduledTime, setLastScheduledTime] = useState<Date>(new Date());
+  const [isGeneratingMails, setIsGeneratingMails] = useState(false);
+
   // Step 1
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([]);
@@ -271,28 +312,39 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
   // Step 2
   const [campaignName, setCampaignName] = useState('');
   const [promptAngle, setPromptAngle] = useState('');
+  const [companyInfo, setCompanyInfo] = useState<CompanyInfo>({
+    name: '', website: '', industry: '', short_description: '',
+    ideal_customer_profile: '', competitive_advantages: '', ai_context: ''
+  });
+  const [companyInfoLoading, setCompanyInfoLoading] = useState(false);
+  const [companyInfoSaving, setCompanyInfoSaving] = useState(false);
+  const [companyInfoSaved, setCompanyInfoSaved] = useState(false);
 
   // Step 3
-  const [mailboxes, setMailboxes] = useState<Mailbox[]>(mockMailboxes);
+  const [mailboxes, setMailboxes] = useState<Mailbox[]>([]);
+  const [loadingMailboxes, setLoadingMailboxes] = useState(false);
   const [selectedMailboxIds, setSelectedMailboxIds] = useState<string[]>([]);
   const [showAddMailbox, setShowAddMailbox] = useState(false);
 
-  // Step 4 — Tinder mode
+  // Step 4
   const [generatedLeads, setGeneratedLeads] = useState<GeneratedLead[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editSubject, setEditSubject] = useState('');
   const [editBody, setEditBody] = useState('');
-  const [justActioned, setJustActioned] = useState<{ id: number; action: 'accepted' | 'skipped' } | null>(null);
+  const [justActioned, setJustActioned] = useState<{ id: string; action: 'accepted' | 'skipped' } | null>(null);
 
   // Step 5
   const [launching, setLaunching] = useState(false);
   const [launched, setLaunched] = useState(false);
 
+  // Draft
+  const [draftExists, setDraftExists] = useState(false);
+
   const totalSelected = selectedLeadIds.length;
   const estimatedMinutes = Math.ceil((totalSelected * 8) / 60) || 1;
 
-  // Reset on open + fetch leads from Supabase
+  // Reset on open + fetch data
   useEffect(() => {
     if (!isOpen) return;
     setStep(1);
@@ -305,6 +357,11 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
     setCurrentIndex(0);
     setEditingIndex(null);
     setLaunched(false);
+    setDbCampaignId(null);
+    setLastScheduledTime(new Date());
+
+    const draft = loadDraftFromStorage();
+    setDraftExists(!!draft);
 
     const fetchLeads = async () => {
       setIsLoadingLeads(true);
@@ -325,30 +382,174 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
       }
       setIsLoadingLeads(false);
     };
+
+    const fetchMailboxes = async () => {
+      setLoadingMailboxes(true);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { setLoadingMailboxes(false); return; }
+      const { data } = await supabase
+        .from('email_accounts')
+        .select('id, email_address, sender_name, smtp_host, daily_limit, sent_today, status')
+        .eq('user_id', session.user.id)
+        .order('created_at', { ascending: false });
+      if (data) {
+        setMailboxes(data.map((m: any) => ({
+          id: m.id,
+          email: m.email_address,
+          sender_name: m.sender_name,
+          provider: detectMailboxProvider(m.email_address, m.smtp_host),
+          daily_limit: m.daily_limit ?? 40,
+          sent_today: m.sent_today ?? 0,
+          status: m.status,
+        })));
+      }
+      setLoadingMailboxes(false);
+    };
+
+    const fetchCompanyInfo = async () => {
+      setCompanyInfoLoading(true);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { setCompanyInfoLoading(false); return; }
+      const { data } = await supabase.from('companies').select('*').eq('user_id', session.user.id).single();
+      if (data) {
+        setCompanyInfo({
+          name: data.name || '',
+          website: data.website || '',
+          industry: data.industry || '',
+          short_description: data.short_description || '',
+          ideal_customer_profile: data.ideal_customer_profile || '',
+          competitive_advantages: data.competitive_advantages || '',
+          ai_context: data.ai_context || '',
+        });
+      }
+      setCompanyInfoLoading(false);
+    };
+
     fetchLeads();
+    fetchMailboxes();
+    fetchCompanyInfo();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
-  // Simulate generating leads when entering step 4
-  useEffect(() => {
-    if (step !== 4) return;
+  const resumeDraft = () => {
+    const draft = loadDraftFromStorage();
+    if (!draft) return;
+    setStep(draft.step);
+    setSelectedLeadIds(draft.selectedLeadIds);
+    setCampaignName(draft.campaignName);
+    setPromptAngle(draft.promptAngle);
+    setSelectedMailboxIds(draft.selectedMailboxIds);
+    setDraftExists(false);
+  };
 
-    const leads: GeneratedLead[] = mockGeneratedLeads.map((l, i) => ({
-      ...l,
-      reviewStatus: 'pending',
-      isGenerating: i > 0, // first one ready immediately
-    }));
-    setGeneratedLeads(leads);
-    setCurrentIndex(0);
+  const discardDraft = () => {
+    clearDraftFromStorage();
+    setDraftExists(false);
+  };
 
-    // Simulate generation delays for subsequent leads
-    leads.forEach((_, i) => {
-      if (i === 0) return;
-      setTimeout(() => {
-        setGeneratedLeads(prev => prev.map((l, idx) => idx === i ? { ...l, isGenerating: false } : l));
-      }, (i + 1) * 2000);
-    });
-  }, [step]);
+  const handleClose = () => {
+    if (!launched && (step > 1 || selectedLeadIds.length > 0 || campaignName.trim())) {
+      saveDraftToStorage({
+        step,
+        selectedLeadIds,
+        campaignName,
+        promptAngle,
+        selectedMailboxIds,
+        savedAt: new Date().toISOString(),
+      });
+    }
+    onClose();
+  };
+
+  const saveCompanyInfo = async () => {
+    setCompanyInfoSaving(true);
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session) {
+      await supabase.from('companies').upsert({ user_id: session.user.id, ...companyInfo }, { onConflict: 'user_id' });
+    }
+    setCompanyInfoSaving(false);
+    setCompanyInfoSaved(true);
+    setTimeout(() => setCompanyInfoSaved(false), 2200);
+  };
+
+  // ─── Generation + Supabase ────────────────────────────────────────────────
+
+  const handleStartGeneration = async () => {
+    if (!canGoNext()) return;
+    setIsGeneratingMails(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Brak sesji użytkownika");
+
+      const { data: campaign, error: campErr } = await supabase
+        .from('campaigns')
+        .insert({
+          user_id: session.user.id,
+          name: campaignName,
+          prompt_angle: promptAngle,
+          status: 'draft',
+          total_count: selectedLeadIds.length
+        })
+        .select()
+        .single();
+
+      if (campErr || !campaign) throw campErr;
+      setDbCampaignId(campaign.id);
+      clearDraftFromStorage();
+      setDraftExists(false);
+
+      const dbEmailsToInsert = selectedLeadIds.map((leadId, idx) => {
+        const template = fakeTemplates[idx % fakeTemplates.length];
+        return {
+          campaign_id: campaign.id,
+          lead_id: leadId,
+          subject: template.subject,
+          body: template.body,
+          status: 'pending_review'
+        };
+      });
+
+      const { data: insertedEmails, error: emailErr } = await supabase
+        .from('campaign_emails')
+        .insert(dbEmailsToInsert)
+        .select();
+
+      if (emailErr || !insertedEmails) throw emailErr;
+
+      const uiLeads = insertedEmails.map((dbEmail, i) => {
+        const leadDb = databaseLeads.find(l => l.id === dbEmail.lead_id);
+        const intel = fakeIntels[i % fakeIntels.length];
+        return {
+          id: dbEmail.id,
+          company: leadDb?.company || 'Brak danych',
+          industry: leadDb?.industry || 'Brak branży',
+          person: intel.person,
+          website: intel.website,
+          intel: intel,
+          subject: dbEmail.subject,
+          body: dbEmail.body,
+          reviewStatus: 'pending' as LeadReviewStatus,
+          isGenerating: true
+        };
+      });
+
+      setGeneratedLeads(uiLeads);
+      setCurrentIndex(0);
+      setLastScheduledTime(new Date());
+      setStep(4);
+
+      uiLeads.forEach((_, i) => {
+        setTimeout(() => {
+          setGeneratedLeads(prev => prev.map((l, idx) => idx === i ? { ...l, isGenerating: false } : l));
+        }, (i + 1) * 1500);
+      });
+
+    } catch (error) {
+      console.error("Błąd podczas zapisywania kampanii do Supabase:", error);
+    } finally {
+      setIsGeneratingMails(false);
+    }
+  };
 
   const filteredLeads = databaseLeads.filter((l: DatabaseLead) =>
     l.company.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -381,11 +582,29 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
     setEditingIndex(null);
   };
 
-  const handleAction = (action: 'accepted' | 'skipped') => {
+  const handleAction = async (action: 'accepted' | 'skipped') => {
+    const lead = currentLead;
+    if (!lead) return;
+    try {
+      if (action === 'accepted') {
+        const nextTime = new Date(lastScheduledTime.getTime() + 20 * 60000);
+        setLastScheduledTime(nextTime);
+        await supabase.from('campaign_emails').update({
+          status: 'queued',
+          subject: lead.subject,
+          body: lead.body,
+          scheduled_at: nextTime.toISOString()
+        }).eq('id', lead.id);
+      } else {
+        await supabase.from('campaign_emails').update({ status: 'failed' }).eq('id', lead.id);
+      }
+    } catch (err) {
+      console.error("Błąd podczas aktualizacji rekordu w Supabase:", err);
+    }
     setGeneratedLeads(prev => prev.map((l, i) =>
       i === currentIndex ? { ...l, reviewStatus: action } : l
     ));
-    setJustActioned({ id: currentLead.id, action });
+    setJustActioned({ id: lead.id, action });
     setTimeout(() => {
       setJustActioned(null);
       if (currentIndex < generatedLeads.length - 1) {
@@ -396,13 +615,35 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
     }, 600);
   };
 
-  const handleBulkApprove = () => {
-    setGeneratedLeads(prev => prev.map(l => ({ ...l, reviewStatus: 'accepted' })));
+  const handleBulkApprove = async () => {
+    let currentTime = lastScheduledTime;
+    const newLeads = [...generatedLeads];
+    const updatePromises = [];
+    for (let i = currentIndex; i < newLeads.length; i++) {
+      if (newLeads[i].reviewStatus === 'pending') {
+        currentTime = new Date(currentTime.getTime() + 20 * 60000);
+        updatePromises.push(
+          supabase.from('campaign_emails').update({
+            status: 'queued',
+            scheduled_at: currentTime.toISOString(),
+            subject: newLeads[i].subject,
+            body: newLeads[i].body
+          }).eq('id', newLeads[i].id)
+        );
+        newLeads[i].reviewStatus = 'accepted';
+      }
+    }
+    setLastScheduledTime(currentTime);
+    setGeneratedLeads(newLeads);
+    try { await Promise.all(updatePromises); } catch (err) { console.error(err); }
     setTimeout(() => setStep(5), 400);
   };
 
   const handleLaunch = async () => {
     setLaunching(true);
+    if (dbCampaignId) {
+      await supabase.from('campaigns').update({ status: 'active' }).eq('id', dbCampaignId);
+    }
     await new Promise(r => setTimeout(r, 1200));
     setLaunching(false);
     setLaunched(true);
@@ -412,13 +653,13 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
   const canGoNext = () => {
     if (step === 1) return selectedLeadIds.length > 0;
     if (step === 2) return campaignName.trim().length > 0 && promptAngle.trim().length > 0;
-    if (step === 3) return selectedMailboxIds.length > 0;
+    if (step === 3) return true; // mailbox is optional
     return true;
   };
 
   const handleNext = () => {
-    if (step < 4) setStep((step + 1) as Step);
-    else if (step === 3) setStep(4);
+    if (step < 3) setStep((step + 1) as Step);
+    else if (step === 3) handleStartGeneration();
   };
 
   const accepted = generatedLeads.filter(l => l.reviewStatus === 'accepted').length;
@@ -426,16 +667,21 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
 
   if (!isOpen) return null;
 
+  const cif = (k: keyof CompanyInfo) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+    setCompanyInfo(p => ({ ...p, [k]: e.target.value }));
+
+  const ciInputCls = `w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-3 text-[14px] text-[#EAE8E1] placeholder:text-[#827E78] focus:outline-none focus:border-white/[0.2] transition-all`;
+
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-10">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-10">
 
           {/* Backdrop */}
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            onClick={step === 4 ? undefined : onClose}
-            className="absolute inset-0 bg-black/75 backdrop-blur-md"
+            onClick={step === 4 ? undefined : handleClose}
+            className="absolute inset-0 bg-black/80 backdrop-blur-md"
           />
 
           {/* Modal */}
@@ -465,7 +711,7 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
                     <span className="text-[#A3A09A]">Możesz zamknąć i wrócić później</span>
                   </div>
                 )}
-                <button onClick={onClose} className="p-2 text-[#827E78] hover:text-[#EAE8E1] hover:bg-white/[0.06] rounded-lg transition-all">
+                <button onClick={handleClose} className="p-2 text-[#827E78] hover:text-[#EAE8E1] hover:bg-white/[0.06] rounded-lg transition-all">
                   <X className="size-5" />
                 </button>
               </div>
@@ -479,6 +725,21 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
                 {step === 1 && (
                   <motion.div key="s1" initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 12 }} className="absolute inset-0 flex flex-col p-8">
                     <div className="max-w-4xl mx-auto w-full h-full flex flex-col">
+
+                      {/* Draft resume banner */}
+                      {draftExists && (
+                        <div className="mb-5 flex items-center justify-between gap-4 px-5 py-3.5 rounded-xl bg-white/[0.04] border border-white/[0.1]">
+                          <div className="flex items-center gap-3">
+                            <Clock className="size-4 text-[#A3A09A] shrink-0" />
+                            <p className="text-[13px] text-[#A3A09A]">Masz niedokończoną kampanię. Chcesz kontynuować od miejsca, w którym skończyłeś?</p>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <button onClick={discardDraft} className="text-[12px] text-[#827E78] hover:text-[#A3A09A] transition-colors px-3 py-1.5">Zacznij od nowa</button>
+                            <button onClick={resumeDraft} className="text-[12px] font-medium text-[#EAE8E1] bg-white/[0.08] hover:bg-white/[0.12] px-4 py-1.5 rounded-lg transition-all">Kontynuuj szkic</button>
+                          </div>
+                        </div>
+                      )}
+
                       <div className="mb-6">
                         <h3 className="text-[20px] font-medium text-[#EAE8E1] mb-1">Wybierz odbiorców</h3>
                         <p className="text-[14px] text-[#A3A09A]">Zaznacz firmy ze swojej bazy, do których chcesz wysłać tę kampanię.</p>
@@ -544,7 +805,6 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
                 )}
 
                 {/* ═══ STEP 2: CONFIG ═══ */}
-
                 {step === 2 && (
                   <motion.div key="s2" initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 12 }} className="absolute inset-0 p-8 overflow-y-auto">
                     <div className="max-w-2xl mx-auto space-y-8">
@@ -568,6 +828,71 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
                           className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-5 py-4 text-[14px] text-[#EAE8E1] placeholder:text-[#827E78] focus:outline-none focus:border-white/[0.25] transition-all resize-none leading-relaxed min-h-[180px]"
                         />
                       </div>
+
+                      {/* Company info section */}
+                      <div className="pt-2">
+                        <div className="h-px bg-white/[0.06] mb-8" />
+                        <div className="flex items-start justify-between mb-6">
+                          <div>
+                            <h4 className="text-[16px] font-medium text-[#EAE8E1]">Informacje o firmie</h4>
+                            <p className="text-[13px] text-[#A3A09A] mt-1">Sprawdź i zaktualizuj dane, które AI wykorzysta do personalizacji.</p>
+                          </div>
+                          {companyInfoLoading && <Loader2 className="size-4 text-[#827E78] animate-spin mt-1" />}
+                        </div>
+
+                        <div className="space-y-5">
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <p className="text-[13px] font-medium text-[#A3A09A] mb-2">Nazwa firmy</p>
+                              <input value={companyInfo.name} onChange={cif('name')} placeholder="np. TechFlow Sp. z o.o." className={ciInputCls} />
+                            </div>
+                            <div>
+                              <p className="text-[13px] font-medium text-[#A3A09A] mb-2">Strona WWW</p>
+                              <input value={companyInfo.website} onChange={cif('website')} placeholder="https://techflow.pl" className={ciInputCls} />
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <p className="text-[13px] font-medium text-[#A3A09A] mb-2">Branża</p>
+                              <input value={companyInfo.industry} onChange={cif('industry')} placeholder="np. SaaS / Automatyzacja" className={ciInputCls} />
+                            </div>
+                            <div>
+                              <p className="text-[13px] font-medium text-[#A3A09A] mb-2">Krótki opis działalności</p>
+                              <input value={companyInfo.short_description} onChange={cif('short_description')} placeholder="np. Tworzymy dedykowane oprogramowanie dla logistyki." className={ciInputCls} />
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <p className="text-[13px] font-medium text-[#A3A09A] mb-2">Profil idealnego klienta</p>
+                              <input value={companyInfo.ideal_customer_profile} onChange={cif('ideal_customer_profile')} placeholder="np. Dyrektorzy operacyjni w firmach 50+ pracowników" className={ciInputCls} />
+                            </div>
+                            <div>
+                              <p className="text-[13px] font-medium text-[#A3A09A] mb-2">Kluczowe wyróżniki</p>
+                              <input value={companyInfo.competitive_advantages} onChange={cif('competitive_advantages')} placeholder="np. Wdrożenie w 14 dni, darmowy audyt na start" className={ciInputCls} />
+                            </div>
+                          </div>
+
+                          <div>
+                            <p className="text-[13px] font-medium text-[#A3A09A] mb-2">Szczegółowy opis działalności</p>
+                            <textarea value={companyInfo.ai_context} onChange={cif('ai_context')}
+                              placeholder="Opisz wszystko, co AI powinno wiedzieć: wielkość firmy, kluczowi klienci, wasza historia, szczegóły oferty..."
+                              rows={4}
+                              className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-3 text-[14px] text-[#EAE8E1] placeholder:text-[#827E78] focus:outline-none focus:border-white/[0.2] transition-all resize-none leading-relaxed"
+                            />
+                          </div>
+
+                          <div className="flex justify-end">
+                            <button onClick={saveCompanyInfo} disabled={companyInfoSaving}
+                              className="flex items-center gap-2 px-5 py-2.5 bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.1] text-[#EAE8E1] text-[13px] font-medium rounded-xl transition-all disabled:opacity-40">
+                              {companyInfoSaving ? <><Loader2 className="size-3.5 animate-spin" />Zapisuję...</>
+                                : companyInfoSaved ? <><Check className="size-3.5" />Zapisano</>
+                                  : 'Zapisz informacje o firmie'}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </motion.div>
                 )}
@@ -581,7 +906,6 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
                         <p className="text-[14px] text-[#A3A09A]">Wybierz z jakich adresów mają być wysyłane wiadomości.</p>
                       </div>
 
-                      {/* Subtelny alert o limicie */}
                       <div className="flex items-start gap-3 p-4 rounded-xl bg-white/[0.02] border border-white/[0.05]">
                         <Info className="size-4 text-[#827E78] shrink-0 mt-0.5" />
                         <p className="text-[13px] text-[#827E78] leading-relaxed">
@@ -590,34 +914,66 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
                         </p>
                       </div>
 
-                      <div className="space-y-3">
-                        {mailboxes.map(mb => {
-                          const sel = selectedMailboxIds.includes(mb.id);
-                          return (
-                            <div key={mb.id} onClick={() => toggleMailbox(mb.id)}
-                              className={`flex items-center justify-between p-5 rounded-2xl border cursor-pointer transition-all ${sel ? 'bg-white/[0.05] border-white/[0.15]' : 'bg-white/[0.02] border-white/[0.07] hover:border-white/[0.12]'}`}>
-                              <div className="flex items-center gap-4">
-                                <div className={`size-5 rounded border flex items-center justify-center transition-all ${sel ? 'bg-[#EAE8E1] border-[#EAE8E1]' : 'border-white/[0.2]'}`}>
-                                  {sel && <Check className="size-3 text-[#1A1A1A]" strokeWidth={3} />}
+                      {loadingMailboxes ? (
+                        <div className="flex items-center justify-center py-12">
+                          <Loader2 className="size-5 text-[#827E78] animate-spin" />
+                        </div>
+                      ) : mailboxes.length === 0 ? (
+                        <div className="text-center py-12 rounded-2xl border border-dashed border-white/[0.1]">
+                          <div className="size-11 bg-white/[0.04] rounded-xl flex items-center justify-center mx-auto mb-4">
+                            <Server className="size-5 text-[#A3A09A]" />
+                          </div>
+                          <p className="text-[14px] font-medium text-[#EAE8E1] mb-1">Brak podłączonych skrzynek</p>
+                          <p className="text-[13px] text-[#A3A09A] mb-1">Skrzynki nadawcze dodasz w <span className="text-[#EAE8E1]">Ustawienia → Skrzynki pocztowe</span></p>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          {mailboxes.map(mb => {
+                            const sel = selectedMailboxIds.includes(mb.id);
+                            return (
+                              <div key={mb.id} onClick={() => toggleMailbox(mb.id)}
+                                className={`flex items-center justify-between p-5 rounded-2xl border cursor-pointer transition-all ${sel ? 'bg-white/[0.05] border-white/[0.15]' : 'bg-white/[0.02] border-white/[0.07] hover:border-white/[0.12]'}`}>
+                                <div className="flex items-center gap-4">
+                                  <div className={`size-5 rounded border flex items-center justify-center transition-all ${sel ? 'bg-[#EAE8E1] border-[#EAE8E1]' : 'border-white/[0.2]'}`}>
+                                    {sel && <Check className="size-3 text-[#1A1A1A]" strokeWidth={3} />}
+                                  </div>
+                                  <div className="size-9 bg-white/[0.05] rounded-xl flex items-center justify-center">
+                                    {mb.provider === 'google' ? <GoogleLogo size={20} /> : mb.provider === 'microsoft' ? <MicrosoftLogo size={18} /> : <Server className="size-5 text-[#A3A09A]" />}
+                                  </div>
+                                  <div>
+                                    <p className="text-[14px] font-medium text-[#EAE8E1]">{mb.email}</p>
+                                    <div className="flex items-center gap-3 mt-0.5">
+                                      {mb.sender_name && <p className="text-[12px] text-[#A3A09A]">{mb.sender_name}</p>}
+                                      <p className="text-[12px] text-[#827E78]">Limit: {mb.daily_limit ?? 40} maili / dzień</p>
+                                    </div>
+                                  </div>
                                 </div>
-                                <div className="size-8 flex items-center justify-center">
-                                  {mb.provider === 'google' ? <GoogleLogo size={20} /> : mb.provider === 'microsoft' ? <MicrosoftLogo size={18} /> : <Server className="size-5 text-[#A3A09A]" />}
-                                </div>
-                                <div>
-                                  <p className="text-[14px] font-medium text-[#EAE8E1]">{mb.email}</p>
-                                  <p className="text-[12px] text-[#827E78] mt-0.5">Limit: 40 maili / dzień</p>
+                                <div className="flex items-center gap-3">
+                                  {mb.status === 'connected'
+                                    ? <span className="flex items-center gap-1.5 text-[11px] font-medium text-[#5d9970] bg-[#5d9970]/10 px-2.5 py-1 rounded-full"><span className="size-1.5 bg-[#5d9970] rounded-full" />Aktywna</span>
+                                    : mb.status === 'error'
+                                    ? <span className="flex items-center gap-1.5 text-[11px] font-medium text-[#b56060] bg-[#b56060]/10 px-2.5 py-1 rounded-full"><span className="size-1.5 bg-[#b56060] rounded-full" />Błąd</span>
+                                    : null}
+                                  {sel && <span className="text-[11px] font-medium text-[#5d9970] bg-[#5d9970]/10 px-2.5 py-1 rounded-full">Wybrana</span>}
                                 </div>
                               </div>
-                              {sel && <span className="text-[11px] font-medium text-[#5d9970] bg-[#5d9970]/10 px-2.5 py-1 rounded-full">Wybrana</span>}
-                            </div>
-                          );
-                        })}
-                      </div>
+                            );
+                          })}
+                        </div>
+                      )}
 
-                      <button onClick={() => setShowAddMailbox(true)}
-                        className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl border border-dashed border-white/[0.1] hover:border-white/[0.2] text-[13px] font-medium text-[#827E78] hover:text-[#A3A09A] transition-all">
-                        <Plus className="size-4" /> Dodaj nową skrzynkę
-                      </button>
+                      <div className="flex items-center justify-between pt-1">
+                        <p className="text-[13px] text-[#827E78]">
+                          Aby dodać skrzynkę, przejdź do <span className="text-[#A3A09A]">Ustawienia → Skrzynki pocztowe</span>
+                        </p>
+                        <button
+                          onClick={handleStartGeneration}
+                          disabled={isGeneratingMails}
+                          className="text-[13px] text-[#827E78] hover:text-[#A3A09A] transition-colors underline underline-offset-4 decoration-white/[0.15]"
+                        >
+                          Kontynuuj bez skrzynki →
+                        </button>
+                      </div>
                     </div>
                   </motion.div>
                 )}
@@ -626,7 +982,6 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
                 {step === 4 && (
                   <motion.div key="s4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 flex flex-col">
 
-                    {/* Tinder top bar */}
                     <div className="flex items-center justify-between px-8 py-3 border-b border-white/[0.06] bg-[#141414] shrink-0">
                       <div className="flex items-center gap-4">
                         <span className="text-[12px] text-[#3a3a3a] uppercase tracking-wider font-medium">Weryfikacja wiadomości</span>
@@ -650,7 +1005,6 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
                           Zatwierdź wszystkie i przejdź dalej
                         </button>
                         <div className="w-px h-4 bg-white/[0.08]" />
-                        {/* Nav arrows */}
                         <div className="flex items-center gap-1">
                           <button onClick={() => setCurrentIndex(i => Math.max(0, i - 1))} disabled={currentIndex === 0}
                             className="p-1.5 text-[#3a3a3a] hover:text-[#A3A09A] disabled:opacity-20 hover:bg-white/[0.04] rounded-lg transition-all">
@@ -664,17 +1018,14 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
                       </div>
                     </div>
 
-                    {/* 60/40 split */}
                     <div className="flex-1 grid grid-cols-10 overflow-hidden">
 
                       {/* LEFT: Mail preview / editor (60%) */}
                       <div className="col-span-6 flex flex-col bg-[#0f0f0f] border-r border-white/[0.06] overflow-hidden">
 
                         {currentLead?.isGenerating ? (
-                          // Generating state
                           <div className="flex-1 flex flex-col items-center justify-center p-8">
                             <div className="w-full max-w-lg">
-                              {/* Fake email skeleton */}
                               <div className="bg-white rounded-2xl p-8 shadow-lg">
                                 <div className="mb-6 pb-4 border-b border-gray-100">
                                   <div className="flex items-center gap-3 mb-2">
@@ -700,7 +1051,6 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
                           </div>
                         ) : currentLead ? (
                           <div className="flex-1 flex flex-col overflow-hidden">
-                            {/* Action overlay */}
                             <AnimatePresence>
                               {justActioned && justActioned.id === currentLead.id && (
                                 <motion.div
@@ -715,10 +1065,8 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
                               )}
                             </AnimatePresence>
 
-                            {/* Email preview on white background */}
                             <div className="flex-1 overflow-y-auto p-6">
                               <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-                                {/* Gmail-like header */}
                                 <div className="px-8 py-5 border-b border-gray-100">
                                   <div className="flex items-start justify-between mb-1">
                                     {editingIndex === currentIndex ? (
@@ -744,7 +1092,6 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
                                   </div>
                                 </div>
 
-                                {/* Body */}
                                 <div className="px-8 py-6">
                                   {editingIndex === currentIndex ? (
                                     <div className="space-y-4">
@@ -763,7 +1110,6 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
                               </div>
                             </div>
 
-                            {/* Action buttons */}
                             {editingIndex !== currentIndex && (
                               <div className="px-6 py-4 border-t border-white/[0.06] flex items-center gap-3 shrink-0">
                                 <button onClick={() => handleAction('skipped')}
@@ -794,7 +1140,6 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
                       <div className="col-span-4 bg-[#111111] overflow-y-auto p-6">
                         {currentLead && !currentLead.isGenerating && (
                           <div className="space-y-5">
-                            {/* Company header */}
                             <div className="flex items-center gap-3 pb-5 border-b border-white/[0.06]">
                               <div className="size-12 bg-white/[0.04] border border-white/[0.08] rounded-2xl flex items-center justify-center text-[#EAE8E1] font-serif text-xl shrink-0">
                                 {currentLead.company.charAt(0)}
@@ -807,7 +1152,6 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
                               </div>
                             </div>
 
-                            {/* Basic info */}
                             <div className="grid grid-cols-2 gap-3">
                               <div className="p-3.5 bg-white/[0.02] border border-white/[0.04] rounded-xl">
                                 <span className="block text-[10px] font-medium text-[#3a3a3a] uppercase tracking-wider mb-1">Osoba</span>
@@ -821,7 +1165,6 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
                               </div>
                             </div>
 
-                            {/* Social activity */}
                             <div className="p-4 bg-white/[0.02] border border-white/[0.04] rounded-xl">
                               <span className="flex items-center gap-2 text-[10px] font-medium text-[#3a3a3a] uppercase tracking-wider mb-3">
                                 <Hash className="size-3" /> Ostatnia aktywność
@@ -831,7 +1174,6 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
                               </p>
                             </div>
 
-                            {/* AI context */}
                             <div className="p-4 bg-white/[0.02] border border-white/[0.04] rounded-xl">
                               <span className="flex items-center gap-2 text-[10px] font-medium text-[#3a3a3a] uppercase tracking-wider mb-3">
                                 <Info className="size-3" /> Kontekst (AI)
@@ -846,7 +1188,6 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
                               </div>
                             </div>
 
-                            {/* Review status of current lead */}
                             {currentLead.reviewStatus !== 'pending' && (
                               <div className={`flex items-center gap-2 p-3.5 rounded-xl text-[13px] font-medium ${currentLead.reviewStatus === 'accepted' ? 'bg-[#5d9970]/10 border border-[#5d9970]/20 text-[#5d9970]' : 'bg-[#827E78]/10 border border-[#827E78]/20 text-[#827E78]'}`}>
                                 <Check className="size-4" strokeWidth={3} />
@@ -889,7 +1230,6 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
                             <p className="text-[15px] text-[#A3A09A] leading-relaxed">Przejrzyj podsumowanie i uruchom kampanię.</p>
                           </div>
 
-                          {/* Summary stats */}
                           <div className="grid grid-cols-3 gap-4 text-center">
                             {[
                               { label: 'Zaakceptowane', value: accepted, color: 'text-[#5d9970]' },
@@ -903,13 +1243,11 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
                             ))}
                           </div>
 
-                          {/* Campaign name */}
                           <div className="p-5 rounded-2xl border border-white/[0.08] bg-white/[0.02] text-left">
                             <p className="text-[11px] font-medium text-[#3a3a3a] uppercase tracking-wider mb-2">Nazwa kampanii</p>
                             <p className="text-[15px] font-medium text-[#EAE8E1]">{campaignName}</p>
                           </div>
 
-                          {/* Info o kolejkowaniu */}
                           <div className="flex items-start gap-3 p-4 rounded-xl bg-white/[0.02] border border-white/[0.05] text-left">
                             <Info className="size-4 text-[#827E78] shrink-0 mt-0.5" />
                             <p className="text-[13px] text-[#827E78] leading-relaxed">
@@ -933,7 +1271,7 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
             {/* ── Footer navigation (steps 1-3 only) ── */}
             {step <= 3 && (
               <div className="px-8 py-5 border-t border-white/[0.06] bg-[#1A1A1A] flex items-center justify-between shrink-0">
-                <button onClick={() => step > 1 ? setStep((step - 1) as Step) : onClose()}
+                <button onClick={() => step > 1 ? setStep((step - 1) as Step) : handleClose()}
                   className="flex items-center gap-2 px-5 py-2.5 text-[#A3A09A] hover:text-[#EAE8E1] text-[13px] font-medium transition-colors">
                   <ArrowLeft className="size-4" /> {step === 1 ? 'Anuluj' : 'Wstecz'}
                 </button>
@@ -944,9 +1282,9 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
                     Dalej <ArrowRight className="size-4" />
                   </button>
                 ) : (
-                  <button onClick={() => { if (canGoNext()) setStep(4); }} disabled={!canGoNext()}
+                  <button onClick={handleStartGeneration} disabled={isGeneratingMails}
                     className="flex items-center gap-2 px-8 py-2.5 bg-[#EAE8E1] hover:bg-white text-[#1A1A1A] text-[14px] font-semibold rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed">
-                    Generuj kampanię <ArrowRight className="size-4" />
+                    {isGeneratingMails ? <><Loader2 className="size-4 animate-spin" /> Inicjowanie...</> : <>Generuj kampanię <ArrowRight className="size-4" /></>}
                   </button>
                 )}
               </div>
@@ -954,7 +1292,6 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
 
           </motion.div>
 
-          {/* Add mailbox nested modal */}
           <AnimatePresence>
             {showAddMailbox && (
               <AddMailboxModal

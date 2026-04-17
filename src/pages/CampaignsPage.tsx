@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Plus, ArrowLeft, Loader2, Mail, Check, Clock,
@@ -38,35 +38,6 @@ interface CampaignLead {
   priority: boolean;
 }
 
-// ─── Mock data ────────────────────────────────────────────────────────────────
-
-const mockCampaigns: Campaign[] = [
-  {
-    id: '1', name: 'Agencje SEO — Oferta Automatyzacji', status: 'active',
-    created_at: '2026-04-01', sent: 23, total: 50, replies: 4, bounced: 1, queued: 27,
-    estimated_end: '2026-04-18', isArchived: false,
-  },
-  {
-    id: '2', name: 'Software House — Nowa Strona WWW', status: 'paused',
-    created_at: '2026-03-20', sent: 15, total: 30, replies: 2, bounced: 0, queued: 15,
-    estimated_end: null, isArchived: false,
-  },
-  {
-    id: '3', name: 'Deweloperzy — Oferta Marzec', status: 'completed',
-    created_at: '2026-03-01', sent: 40, total: 40, replies: 7, bounced: 2, queued: 0,
-    estimated_end: '2026-03-14', isArchived: false,
-  },
-];
-
-const mockLeads: CampaignLead[] = [
-  { id: '1', company_name: 'Studio Nowak', email: 'kontakt@nowak.pl', status: 'sent', sent_at: '2026-04-10 09:14', sent_from: 'jan@firma.pl', mail_content: 'Dzień dobry,\n\nZauważyłem, że Studio Nowak specjalizuje się w projektach premium dla klientów z sektora nieruchomości — szczególnie spodobał mi się projekt Osiedla Zielona przy ul. Lipowej.\n\nChciałem się zapytać, czy kwestia automatyzacji powtarzalnych procesów administracyjnych jest u Was aktualnym tematem? Pracujemy z kilkoma biurami projektowymi, które dzięki naszemu rozwiązaniu zaoszczędziły ok. 8h tygodniowo na dokumentacji.\n\nCzy to temat wart krótkiej rozmowy?\n\nPozdrawiam,\nJan Kowalski', priority: false },
-  { id: '2', company_name: 'BudMaster Sp. z o.o.', email: 'biuro@budmaster.com', status: 'replied', sent_at: '2026-04-09 11:32', sent_from: 'jan@firma.pl', mail_content: 'Dzień dobry,\n\nBudMaster to jeden z liderów rynku deweloperskiego w Małopolsce z imponującym portfolio...', priority: false },
-  { id: '3', company_name: 'Architekci Krakowscy', email: 'hello@ark.pl', status: 'bounced', sent_at: '2026-04-09 14:05', sent_from: 'jan@firma.pl', mail_content: null, priority: false },
-  { id: '4', company_name: 'Green Build', email: 'info@greenbuild.pl', status: 'queued', sent_at: null, sent_from: null, mail_content: null, priority: false },
-  { id: '5', company_name: 'Metropolis Invest', email: 'office@metropolis.pl', status: 'queued', sent_at: null, sent_from: null, mail_content: null, priority: true },
-  { id: '6', company_name: 'TechHome', email: 'contact@techhome.pl', status: 'queued', sent_at: null, sent_from: null, mail_content: null, priority: false },
-];
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function statusLabel(s: CampaignStatus) {
@@ -89,6 +60,38 @@ function leadStatusLabel(s: LeadStatus) {
     skipped: { label: 'Pominięty',    cls: 'text-[#3a3a3a]',  icon: <X className="size-3.5" /> },
   };
   return map[s];
+}
+
+function mapDbEmailStatus(dbStatus: string | null): LeadStatus {
+  switch (dbStatus) {
+    case 'queued': return 'queued';
+    case 'sent': return 'sent';
+    case 'replied': return 'replied';
+    case 'bounced': return 'bounced';
+    case 'failed': return 'skipped';
+    case 'pending_review': return 'queued';
+    default: return 'queued';
+  }
+}
+
+function mapDbCampaign(c: any): Campaign {
+  const isArchived = c.status === 'archived';
+  let status: CampaignStatus = isArchived ? 'canceled' : (c.status as CampaignStatus) ?? 'draft';
+  const sent = c.sent_count ?? 0;
+  const total = c.total_count ?? 0;
+  return {
+    id: c.id,
+    name: c.name,
+    status,
+    created_at: c.created_at,
+    sent,
+    total,
+    replies: c.replies_count ?? 0,
+    bounced: 0,
+    queued: Math.max(0, total - sent),
+    estimated_end: null,
+    isArchived,
+  };
 }
 
 function formatDate(d: string | null) {
@@ -156,7 +159,7 @@ function ArchiveModal({ name, onConfirm, onCancel }: { name: string; onConfirm: 
         <p className="text-[14px] text-[#827E78] leading-relaxed mb-6">
           Wszystkie maile oczekujące w kolejce zostaną anulowane, a kampania zostanie przeniesiona do archiwum.
         </p>
-        
+
         <div className="flex items-center gap-3 mb-8 cursor-pointer group w-fit" onClick={() => setSkipWarning(!skipWarning)}>
           <div className={`size-4 rounded flex items-center justify-center border transition-colors ${skipWarning ? 'bg-[#EAE8E1] border-[#EAE8E1]' : 'border-white/[0.15] group-hover:border-white/[0.3]'}`}>
             {skipWarning && <Check className="size-3 text-[#1A1A1A]" strokeWidth={3} />}
@@ -180,62 +183,136 @@ function ArchiveModal({ name, onConfirm, onCancel }: { name: string; onConfirm: 
 // ─── Mail preview drawer ──────────────────────────────────────────────────────
 
 function MailPreview({ lead, onClose }: { lead: CampaignLead; onClose: () => void }) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [onClose]);
+
   return (
-    <motion.div
-      initial={{ opacity: 0, x: 20 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: 20 }}
-      transition={{ duration: 0.18 }}
-      className="fixed right-0 top-0 bottom-0 w-full max-w-lg bg-[#1a1a1a] border-l border-white/[0.08] z-40 flex flex-col shadow-2xl"
-    >
-      <div className="flex items-center justify-between px-8 py-6 border-b border-white/[0.06]">
-        <div>
-          <p className="text-[16px] font-medium text-[#EAE8E1]">{lead.company_name}</p>
-          <p className="text-[13px] text-[#827E78] mt-0.5">{lead.email}</p>
+    <>
+      {/* Backdrop */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+        className="fixed inset-0 z-30 bg-black/40"
+      />
+      <motion.div
+        initial={{ opacity: 0, x: 20 }}
+        animate={{ opacity: 1, x: 0 }}
+        exit={{ opacity: 0, x: 20 }}
+        transition={{ duration: 0.18 }}
+        className="fixed right-0 top-0 bottom-0 w-full max-w-lg bg-[#1a1a1a] border-l border-white/[0.08] z-40 flex flex-col shadow-2xl"
+      >
+        <div className="flex items-center justify-between px-8 py-6 border-b border-white/[0.06]">
+          <div>
+            <p className="text-[16px] font-medium text-[#EAE8E1]">{lead.company_name}</p>
+            <p className="text-[13px] text-[#827E78] mt-0.5">{lead.email}</p>
+          </div>
+          <button onClick={onClose} className="p-2 text-[#827E78] hover:text-[#EAE8E1] hover:bg-white/[0.06] rounded-lg transition-all">
+            <X className="size-4" />
+          </button>
         </div>
-        <button onClick={onClose} className="p-2 text-[#827E78] hover:text-[#EAE8E1] hover:bg-white/[0.06] rounded-lg transition-all">
-          <X className="size-4" />
-        </button>
-      </div>
 
-      <div className="px-8 py-4 border-b border-white/[0.06] flex items-center gap-5 text-[13px] text-[#827E78]">
-        <span>Wysłano: <span className="text-[#A3A09A]">{formatDate(lead.sent_at)}</span></span>
-        <span className="text-white/[0.1]">·</span>
-        <span>Ze skrzynki: <span className="text-[#A3A09A]">{lead.sent_from || '—'}</span></span>
-      </div>
+        <div className="px-8 py-4 border-b border-white/[0.06] flex items-center gap-5 text-[13px] text-[#827E78]">
+          <span>Wysłano: <span className="text-[#A3A09A]">{formatDate(lead.sent_at)}</span></span>
+          <span className="text-white/[0.1]">·</span>
+          <span>Ze skrzynki: <span className="text-[#A3A09A]">{lead.sent_from || '—'}</span></span>
+        </div>
 
-      <div className="flex-1 overflow-y-auto px-8 py-6">
-        {lead.mail_content ? (
-          <p className="text-[15px] text-[#EAE8E1] leading-[1.8] whitespace-pre-wrap font-serif">
-            {lead.mail_content}
-          </p>
-        ) : (
-          <p className="text-[14px] text-[#827E78]">Brak treści do wyświetlenia.</p>
-        )}
-      </div>
+        <div className="flex-1 overflow-y-auto px-8 py-6">
+          {lead.mail_content ? (
+            <p className="text-[15px] text-[#EAE8E1] leading-[1.8] whitespace-pre-wrap font-serif">
+              {lead.mail_content}
+            </p>
+          ) : (
+            <p className="text-[14px] text-[#827E78]">Brak treści do wyświetlenia.</p>
+          )}
+        </div>
 
-      <div className="px-8 py-5 border-t border-white/[0.06]">
-        <button className="flex items-center gap-2 text-[13px] font-medium text-[#827E78] hover:text-[#EAE8E1] transition-colors">
-          <Download className="size-4" /> Eksportuj jako .txt
-        </button>
-      </div>
-    </motion.div>
+        <div className="px-8 py-5 border-t border-white/[0.06]">
+          <button className="flex items-center gap-2 text-[13px] font-medium text-[#827E78] hover:text-[#EAE8E1] transition-colors">
+            <Download className="size-4" /> Eksportuj jako .txt
+          </button>
+        </div>
+      </motion.div>
+    </>
   );
 }
 
 // ─── Campaign Detail ──────────────────────────────────────────────────────────
 
-function CampaignDetail({ campaign, onBack }: { campaign: Campaign; onBack: () => void }) {
-  const [leads, setLeads] = useState<CampaignLead[]>(mockLeads);
+function CampaignDetail({ campaign: initialCampaign, onBack }: { campaign: Campaign; onBack: () => void }) {
+  const [campaign, setCampaign] = useState<Campaign>(initialCampaign);
+  const [leads, setLeads] = useState<CampaignLead[]>([]);
+  const [loadingLeads, setLoadingLeads] = useState(true);
   const [previewLead, setPreviewLead] = useState<CampaignLead | null>(null);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchLeads = async () => {
+      setLoadingLeads(true);
+      try {
+        const { data: emails } = await supabase
+          .from('campaign_emails')
+          .select('id, lead_id, subject, body, status, scheduled_at')
+          .eq('campaign_id', campaign.id)
+          .order('created_at', { ascending: true });
+
+        if (!emails || emails.length === 0) {
+          setLeads([]);
+          setLoadingLeads(false);
+          return;
+        }
+
+        const leadIds = emails.map((e: any) => e.lead_id).filter(Boolean);
+        const { data: leadsData } = await supabase
+          .from('user_leads')
+          .select('id, global_leads(company_name, email)')
+          .in('id', leadIds);
+
+        const leadMap = new Map((leadsData || []).map((l: any) => [l.id, l]));
+
+        const mapped: CampaignLead[] = emails.map((email: any) => {
+          const leadRow = leadMap.get(email.lead_id) as any;
+          const gl = leadRow?.global_leads;
+          return {
+            id: email.id,
+            company_name: gl?.company_name || 'Nieznana firma',
+            email: gl?.email || '—',
+            status: mapDbEmailStatus(email.status),
+            sent_at: email.scheduled_at || null,
+            sent_from: null,
+            mail_content: email.body || null,
+            priority: false,
+          };
+        });
+
+        setLeads(mapped);
+      } catch (err) {
+        console.error('Błąd pobierania leadów kampanii:', err);
+      } finally {
+        setLoadingLeads(false);
+      }
+    };
+
+    fetchLeads();
+  }, [campaign.id]);
 
   const togglePriority = (id: string) => {
     setLeads(prev => prev.map(l => l.id === id ? { ...l, priority: !l.priority } : l));
   };
 
-  const markReplied = (id: string) => {
+  const markReplied = async (id: string) => {
+    await supabase.from('campaign_emails').update({ status: 'replied' }).eq('id', id);
     setLeads(prev => prev.map(l => l.id === id ? { ...l, status: 'replied' as LeadStatus } : l));
+  };
+
+  const togglePause = async () => {
+    const newStatus = campaign.status === 'active' ? 'paused' : 'active';
+    await supabase.from('campaigns').update({ status: newStatus }).eq('id', campaign.id);
+    setCampaign(prev => ({ ...prev, status: newStatus as CampaignStatus }));
   };
 
   const pct = campaign.total > 0 ? (campaign.sent / campaign.total) * 100 : 0;
@@ -264,12 +341,12 @@ function CampaignDetail({ campaign, onBack }: { campaign: Campaign; onBack: () =
 
           <div className="flex items-center gap-3">
             {campaign.status === 'active' && (
-              <button className="flex items-center gap-2 px-4 py-2.5 border border-white/[0.1] hover:border-white/[0.2] text-[#A3A09A] hover:text-[#EAE8E1] text-[13px] font-medium rounded-xl transition-all">
+              <button onClick={togglePause} className="flex items-center gap-2 px-4 py-2.5 border border-white/[0.1] hover:border-white/[0.2] text-[#A3A09A] hover:text-[#EAE8E1] text-[13px] font-medium rounded-xl transition-all">
                 <Pause className="size-3.5" /> Wstrzymaj
               </button>
             )}
             {campaign.status === 'paused' && (
-              <button className="flex items-center gap-2 px-4 py-2.5 border border-white/[0.1] hover:border-white/[0.2] text-[#A3A09A] hover:text-[#EAE8E1] text-[13px] font-medium rounded-xl transition-all">
+              <button onClick={togglePause} className="flex items-center gap-2 px-4 py-2.5 border border-white/[0.1] hover:border-white/[0.2] text-[#A3A09A] hover:text-[#EAE8E1] text-[13px] font-medium rounded-xl transition-all">
                 <Play className="size-3.5" /> Wznów
               </button>
             )}
@@ -331,63 +408,73 @@ function CampaignDetail({ campaign, onBack }: { campaign: Campaign; onBack: () =
           <div className="col-span-1"></div>
         </div>
 
-        <div className="divide-y divide-white/[0.04]">
-          {leads.map(lead => {
-            const ls = leadStatusLabel(lead.status);
-            return (
-              <div key={lead.id} className="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-white/[0.02] transition-all">
+        {loadingLeads ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="size-5 text-[#827E78] animate-spin" />
+          </div>
+        ) : leads.length === 0 ? (
+          <div className="px-6 py-10 text-center text-[13px] text-[#827E78]">
+            Brak leadów przypisanych do tej kampanii.
+          </div>
+        ) : (
+          <div className="divide-y divide-white/[0.04]">
+            {leads.map(lead => {
+              const ls = leadStatusLabel(lead.status);
+              return (
+                <div key={lead.id} className="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-white/[0.02] transition-all">
 
-                <div className="col-span-4 flex items-center gap-2.5">
-                  {lead.priority && (
-                    <span className="size-1.5 bg-[#a3956a] rounded-full shrink-0" title="Priorytet" />
-                  )}
-                  <p className="text-[14px] font-medium text-[#EAE8E1] truncate">{lead.company_name}</p>
-                </div>
-
-                <div className="col-span-3">
-                  <p className="text-[13px] text-[#827E78] truncate">{lead.email}</p>
-                </div>
-
-                <div className="col-span-2">
-                  <div className={`flex items-center gap-1.5 text-[12px] font-medium ${ls.cls}`}>
-                    {ls.icon}
-                    {ls.label}
-                    {lead.status === 'bounced' && (
-                      <span className="ml-1 text-[10px] text-[#5d9970]" title="Kredyty zostają zwrócone">+kredyty</span>
+                  <div className="col-span-4 flex items-center gap-2.5">
+                    {lead.priority && (
+                      <span className="size-1.5 bg-[#a3956a] rounded-full shrink-0" title="Priorytet" />
                     )}
+                    <p className="text-[14px] font-medium text-[#EAE8E1] truncate">{lead.company_name}</p>
                   </div>
-                </div>
 
-                <div className="col-span-2">
-                  <p className="text-[12px] text-[#3a3a3a]">{lead.sent_at ? formatDate(lead.sent_at) : '—'}</p>
-                </div>
+                  <div className="col-span-3">
+                    <p className="text-[13px] text-[#827E78] truncate">{lead.email}</p>
+                  </div>
 
-                <div className="col-span-1 flex items-center justify-end gap-1">
-                  {lead.status === 'sent' && (
-                    <>
+                  <div className="col-span-2">
+                    <div className={`flex items-center gap-1.5 text-[12px] font-medium ${ls.cls}`}>
+                      {ls.icon}
+                      {ls.label}
+                      {lead.status === 'bounced' && (
+                        <span className="ml-1 text-[10px] text-[#5d9970]" title="Kredyty zostają zwrócone">+kredyty</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="col-span-2">
+                    <p className="text-[12px] text-[#3a3a3a]">{lead.sent_at ? formatDate(lead.sent_at) : '—'}</p>
+                  </div>
+
+                  <div className="col-span-1 flex items-center justify-end gap-1">
+                    {(lead.status === 'sent' || lead.status === 'replied') && (
                       <button onClick={() => setPreviewLead(lead)} className="p-1.5 text-[#3a3a3a] hover:text-[#A3A09A] hover:bg-white/[0.06] rounded-lg transition-all" title="Podgląd maila">
                         <Eye className="size-3.5" />
                       </button>
+                    )}
+                    {lead.status === 'sent' && (
                       <button onClick={() => markReplied(lead.id)} className="p-1.5 text-[#3a3a3a] hover:text-[#5d9970] hover:bg-[#5d9970]/5 rounded-lg transition-all" title="Oznacz jako odpowiedział">
                         <Check className="size-3.5" />
                       </button>
-                    </>
-                  )}
-                  {lead.status === 'replied' && (
-                    <button onClick={() => setPreviewLead(lead)} className="p-1.5 text-[#3a3a3a] hover:text-[#A3A09A] hover:bg-white/[0.06] rounded-lg transition-all" title="Podgląd maila">
-                      <Eye className="size-3.5" />
-                    </button>
-                  )}
-                  {lead.status === 'queued' && (
-                    <button onClick={() => togglePriority(lead.id)} className={`p-1.5 rounded-lg transition-all ${lead.priority ? 'text-[#a3956a]' : 'text-[#2e2e2e] hover:text-[#a3956a]'} hover:bg-white/[0.04]`} title={lead.priority ? 'Usuń priorytet' : 'Ustaw jako priorytet'}>
-                      <ChevronUp className="size-3.5" />
-                    </button>
-                  )}
+                    )}
+                    {lead.status === 'queued' && (
+                      <button onClick={() => togglePriority(lead.id)} className={`p-1.5 rounded-lg transition-all ${lead.priority ? 'text-[#a3956a]' : 'text-[#2e2e2e] hover:text-[#a3956a]'} hover:bg-white/[0.04]`} title={lead.priority ? 'Usuń priorytet' : 'Ustaw jako priorytet'}>
+                        <ChevronUp className="size-3.5" />
+                      </button>
+                    )}
+                    {lead.mail_content && lead.status !== 'sent' && lead.status !== 'replied' && (
+                      <button onClick={() => setPreviewLead(lead)} className="p-1.5 text-[#3a3a3a] hover:text-[#A3A09A] hover:bg-white/[0.06] rounded-lg transition-all" title="Podgląd maila">
+                        <Eye className="size-3.5" />
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       <AnimatePresence>
@@ -402,29 +489,48 @@ function CampaignDetail({ campaign, onBack }: { campaign: Campaign; onBack: () =
 // ─── Campaigns List ───────────────────────────────────────────────────────────
 
 function CampaignsList({ onSelect }: { onSelect: (c: Campaign) => void }) {
-  const [campaigns, setCampaigns] = useState<Campaign[]>(mockCampaigns);
-  
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [loading, setLoading] = useState(true);
+
   const [deleteTarget, setDeleteTarget] = useState<Campaign | null>(null);
   const [archiveTarget, setArchiveTarget] = useState<Campaign | null>(null);
   const [skipArchiveWarning, setSkipArchiveWarning] = useState(false);
-  
+
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [isArchiveOpen, setIsArchiveOpen] = useState(false);
   const [toast, setToast] = useState<{ icon: any, text: string } | null>(null);
 
-  const [isCreatorOpen, setIsCreatorOpen] = useState(false); // <-- DODANY STAN DLA MODALA
+  const [isCreatorOpen, setIsCreatorOpen] = useState(false);
 
-  // Dynamiczne filtrowanie po nazwie kampanii
-  const filteredCampaigns = campaigns.filter(c => 
+  const fetchCampaigns = useCallback(async () => {
+    setLoading(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { setLoading(false); return; }
+      const { data } = await supabase
+        .from('campaigns')
+        .select('id, name, status, created_at, sent_count, total_count, replies_count')
+        .eq('user_id', session.user.id)
+        .order('created_at', { ascending: false });
+      if (data) setCampaigns(data.map(mapDbCampaign));
+    } catch (err) {
+      console.error('Błąd pobierania kampanii:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchCampaigns(); }, [fetchCampaigns]);
+
+  const filteredCampaigns = campaigns.filter(c =>
     c.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const activeCampaignsList = campaigns.filter(c => !c.isArchived); 
+  const activeCampaignsList = campaigns.filter(c => !c.isArchived);
   const displayedActive = filteredCampaigns.filter(c => !c.isArchived);
   const displayedArchived = filteredCampaigns.filter(c => c.isArchived);
 
-  // Globalne statystyki
   const totalSent = activeCampaignsList.reduce((sum, c) => sum + c.sent, 0);
   const totalQueued = activeCampaignsList.reduce((sum, c) => sum + c.queued, 0);
   const totalBounced = activeCampaignsList.reduce((sum, c) => sum + c.bounced, 0);
@@ -434,15 +540,18 @@ function CampaignsList({ onSelect }: { onSelect: (c: Campaign) => void }) {
     setTimeout(() => setToast(null), 2500);
   };
 
-  const togglePause = (id: string, e: React.MouseEvent) => {
+  const togglePause = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    setCampaigns(prev => prev.map(c => {
-      if (c.id === id) {
-        const newStatus = c.status === 'active' ? 'paused' : 'active';
+    const c = campaigns.find(x => x.id === id);
+    if (!c) return;
+    const newStatus = c.status === 'active' ? 'paused' : 'active';
+    await supabase.from('campaigns').update({ status: newStatus }).eq('id', id);
+    setCampaigns(prev => prev.map(x => {
+      if (x.id === id) {
         showToast(newStatus === 'active' ? Play : Pause, newStatus === 'active' ? 'Kampania wznowiona' : 'Kampania wstrzymana');
-        return { ...c, status: newStatus as CampaignStatus };
+        return { ...x, status: newStatus as CampaignStatus };
       }
-      return c;
+      return x;
     }));
   };
 
@@ -455,14 +564,16 @@ function CampaignsList({ onSelect }: { onSelect: (c: Campaign) => void }) {
     }
   };
 
-  const executeArchive = (id: string, updateSkipWarning: boolean = false) => {
+  const executeArchive = async (id: string, updateSkipWarning: boolean = false) => {
     if (updateSkipWarning) setSkipArchiveWarning(true);
-    setCampaigns(prev => prev.map(c => c.id === id ? { ...c, status: 'canceled', isArchived: true } : c));
+    await supabase.from('campaigns').update({ status: 'archived' }).eq('id', id);
+    setCampaigns(prev => prev.map(c => c.id === id ? { ...c, status: 'canceled' as CampaignStatus, isArchived: true } : c));
     setArchiveTarget(null);
     showToast(Archive, 'Przeniesiono do archiwum');
   };
 
-  const handlePermanentDelete = (c: Campaign) => {
+  const handlePermanentDelete = async (c: Campaign) => {
+    await supabase.from('campaigns').delete().eq('id', c.id);
     setCampaigns(prev => prev.filter(x => x.id !== c.id));
     setDeleteTarget(null);
     showToast(Trash2, 'Kampania została usunięta');
@@ -476,13 +587,16 @@ function CampaignsList({ onSelect }: { onSelect: (c: Campaign) => void }) {
           <h1 className="text-[28px] font-serif text-[#EAE8E1] tracking-tight">Kampanie</h1>
           <p className="text-[15px] text-[#A3A09A] mt-1.5">Zarządzaj kampaniami i śledź postęp wysyłki</p>
         </div>
-        {/* PODPIĘTY PRZYCISK NOWEJ KAMPANII */}
         <button onClick={() => setIsCreatorOpen(true)} className="flex items-center gap-2.5 px-5 py-3 bg-[#EAE8E1] hover:bg-white text-[#1A1A1A] text-[14px] font-medium rounded-xl transition-all">
           <Plus className="size-4" /> Nowa kampania
         </button>
       </div>
 
-      {activeCampaignsList.length === 0 ? (
+      {loading ? (
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="size-6 text-[#827E78] animate-spin" />
+        </div>
+      ) : activeCampaignsList.length === 0 ? (
         <div className="text-center py-20 rounded-2xl border border-dashed border-white/[0.08]">
           <div className="size-12 bg-white/[0.04] rounded-2xl flex items-center justify-center mx-auto mb-5">
             <Mail className="size-6 text-[#A3A09A]" />
@@ -491,7 +605,6 @@ function CampaignsList({ onSelect }: { onSelect: (c: Campaign) => void }) {
           <p className="text-[14px] text-[#A3A09A] mb-7 max-w-xs mx-auto leading-relaxed">
             Stwórz pierwszą kampanię i zacznij wysyłać spersonalizowane maile.
           </p>
-          {/* PODPIĘTY PRZYCISK NOWEJ KAMPANII W PUSTYM STANIE */}
           <button onClick={() => setIsCreatorOpen(true)} className="inline-flex items-center gap-2 px-6 py-3 bg-[#EAE8E1] hover:bg-white text-[#1A1A1A] text-[14px] font-medium rounded-xl transition-all">
             <Plus className="size-4" /> Nowa kampania
           </button>
@@ -521,12 +634,12 @@ function CampaignsList({ onSelect }: { onSelect: (c: Campaign) => void }) {
                   <motion.div initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: 'auto' }} exit={{ opacity: 0, width: 0 }} className="overflow-hidden">
                     <div className="relative w-48 mr-2">
                       <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-[#827E78]" />
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder="Szukaj..." 
-                        className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg pl-8 pr-3 py-2 text-[12px] text-[#EAE8E1] placeholder:text-[#827E78] outline-none focus:border-white/[0.2]" 
+                        placeholder="Szukaj..."
+                        className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg pl-8 pr-3 py-2 text-[12px] text-[#EAE8E1] placeholder:text-[#827E78] outline-none focus:border-white/[0.2]"
                       />
                     </div>
                   </motion.div>
@@ -548,7 +661,7 @@ function CampaignsList({ onSelect }: { onSelect: (c: Campaign) => void }) {
 
             <div className="divide-y divide-white/[0.04]">
               {displayedActive.length === 0 ? (
-                 <div className="px-6 py-8 text-center text-[13px] text-[#827E78]">Brak wyników wyszukiwania.</div>
+                <div className="px-6 py-8 text-center text-[13px] text-[#827E78]">Brak wyników wyszukiwania.</div>
               ) : (
                 displayedActive.map(campaign => {
                   const st = statusLabel(campaign.status);
@@ -643,7 +756,7 @@ function CampaignsList({ onSelect }: { onSelect: (c: Campaign) => void }) {
                             <span className={`text-[11px] font-medium px-2 py-0.5 rounded-md ${st.cls}`}>{st.label}</span>
                             <span className="text-[12px] text-[#827E78] font-mono whitespace-nowrap">{campaign.sent} wysłanych</span>
                           </div>
-                          
+
                           <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
                             <button onClick={() => setDeleteTarget(campaign)} className="p-1.5 text-[#827E78] hover:text-[#b56060] hover:bg-[#b56060]/10 rounded-lg transition-all" title="Trwale usuń z bazy">
                               <Trash2 className="size-3.5" />
@@ -689,9 +802,10 @@ function CampaignsList({ onSelect }: { onSelect: (c: Campaign) => void }) {
         )}
       </AnimatePresence>
 
-      {/* --- DODANE WYWOŁANIE MODALA KREATORA KAMPANII --- */}
-      <CampaignCreator isOpen={isCreatorOpen} onClose={() => setIsCreatorOpen(false)} />
-
+      <CampaignCreator
+        isOpen={isCreatorOpen}
+        onClose={() => { setIsCreatorOpen(false); fetchCampaigns(); }}
+      />
     </div>
   );
 }
