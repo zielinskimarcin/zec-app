@@ -48,7 +48,7 @@ function statusLabel(s: CampaignStatus) {
     canceled:  { label: 'Zakończona',  cls: 'text-[#827E78] bg-transparent border border-white/[0.1]' },
     draft:     { label: 'Szkic',       cls: 'text-[#827E78] bg-white/[0.04]' },
   };
-  return map[s];
+  return map[s] || { label: 'Nieznany', cls: 'text-[#827E78] bg-white/[0.04]' };
 }
 
 function leadStatusLabel(s: LeadStatus) {
@@ -122,7 +122,7 @@ function DeleteModal({ name, onConfirm, onCancel }: { name: string; onConfirm: (
           Czy na pewno chcesz trwale usunąć kampanię <span className="text-[#EAE8E1] font-medium">"{name}"</span> z archiwum?
         </p>
         <p className="text-[14px] text-[#827E78] leading-relaxed mb-8">
-          Tej operacji nie można cofnąć.
+          Tej operacji nie można cofnąć. Wszystkie dane powiązane z kampanią przepadną.
         </p>
         <div className="flex gap-3">
           <button onClick={onCancel} className="flex-1 py-3 border border-white/[0.1] text-[#A3A09A] hover:text-[#EAE8E1] hover:border-white/[0.2] text-[14px] font-medium rounded-xl transition-all">
@@ -191,19 +191,12 @@ function MailPreview({ lead, onClose }: { lead: CampaignLead; onClose: () => voi
 
   return (
     <>
-      {/* Backdrop */}
       <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        onClick={onClose}
-        className="fixed inset-0 z-30 bg-black/40"
+        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+        onClick={onClose} className="fixed inset-0 z-30 bg-black/40"
       />
       <motion.div
-        initial={{ opacity: 0, x: 20 }}
-        animate={{ opacity: 1, x: 0 }}
-        exit={{ opacity: 0, x: 20 }}
-        transition={{ duration: 0.18 }}
+        initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} transition={{ duration: 0.18 }}
         className="fixed right-0 top-0 bottom-0 w-full max-w-lg bg-[#1a1a1a] border-l border-white/[0.08] z-40 flex flex-col shadow-2xl"
       >
         <div className="flex items-center justify-between px-8 py-6 border-b border-white/[0.06]">
@@ -499,7 +492,7 @@ function CampaignsList({ onSelect }: { onSelect: (c: Campaign) => void }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [isArchiveOpen, setIsArchiveOpen] = useState(false);
-  const [toast, setToast] = useState<{ icon: any, text: string } | null>(null);
+  const [toast, setToast] = useState<{ icon: any, text: string, type: 'success' | 'error' } | null>(null);
 
   const [isCreatorOpen, setIsCreatorOpen] = useState(false);
 
@@ -508,11 +501,13 @@ function CampaignsList({ onSelect }: { onSelect: (c: Campaign) => void }) {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { setLoading(false); return; }
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('campaigns')
         .select('id, name, status, created_at, sent_count, total_count, replies_count')
         .eq('user_id', session.user.id)
         .order('created_at', { ascending: false });
+        
+      if (error) console.error("Error fetching campaigns:", error);
       if (data) setCampaigns(data.map(mapDbCampaign));
     } catch (err) {
       console.error('Błąd pobierania kampanii:', err);
@@ -535,9 +530,9 @@ function CampaignsList({ onSelect }: { onSelect: (c: Campaign) => void }) {
   const totalQueued = activeCampaignsList.reduce((sum, c) => sum + c.queued, 0);
   const totalBounced = activeCampaignsList.reduce((sum, c) => sum + c.bounced, 0);
 
-  const showToast = (Icon: any, text: string) => {
-    setToast({ icon: Icon, text });
-    setTimeout(() => setToast(null), 2500);
+  const showToast = (Icon: any, text: string, type: 'success' | 'error' = 'success') => {
+    setToast({ icon: Icon, text, type });
+    setTimeout(() => setToast(null), 3000);
   };
 
   const togglePause = async (id: string, e: React.MouseEvent) => {
@@ -545,7 +540,14 @@ function CampaignsList({ onSelect }: { onSelect: (c: Campaign) => void }) {
     const c = campaigns.find(x => x.id === id);
     if (!c) return;
     const newStatus = c.status === 'active' ? 'paused' : 'active';
-    await supabase.from('campaigns').update({ status: newStatus }).eq('id', id);
+    
+    const { error } = await supabase.from('campaigns').update({ status: newStatus }).eq('id', id);
+    
+    if (error) {
+      showToast(AlertCircle, 'Nie udało się zmienić statusu: ' + error.message, 'error');
+      return;
+    }
+
     setCampaigns(prev => prev.map(x => {
       if (x.id === id) {
         showToast(newStatus === 'active' ? Play : Pause, newStatus === 'active' ? 'Kampania wznowiona' : 'Kampania wstrzymana');
@@ -566,17 +568,32 @@ function CampaignsList({ onSelect }: { onSelect: (c: Campaign) => void }) {
 
   const executeArchive = async (id: string, updateSkipWarning: boolean = false) => {
     if (updateSkipWarning) setSkipArchiveWarning(true);
-    await supabase.from('campaigns').update({ status: 'archived' }).eq('id', id);
+    
+    const { error } = await supabase.from('campaigns').update({ status: 'archived' }).eq('id', id);
+
+    if (error) {
+      showToast(AlertCircle, 'Błąd zapisu do bazy. Sprawdź statusy w SQL.', 'error');
+      setArchiveTarget(null);
+      return;
+    }
+
     setCampaigns(prev => prev.map(c => c.id === id ? { ...c, status: 'canceled' as CampaignStatus, isArchived: true } : c));
     setArchiveTarget(null);
     showToast(Archive, 'Przeniesiono do archiwum');
   };
 
   const handlePermanentDelete = async (c: Campaign) => {
-    await supabase.from('campaigns').delete().eq('id', c.id);
+    const { error } = await supabase.from('campaigns').delete().eq('id', c.id);
+
+    if (error) {
+      showToast(AlertCircle, 'Błąd usuwania kampanii.', 'error');
+      setDeleteTarget(null);
+      return;
+    }
+
     setCampaigns(prev => prev.filter(x => x.id !== c.id));
     setDeleteTarget(null);
-    showToast(Trash2, 'Kampania została usunięta');
+    showToast(Trash2, 'Kampania została trwale usunięta');
   };
 
   return (
@@ -674,7 +691,7 @@ function CampaignsList({ onSelect }: { onSelect: (c: Campaign) => void }) {
                       onClick={() => onSelect(campaign)}
                     >
                       <div className="col-span-4">
-                        <p className="text-[15px] font-medium text-[#EAE8E1] group-hover:text-white transition-colors">
+                        <p className="text-[15px] font-medium text-[#EAE8E1] group-hover:text-white transition-colors truncate pr-2">
                           {campaign.name}
                         </p>
                         <p className="text-[12px] text-[#3a3a3a] mt-0.5">{formatDate(campaign.created_at)}</p>
@@ -795,9 +812,12 @@ function CampaignsList({ onSelect }: { onSelect: (c: Campaign) => void }) {
 
       <AnimatePresence>
         {toast && (
-          <motion.div initial={{ opacity: 0, y: 20, x: '-50%' }} animate={{ opacity: 1, y: 0, x: '-50%' }} exit={{ opacity: 0, y: 20, x: '-50%' }} className="fixed bottom-8 left-1/2 z-50 bg-[#1A1A1A] border border-white/[0.1] shadow-2xl rounded-full px-5 py-2.5 flex items-center gap-2">
-            <toast.icon className="size-4 text-[#EAE8E1]" />
-            <span className="text-[13px] font-medium text-[#EAE8E1]">{toast.text}</span>
+          <motion.div initial={{ opacity: 0, y: 20, x: '-50%' }} animate={{ opacity: 1, y: 0, x: '-50%' }} exit={{ opacity: 0, y: 20, x: '-50%' }} 
+            className={`fixed bottom-8 left-1/2 z-50 border shadow-2xl rounded-full px-5 py-2.5 flex items-center gap-2 ${
+              toast.type === 'error' ? 'bg-[#b56060]/10 border-[#b56060]/20 text-[#b56060]' : 'bg-[#1A1A1A] border-white/[0.1] text-[#EAE8E1]'
+            }`}>
+            <toast.icon className="size-4" />
+            <span className="text-[13px] font-medium">{toast.text}</span>
           </motion.div>
         )}
       </AnimatePresence>
