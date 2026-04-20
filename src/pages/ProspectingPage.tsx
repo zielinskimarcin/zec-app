@@ -67,7 +67,7 @@ function getPackage(platforms: Platform[]): string {
   return 'basic';
 }
 
-// --- KOMPONENT AUTOCOMPLETE (Wymuszający wybór z listy) ---
+// --- KOMPONENT AUTOCOMPLETE ---
 
 function Autocomplete({
   value, onChange, options, placeholder, icon: Icon
@@ -78,7 +78,6 @@ function Autocomplete({
   const [query, setQuery] = useState('');
   const wrapperRef = useRef<HTMLDivElement>(null);
 
-  // Synchronizacja query z podanym `value`, żeby w input zawsze wyświetlał się "label"
   useEffect(() => {
     const selectedOpt = options.find(o => o.value === value);
     setQuery(selectedOpt ? selectedOpt.label : '');
@@ -93,8 +92,6 @@ function Autocomplete({
     function handleClickOutside(e: MouseEvent) {
       if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
         setIsOpen(false);
-        // Zabezpieczenie: jeśli klikniesz poza pole, a nie wybrałeś nic z listy,
-        // to wracamy do poprzednio poprawnej opcji (lub czyścimy, jeśli nic nie było wybrane).
         const selectedOpt = options.find(o => o.value === value);
         setQuery(selectedOpt ? selectedOpt.label : '');
       }
@@ -191,20 +188,47 @@ export function ProspectingPage() {
   const [igFilters, setIgFilters] = useState({ minFollowers: 1000, maxFollowers: 500000, minEngagementRate: 1, minPosts: 12, businessAccountOnly: true, requireEmail: false, requireWebsite: false });
   const [liFilters, setLiFilters] = useState({ minEmployees: 1, maxEmployees: 250, companySize: [] as string[], requireWebsite: true, hasActiveJobs: false, requireEmail: false, foundedAfter: '' });
 
+  // PANCERNE POBIERANIE SESJI Z ON_AUTH_STATE_CHANGE
   useEffect(() => {
-    async function fetchUserData() {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        setUserEmail(session.user.email ?? null);
-        setUserId(session.user.id);
-        const { data } = await supabase.from('profiles').select('credits, full_name, offer, package').eq('id', session.user.id).single();
-        if (data) {
-          setAvailableTokens(data.credits ?? 0);
-          setUserProfile({ full_name: data.full_name ?? '', offer: data.offer ?? '', package: data.package ?? 'basic' });
-        }
+    let isMounted = true;
+
+    async function loadProfile(sessionUser: any) {
+      if (!sessionUser) return;
+      if (isMounted) {
+        setUserEmail(sessionUser.email ?? null);
+        setUserId(sessionUser.id);
+      }
+      
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('credits, full_name, offer, package')
+        .eq('id', sessionUser.id)
+        .single();
+        
+      if (data && isMounted) {
+        setAvailableTokens(data.credits ?? 0);
+        setUserProfile({ 
+          full_name: data.full_name ?? '', 
+          offer: data.offer ?? '', 
+          package: data.package ?? 'basic' 
+        });
       }
     }
-    fetchUserData();
+
+    // Od razu spróbuj pobrać
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) loadProfile(session.user);
+    });
+
+    // Nasłuchuj na moment, kiedy sesja wstanie z Local Storage po odświeżeniu
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) loadProfile(session.user);
+    });
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const togglePlatform = (p: Platform) => {
@@ -268,7 +292,7 @@ export function ProspectingPage() {
       if (data.leads && data.leads.length > 0) {
         setLeads(data.leads.map((l: any, i: number) => ({ ...l, id: i + 1, status: 'new' })));
         
-        // Aktualizacja kredytów na żywo
+        // Zaktualizuj stan tokenów zaraz po wyszukaniu
         if (userId) {
            const { data: profile } = await supabase.from('profiles').select('credits').eq('id', userId).single();
            if (profile) setAvailableTokens(profile.credits);
@@ -327,20 +351,22 @@ export function ProspectingPage() {
   const toggleLead = (id: number) => setSelectedLeads(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
   const toggleAll = () => selectedLeads.length === leads.length ? setSelectedLeads([]) : setSelectedLeads(leads.map(l => l.id));
 
-  // --- Zaktualizowana funkcja do dodawania kredytów w bazie danych ---
   const handleAddDevCredits = async () => {
     setIsAddingCredits(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
       
-      // Dodajemy 500 do aktualnego stanu
-      const newCreditsAmount = availableTokens + 500;
+      // Zawsze pobieraj aktualny stan z bazy przed dodaniem (chroni przed Race Condition)
+      const { data: profile } = await supabase.from('profiles').select('credits').eq('id', session.user.id).single();
+      const currentCredits = profile?.credits || 0;
+      
+      const newCreditsAmount = currentCredits + 500;
       
       const { error } = await supabase.from('profiles').update({ credits: newCreditsAmount }).eq('id', session.user.id);
       if (error) throw error;
       
-      // Zaktualizuj stan lokalny by frontend od razu to zobaczył
+      // Natychmiast uaktualnij UI
       setAvailableTokens(newCreditsAmount);
     } catch (err) {
       console.error(err);
