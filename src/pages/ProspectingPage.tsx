@@ -220,7 +220,18 @@ export function ProspectingPage() {
 
   const handleSearch = async () => {
     setError(null);
-    if (!common.industry || !common.city) { setError('Wybierz poprawną branżę i miasto z listy.'); return; }
+
+    if (!common.industry || !common.city || !common.country) { 
+      setError('Wybierz poprawną branżę, kraj i miasto z rozwijanej listy.'); 
+      return; 
+    }
+
+    const requiredTokens = common.maxLeads * tokenCostPerLead;
+    if (availableTokens < requiredTokens) {
+      setError(`Masz za mało kredytów. Potrzebujesz ${requiredTokens} tokenów, a masz ${availableTokens}. Kliknij przycisk "+" (DEV) w prawym górnym rogu, aby doładować konto.`);
+      return;
+    }
+
     setIsSearching(true);
     try {
       const pkg = getPackage(selectedPlatforms);
@@ -256,6 +267,13 @@ export function ProspectingPage() {
       const data = await response.json();
       if (data.leads && data.leads.length > 0) {
         setLeads(data.leads.map((l: any, i: number) => ({ ...l, id: i + 1, status: 'new' })));
+        
+        // Aktualizacja kredytów na żywo
+        if (userId) {
+           const { data: profile } = await supabase.from('profiles').select('credits').eq('id', userId).single();
+           if (profile) setAvailableTokens(profile.credits);
+        }
+
       } else {
         setError('Brak wyników dla podanych kryteriów.');
       }
@@ -309,13 +327,20 @@ export function ProspectingPage() {
   const toggleLead = (id: number) => setSelectedLeads(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
   const toggleAll = () => selectedLeads.length === leads.length ? setSelectedLeads([]) : setSelectedLeads(leads.map(l => l.id));
 
+  // --- Zaktualizowana funkcja do dodawania kredytów w bazie danych ---
   const handleAddDevCredits = async () => {
     setIsAddingCredits(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
+      
+      // Dodajemy 500 do aktualnego stanu
       const newCreditsAmount = availableTokens + 500;
-      await supabase.from('profiles').update({ credits: newCreditsAmount }).eq('id', session.user.id);
+      
+      const { error } = await supabase.from('profiles').update({ credits: newCreditsAmount }).eq('id', session.user.id);
+      if (error) throw error;
+      
+      // Zaktualizuj stan lokalny by frontend od razu to zobaczył
       setAvailableTokens(newCreditsAmount);
     } catch (err) {
       console.error(err);
@@ -332,7 +357,7 @@ export function ProspectingPage() {
         className="flex items-start justify-between"
       >
         <div>
-          <h1 className="text-[28px] font-serif text-[#EAE8E1] tracking-tight mb-1">Wyszukiwarka</h1>
+          <h1 className="text-[28px] font-serif text-[#EAE8E1] tracking-tight mb-1">Prospecting</h1>
           <p className="text-[15px] text-[#A3A09A]">Przeszukaj sieć, zidentyfikuj leady i wzbogać swoją bazę.</p>
         </div>
         <div className="flex items-center gap-4 bg-white/[0.04] border border-white/[0.08] px-5 py-2.5 rounded-2xl">
@@ -401,7 +426,7 @@ export function ProspectingPage() {
             />
           </div>
           <div>
-            <p className="text-[11px] font-medium text-[#827E78] uppercase tracking-wider mb-2.5">Kraj</p>
+            <p className="text-[11px] font-medium text-[#827E78] uppercase tracking-wider mb-2.5">Kraj *</p>
             <Autocomplete 
               icon={Globe}
               placeholder="Wybierz kraj..."
@@ -477,7 +502,7 @@ export function ProspectingPage() {
                           <p className="text-[11px] font-bold text-[#827E78] uppercase tracking-widest mb-2 flex items-center gap-2">
                             <Instagram className="size-3" /> Social Proof (IG)
                           </p>
-                          <SliderRow label="Min. Followers" value={igFilters.minFollowers} min={0} max={100000} step={1000} format={v => v >= 1000 ? `${(v/1000).toFixed(0)}k` : `${v}`} onChange={v => setIgFilters({ ...igFilters, minFollowers: v })} />
+                          <SliderRow label="Min. Followers" value={igFilters.minFollowers} min={0} max={100000} step={1000} format={v => v >= 1000 ? `${(v/1000).toFixed(0)}k` : `${v}`} onChange={v => setIgFilters({ ...igFilters, minFollowers: v })} icon={<Users className="size-3.5 text-[#827E78]" />} />
                           <CheckRow label="Tylko konta biznesowe" checked={igFilters.businessAccountOnly} onChange={v => setIgFilters({ ...igFilters, businessAccountOnly: v })} />
                         </div>
                       )}
@@ -486,7 +511,7 @@ export function ProspectingPage() {
                           <p className="text-[11px] font-bold text-[#827E78] uppercase tracking-widest mb-2 flex items-center gap-2">
                             <Linkedin className="size-3" /> Skala (LinkedIn)
                           </p>
-                          <SliderRow label="Min. pracowników" value={liFilters.minEmployees} min={1} max={500} step={5} format={v => `${v}+`} onChange={v => setLiFilters({ ...liFilters, minEmployees: v })} />
+                          <SliderRow label="Min. pracowników" value={liFilters.minEmployees} min={1} max={500} step={5} format={v => `${v}+`} onChange={v => setLiFilters({ ...liFilters, minEmployees: v })} icon={<Users className="size-3.5 text-[#827E78]" />} />
                           <div className="flex flex-wrap gap-1.5 mt-2">
                             {COMPANY_SIZES.slice(0, 4).map(size => (
                               <button key={size} onClick={() => toggleCompanySize(size)}
@@ -517,8 +542,8 @@ export function ProspectingPage() {
             <input type="range" min={1} max={50} step={1} value={common.maxLeads} onChange={e => setCommon({ ...common, maxLeads: parseInt(e.target.value) })}
               className="w-full h-px bg-white/[0.08] rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:size-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#EAE8E1] [&::-webkit-slider-thumb]:border-4 [&::-webkit-slider-thumb]:border-[#1a1a1a]" />
           </div>
-          <button onClick={handleSearch} disabled={isSearching || !availableTokens}
-            className="shrink-0 w-full md:w-auto flex items-center justify-center gap-2.5 px-10 py-4 bg-[#EAE8E1] hover:bg-white text-[#0a0a0a] text-[14px] font-bold rounded-2xl transition-all disabled:opacity-30 shadow-lg shadow-black/20"
+          <button onClick={handleSearch} disabled={isSearching}
+            className="shrink-0 w-full md:w-auto flex items-center justify-center gap-2.5 px-10 py-4 bg-[#EAE8E1] hover:bg-white text-[#0a0a0a] text-[14px] font-bold rounded-2xl transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-black/20"
           >
             {isSearching ? <><Loader2 className="size-5 animate-spin" /> Skanowanie sieci...</> : <><Search className="size-5" /> Rozpocznij skanowanie</>}
           </button>
