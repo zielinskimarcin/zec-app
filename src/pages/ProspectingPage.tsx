@@ -48,9 +48,9 @@ interface PlatformConfig {
 }
 
 const PLATFORMS: PlatformConfig[] = [
-  { id: 'google',    label: 'Google',    tokenCost: 1, icon: <Globe className="size-3.5" />,     activeClass: 'bg-white/[0.06] border-white/[0.12] text-[#c8c8c8]' },
-  { id: 'instagram', label: 'Instagram', tokenCost: 2, icon: <Instagram className="size-3.5" />, activeClass: 'bg-white/[0.06] border-white/[0.12] text-[#c8c8c8]' },
-  { id: 'linkedin',  label: 'LinkedIn',  tokenCost: 3, icon: <Linkedin className="size-3.5" />,  activeClass: 'bg-white/[0.06] border-white/[0.12] text-[#c8c8c8]' },
+  { id: 'google',    label: 'Google',    tokenCost: 1, icon: <Globe className="size-3.5" />,     activeClass: 'bg-white/[0.06] border-white/[0.12] text-[#EAE8E1]' },
+  { id: 'instagram', label: 'Instagram', tokenCost: 2, icon: <Instagram className="size-3.5" />, activeClass: 'bg-white/[0.06] border-white/[0.12] text-[#EAE8E1]' },
+  { id: 'linkedin',  label: 'LinkedIn',  tokenCost: 3, icon: <Linkedin className="size-3.5" />,  activeClass: 'bg-white/[0.06] border-white/[0.12] text-[#EAE8E1]' },
 ];
 
 const COMPANY_SIZES = ['1-10', '11-50', '51-200', '201-500', '501-1000', '1001+'];
@@ -71,12 +71,12 @@ function SliderRow({ label, value, min, max, step, format, onChange, icon }: {
   return (
     <div>
       <div className="flex items-center justify-between mb-1.5">
-        <span className="flex items-center gap-1.5 text-[11px] text-[#4a4a4a] font-medium uppercase tracking-wider">{icon}{label}</span>
-        <span className="text-[12px] font-mono font-semibold text-[#888]">{format(value)}</span>
+        <span className="flex items-center gap-1.5 text-[11px] text-[#A3A09A] font-medium uppercase tracking-wider">{icon}{label}</span>
+        <span className="text-[12px] font-mono font-semibold text-[#827E78]">{format(value)}</span>
       </div>
       <input type="range" min={min} max={max} step={step} value={value}
         onChange={e => onChange(Number(e.target.value))}
-        className="w-full h-px bg-white/[0.08] rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:size-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#c8c8c8]" />
+        className="w-full h-px bg-white/[0.08] rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:size-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#EAE8E1]" />
     </div>
   );
 }
@@ -86,10 +86,10 @@ function CheckRow({ label, checked, onChange }: { label: string; checked: boolea
     <label className="flex items-center gap-2.5 cursor-pointer group">
       <div className="relative flex items-center justify-center size-4 shrink-0">
         <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)} className="peer sr-only" />
-        <div className="absolute inset-0 rounded border border-white/[0.12] bg-white/[0.03] peer-checked:bg-[#c8c8c8] peer-checked:border-[#c8c8c8] transition-all" />
+        <div className="absolute inset-0 rounded border border-white/[0.12] bg-white/[0.03] peer-checked:bg-[#EAE8E1] peer-checked:border-[#EAE8E1] transition-all" />
         <Check className="size-2.5 text-black opacity-0 peer-checked:opacity-100 relative z-10" strokeWidth={3} />
       </div>
-      <span className="text-[12px] text-[#555] group-hover:text-[#888] transition-colors">{label}</span>
+      <span className="text-[12px] text-[#A3A09A] group-hover:text-[#EAE8E1] transition-colors">{label}</span>
     </label>
   );
 }
@@ -150,16 +150,16 @@ export function ProspectingPage() {
     if (!common.industry || !common.city) { setError('Branża i miasto są wymagane.'); return; }
     setIsSearching(true);
     try {
-      const webhookUrl = 'https://n8n.srv1579942.hstgr.cloud/webhook/c09267cb-9b52-45e1-84a4-cdb53bbeaa77?package=${pkg}';
+      const webhookUrl = `https://n8n.srv1579942.hstgr.cloud/webhook/c09267cb-9b52-45e1-84a4-cdb53bbeaa77?package=${getPackage(selectedPlatforms)}`;
       const pkg = getPackage(selectedPlatforms);
       const response = await fetch(webhookUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           user_id: userId ?? 'test_user_001',
-          package: pkg,           // kompatybilność wsteczna
+          package: pkg,
           meta: {
-            package: pkg,         // ← FIX: Code JS3 czyta stąd
+            package: pkg,
           },
           client: {
             name: userProfile?.full_name || 'Jan Kowalski',
@@ -276,135 +276,135 @@ export function ProspectingPage() {
 
       {/* Top bar */}
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
-        className="flex items-center justify-between bg-white/[0.02] border border-white/[0.06] rounded-2xl px-5 py-3.5"
+        className="flex items-center justify-between bg-white/[0.04] border border-white/[0.08] rounded-2xl px-5 py-3.5"
       >
         <div>
-          <h1 className="text-[18px] font-semibold text-[#c8c8c8] tracking-tight">Wyszukiwarka leadów</h1>
-          <p className="text-[12px] text-[#444] mt-0.5">Znajdź firmy, poznaj je i zapisz do bazy leadów</p>
+          <h1 className="text-[18px] font-semibold text-[#EAE8E1] tracking-tight">Wyszukiwarka leadów</h1>
+          <p className="text-[12px] text-[#A3A09A] mt-0.5">Znajdź firmy, poznaj je i zapisz do bazy leadów</p>
         </div>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
-            <Coins className="size-4 text-[#444]" />
+            <Coins className="size-4 text-[#A3A09A]" />
             <div>
-              <p className="text-[10px] text-[#333] uppercase tracking-wider">Kredyty</p>
-              <p className="text-[15px] font-bold text-[#c8c8c8] font-mono leading-none">{availableTokens.toLocaleString('pl-PL')}</p>
+              <p className="text-[10px] text-[#827E78] uppercase tracking-wider">Kredyty</p>
+              <p className="text-[15px] font-bold text-[#EAE8E1] font-mono leading-none">{availableTokens.toLocaleString('pl-PL')}</p>
             </div>
             <button
               onClick={handleAddDevCredits}
               disabled={isAddingCredits}
               title="DEV: Dodaj 9999 Kredytów"
-              className="ml-2 text-green-500/70 hover:text-green-500 bg-green-500/10 hover:bg-green-500/20 p-1.5 rounded-lg transition-colors flex items-center justify-center border border-green-500/20 disabled:opacity-50"
+              className="ml-2 text-[#5d9970]/70 hover:text-[#5d9970] bg-[#5d9970]/10 hover:bg-[#5d9970]/20 p-1.5 rounded-lg transition-colors flex items-center justify-center border border-[#5d9970]/20 disabled:opacity-50"
             >
               {isAddingCredits ? <Loader2 className="size-3 animate-spin" /> : <PlusCircle className="size-3" />}
             </button>
           </div>
-          <button className="text-[12px] text-[#444] hover:text-[#888] border border-white/[0.07] hover:border-white/[0.12] px-3 py-1.5 rounded-xl transition-all">Doładuj</button>
+          <button className="text-[12px] text-[#A3A09A] hover:text-[#EAE8E1] border border-white/[0.08] hover:border-white/[0.15] px-3 py-1.5 rounded-xl transition-all">Doładuj</button>
         </div>
       </motion.div>
 
       {error && (
-        <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center gap-3 text-red-400">
+        <div className="p-4 rounded-xl bg-[#b56060]/10 border border-[#b56060]/20 flex items-center gap-3 text-[#b56060]">
           <AlertCircle className="size-4 shrink-0" /><span className="text-[13px]">{error}</span>
         </div>
       )}
 
       {/* Platformy */}
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
-        className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-5"
+        className="rounded-2xl border border-white/[0.08] bg-white/[0.04] p-5"
       >
-        <p className="text-[11px] font-medium text-[#3a3a3a] uppercase tracking-wider mb-3">Źródło danych</p>
+        <p className="text-[11px] font-medium text-[#A3A09A] uppercase tracking-wider mb-3">Źródło danych</p>
         <div className="flex gap-2 flex-wrap">
           {PLATFORMS.map(p => {
             const active = selectedPlatforms.includes(p.id);
             return (
               <button key={p.id} onClick={() => togglePlatform(p.id)}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-[13px] font-medium transition-all ${active ? p.activeClass : 'bg-transparent border-white/[0.05] text-[#444] hover:border-white/[0.1] hover:text-[#777]'} ${p.id === 'google' ? 'cursor-default' : 'cursor-pointer'}`}
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-[13px] font-medium transition-all ${active ? p.activeClass : 'bg-transparent border-white/[0.05] text-[#827E78] hover:border-white/[0.1] hover:text-[#A3A09A]'} ${p.id === 'google' ? 'cursor-default' : 'cursor-pointer'}`}
               >
-                <span className={active ? 'text-[#888]' : 'text-[#333]'}>{p.icon}</span>
+                <span className={active ? 'text-[#EAE8E1]' : 'text-[#827E78]'}>{p.icon}</span>
                 {p.label}
-                <span className={`text-[10px] px-1.5 py-0.5 rounded-lg font-mono ${active ? 'bg-white/[0.07] text-[#777]' : 'bg-white/[0.03] text-[#333]'}`}>{p.tokenCost} tok/lead</span>
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-lg font-mono ${active ? 'bg-white/[0.1] text-[#EAE8E1]' : 'bg-white/[0.05] text-[#827E78]'}`}>{p.tokenCost} tok/lead</span>
               </button>
             );
           })}
         </div>
         {selectedPlatforms.length > 1 && (
-          <p className="text-[12px] text-[#444] mt-2.5">
-            Koszt łączony: <span className="text-[#888] font-mono font-semibold">{tokenCostPerLead} tok/lead</span>
-            <span className="ml-2 text-[#333]">· pakiet: <span className="font-mono text-[#666]">{getPackage(selectedPlatforms)}</span></span>
+          <p className="text-[12px] text-[#A3A09A] mt-2.5">
+            Koszt łączony: <span className="text-[#EAE8E1] font-mono font-semibold">{tokenCostPerLead} tok/lead</span>
+            <span className="ml-2 text-[#827E78]">· pakiet: <span className="font-mono text-[#A3A09A]">{getPackage(selectedPlatforms)}</span></span>
           </p>
         )}
       </motion.div>
 
       {/* Filtry */}
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
-        className="rounded-2xl border border-white/[0.06] bg-white/[0.02] overflow-hidden"
+        className="rounded-2xl border border-white/[0.08] bg-white/[0.04] overflow-hidden"
       >
         <div className="p-5 grid grid-cols-1 md:grid-cols-4 gap-4">
           <div>
-            <p className="text-[11px] font-medium text-[#4a4a4a] uppercase tracking-wider mb-2">Branża *</p>
+            <p className="text-[11px] font-medium text-[#A3A09A] uppercase tracking-wider mb-2">Branża *</p>
             <div className="relative">
-              <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-[#3a3a3a] pointer-events-none" />
+              <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-[#827E78] pointer-events-none" />
               <select value={common.industry} onChange={e => setCommon({ ...common, industry: e.target.value })}
-                className="w-full pl-9 pr-4 py-2.5 bg-white/[0.03] border border-white/[0.07] rounded-xl text-[13px] text-[#c8c8c8] focus:outline-none focus:border-white/[0.14] transition-all appearance-none cursor-pointer"
+                className="w-full pl-9 pr-4 py-2.5 bg-white/[0.04] border border-white/[0.08] rounded-xl text-[13px] text-[#EAE8E1] focus:outline-none focus:border-white/[0.2] transition-all appearance-none cursor-pointer"
               >
-                <option value="" className="bg-[#161616] text-[#555]">Wybierz branżę...</option>
-                <option value="architektura" className="bg-[#161616] text-[#d4d4d4]">Architektura i Projektowanie</option>
-                <option value="deweloper" className="bg-[#161616] text-[#d4d4d4]">Nieruchomości / Deweloper</option>
-                <option value="marketing" className="bg-[#161616] text-[#d4d4d4]">Agencje Marketingowe</option>
-                <option value="it" className="bg-[#161616] text-[#d4d4d4]">Software House / IT</option>
-                <option value="meble" className="bg-[#161616] text-[#d4d4d4]">Meble i Wyposażenie</option>
-                <option value="produkcja" className="bg-[#161616] text-[#d4d4d4]">Produkcja / Manufacturing</option>
-                <option value="finanse" className="bg-[#161616] text-[#d4d4d4]">Finanse / Doradztwo</option>
-                <option value="handel" className="bg-[#161616] text-[#d4d4d4]">Handel / E-commerce</option>
-                <option value="restauracje" className="bg-[#161616] text-[#d4d4d4]">Restauracje / HoReCa</option>
+                <option value="" className="bg-[#1a1a1a] text-[#A3A09A]">Wybierz branżę...</option>
+                <option value="architektura" className="bg-[#1a1a1a] text-[#EAE8E1]">Architektura i Projektowanie</option>
+                <option value="deweloper" className="bg-[#1a1a1a] text-[#EAE8E1]">Nieruchomości / Deweloper</option>
+                <option value="marketing" className="bg-[#1a1a1a] text-[#EAE8E1]">Agencje Marketingowe</option>
+                <option value="it" className="bg-[#1a1a1a] text-[#EAE8E1]">Software House / IT</option>
+                <option value="meble" className="bg-[#1a1a1a] text-[#EAE8E1]">Meble i Wyposażenie</option>
+                <option value="produkcja" className="bg-[#1a1a1a] text-[#EAE8E1]">Produkcja / Manufacturing</option>
+                <option value="finanse" className="bg-[#1a1a1a] text-[#EAE8E1]">Finanse / Doradztwo</option>
+                <option value="handel" className="bg-[#1a1a1a] text-[#EAE8E1]">Handel / E-commerce</option>
+                <option value="restauracje" className="bg-[#1a1a1a] text-[#EAE8E1]">Restauracje / HoReCa</option>
               </select>
             </div>
           </div>
           <div>
-            <p className="text-[11px] font-medium text-[#4a4a4a] uppercase tracking-wider mb-2">Kraj</p>
+            <p className="text-[11px] font-medium text-[#A3A09A] uppercase tracking-wider mb-2">Kraj</p>
             <div className="relative">
-              <Globe className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-[#3a3a3a] pointer-events-none" />
+              <Globe className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-[#827E78] pointer-events-none" />
               <select value={common.country} onChange={e => setCommon({ ...common, country: e.target.value })}
-                className="w-full pl-9 pr-4 py-2.5 bg-white/[0.03] border border-white/[0.07] rounded-xl text-[13px] text-[#c8c8c8] focus:outline-none focus:border-white/[0.14] transition-all appearance-none cursor-pointer"
+                className="w-full pl-9 pr-4 py-2.5 bg-white/[0.04] border border-white/[0.08] rounded-xl text-[13px] text-[#EAE8E1] focus:outline-none focus:border-white/[0.2] transition-all appearance-none cursor-pointer"
               >
-                <option value="Polska" className="bg-[#161616] text-[#d4d4d4]">Polska</option>
-                <option value="Niemcy" className="bg-[#161616] text-[#d4d4d4]">Niemcy</option>
-                <option value="Francja" className="bg-[#161616] text-[#d4d4d4]">Francja</option>
-                <option value="UK" className="bg-[#161616] text-[#d4d4d4]">Wielka Brytania</option>
-                <option value="Global" className="bg-[#161616] text-[#d4d4d4]">Cały świat</option>
+                <option value="Polska" className="bg-[#1a1a1a] text-[#EAE8E1]">Polska</option>
+                <option value="Niemcy" className="bg-[#1a1a1a] text-[#EAE8E1]">Niemcy</option>
+                <option value="Francja" className="bg-[#1a1a1a] text-[#EAE8E1]">Francja</option>
+                <option value="UK" className="bg-[#1a1a1a] text-[#EAE8E1]">Wielka Brytania</option>
+                <option value="Global" className="bg-[#1a1a1a] text-[#EAE8E1]">Cały świat</option>
               </select>
             </div>
           </div>
           <div>
-            <p className="text-[11px] font-medium text-[#4a4a4a] uppercase tracking-wider mb-2">Miasto *</p>
+            <p className="text-[11px] font-medium text-[#A3A09A] uppercase tracking-wider mb-2">Miasto *</p>
             <div className="relative">
-              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-[#3a3a3a] pointer-events-none" />
+              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-[#827E78] pointer-events-none" />
               <input type="text" value={common.city} onChange={e => setCommon({ ...common, city: e.target.value })}
                 placeholder="np. Warszawa"
-                className="w-full pl-9 pr-4 py-2.5 bg-white/[0.03] border border-white/[0.07] rounded-xl text-[13px] text-[#c8c8c8] placeholder:text-[#3a3a3a] focus:outline-none focus:border-white/[0.14] transition-all"
+                className="w-full pl-9 pr-4 py-2.5 bg-white/[0.04] border border-white/[0.08] rounded-xl text-[13px] text-[#EAE8E1] placeholder:text-[#827E78] focus:outline-none focus:border-white/[0.2] transition-all"
               />
             </div>
           </div>
           <div>
-            <p className="text-[11px] font-medium text-[#4a4a4a] uppercase tracking-wider mb-2">Słowa kluczowe</p>
+            <p className="text-[11px] font-medium text-[#A3A09A] uppercase tracking-wider mb-2">Słowa kluczowe</p>
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-[#3a3a3a] pointer-events-none" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-[#827E78] pointer-events-none" />
               <input type="text" value={common.keywords} onChange={e => setCommon({ ...common, keywords: e.target.value })}
                 placeholder="np. eksport, B2B, premium"
-                className="w-full pl-9 pr-4 py-2.5 bg-white/[0.03] border border-white/[0.07] rounded-xl text-[13px] text-[#c8c8c8] placeholder:text-[#3a3a3a] focus:outline-none focus:border-white/[0.14] transition-all"
+                className="w-full pl-9 pr-4 py-2.5 bg-white/[0.04] border border-white/[0.08] rounded-xl text-[13px] text-[#EAE8E1] placeholder:text-[#827E78] focus:outline-none focus:border-white/[0.2] transition-all"
               />
             </div>
           </div>
         </div>
 
-        <div className="border-t border-white/[0.05]">
+        <div className="border-t border-white/[0.06]">
           <button onClick={() => setShowAdvanced(!showAdvanced)}
-            className="w-full flex items-center justify-between px-5 py-3.5 text-[13px] text-[#444] hover:text-[#888] transition-colors"
+            className="w-full flex items-center justify-between px-5 py-3.5 text-[13px] text-[#A3A09A] hover:text-[#EAE8E1] transition-colors"
           >
             <span className="flex items-center gap-2 font-medium">
               <SlidersHorizontal className="size-3.5" />
               Filtry zaawansowane
-              <span className="text-[10px] px-2 py-0.5 bg-white/[0.03] border border-white/[0.05] rounded-full font-mono text-[#333]">{selectedPlatforms.join(' + ')}</span>
+              <span className="text-[10px] px-2 py-0.5 bg-white/[0.04] border border-white/[0.08] rounded-full font-mono text-[#EAE8E1]">{selectedPlatforms.join(' + ')}</span>
             </span>
             {showAdvanced ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
           </button>
@@ -415,13 +415,13 @@ export function ProspectingPage() {
                 <div className="p-5 space-y-4">
                   <div className="p-4 rounded-xl bg-white/[0.02] border border-white/[0.06]">
                     <div className="flex items-center gap-2 mb-4">
-                      <Globe className="size-3.5 text-[#555]" />
-                      <p className="text-[11px] font-semibold text-[#555] uppercase tracking-wider">Filtry Google Maps</p>
+                      <Globe className="size-3.5 text-[#A3A09A]" />
+                      <p className="text-[11px] font-semibold text-[#A3A09A] uppercase tracking-wider">Filtry Google Maps</p>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                       <div className="space-y-4">
-                        <SliderRow label="Min. ocena Google" value={gFilters.minRating} min={1} max={5} step={0.1} format={v => `${v.toFixed(1)} ★`} onChange={v => setGFilters({ ...gFilters, minRating: v })} icon={<Star className="size-3 text-[#777]" />} />
-                        <SliderRow label="Min. liczba opinii" value={gFilters.minReviews} min={0} max={200} step={5} format={v => `${v}+`} onChange={v => setGFilters({ ...gFilters, minReviews: v })} icon={<BarChart2 className="size-3 text-[#777]" />} />
+                        <SliderRow label="Min. ocena Google" value={gFilters.minRating} min={1} max={5} step={0.1} format={v => `${v.toFixed(1)} ★`} onChange={v => setGFilters({ ...gFilters, minRating: v })} icon={<Star className="size-3 text-[#A3A09A]" />} />
+                        <SliderRow label="Min. liczba opinii" value={gFilters.minReviews} min={0} max={200} step={5} format={v => `${v}+`} onChange={v => setGFilters({ ...gFilters, minReviews: v })} icon={<BarChart2 className="size-3 text-[#A3A09A]" />} />
                       </div>
                       <div className="space-y-2.5">
                         <CheckRow label="Wymagaj strony WWW" checked={gFilters.requireWebsite} onChange={v => setGFilters({ ...gFilters, requireWebsite: v })} />
@@ -435,15 +435,15 @@ export function ProspectingPage() {
                   {selectedPlatforms.includes('instagram') && (
                     <div className="p-4 rounded-xl bg-white/[0.02] border border-white/[0.06]">
                       <div className="flex items-center gap-2 mb-4">
-                        <Instagram className="size-3.5 text-[#555]" />
-                        <p className="text-[11px] font-semibold text-[#555] uppercase tracking-wider">Filtry Instagram</p>
+                        <Instagram className="size-3.5 text-[#A3A09A]" />
+                        <p className="text-[11px] font-semibold text-[#A3A09A] uppercase tracking-wider">Filtry Instagram</p>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                         <div className="space-y-4">
-                          <SliderRow label="Min. obserwujący" value={igFilters.minFollowers} min={0} max={100000} step={500} format={v => v >= 1000 ? `${(v/1000).toFixed(1)}K` : `${v}`} onChange={v => setIgFilters({ ...igFilters, minFollowers: v })} icon={<Users className="size-3 text-[#777]" />} />
-                          <SliderRow label="Max. obserwujący" value={igFilters.maxFollowers} min={1000} max={1000000} step={1000} format={v => `${(v/1000).toFixed(0)}K`} onChange={v => setIgFilters({ ...igFilters, maxFollowers: v })} icon={<Users className="size-3 text-[#777]" />} />
-                          <SliderRow label="Min. engagement rate" value={igFilters.minEngagementRate} min={0} max={20} step={0.1} format={v => `${v.toFixed(1)}%`} onChange={v => setIgFilters({ ...igFilters, minEngagementRate: v })} icon={<TrendingUp className="size-3 text-[#777]" />} />
-                          <SliderRow label="Min. liczba postów" value={igFilters.minPosts} min={0} max={200} step={1} format={v => `${v}+`} onChange={v => setIgFilters({ ...igFilters, minPosts: v })} icon={<BarChart2 className="size-3 text-[#777]" />} />
+                          <SliderRow label="Min. obserwujący" value={igFilters.minFollowers} min={0} max={100000} step={500} format={v => v >= 1000 ? `${(v/1000).toFixed(1)}K` : `${v}`} onChange={v => setIgFilters({ ...igFilters, minFollowers: v })} icon={<Users className="size-3 text-[#A3A09A]" />} />
+                          <SliderRow label="Max. obserwujący" value={igFilters.maxFollowers} min={1000} max={1000000} step={1000} format={v => `${(v/1000).toFixed(0)}K`} onChange={v => setIgFilters({ ...igFilters, maxFollowers: v })} icon={<Users className="size-3 text-[#A3A09A]" />} />
+                          <SliderRow label="Min. engagement rate" value={igFilters.minEngagementRate} min={0} max={20} step={0.1} format={v => `${v.toFixed(1)}%`} onChange={v => setIgFilters({ ...igFilters, minEngagementRate: v })} icon={<TrendingUp className="size-3 text-[#A3A09A]" />} />
+                          <SliderRow label="Min. liczba postów" value={igFilters.minPosts} min={0} max={200} step={1} format={v => `${v}+`} onChange={v => setIgFilters({ ...igFilters, minPosts: v })} icon={<BarChart2 className="size-3 text-[#A3A09A]" />} />
                         </div>
                         <div className="space-y-2.5">
                           <CheckRow label="Tylko konta biznesowe" checked={igFilters.businessAccountOnly} onChange={v => setIgFilters({ ...igFilters, businessAccountOnly: v })} />
@@ -457,26 +457,26 @@ export function ProspectingPage() {
                   {selectedPlatforms.includes('linkedin') && (
                     <div className="p-4 rounded-xl bg-white/[0.02] border border-white/[0.06]">
                       <div className="flex items-center gap-2 mb-4">
-                        <Linkedin className="size-3.5 text-[#555]" />
-                        <p className="text-[11px] font-semibold text-[#555] uppercase tracking-wider">Filtry LinkedIn</p>
+                        <Linkedin className="size-3.5 text-[#A3A09A]" />
+                        <p className="text-[11px] font-semibold text-[#A3A09A] uppercase tracking-wider">Filtry LinkedIn</p>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                         <div className="space-y-4">
-                          <SliderRow label="Min. pracowników" value={liFilters.minEmployees} min={1} max={500} step={1} format={v => `${v}+`} onChange={v => setLiFilters({ ...liFilters, minEmployees: v })} icon={<Users className="size-3 text-[#777]" />} />
-                          <SliderRow label="Max. pracowników" value={liFilters.maxEmployees} min={1} max={10000} step={10} format={v => v >= 1000 ? `${(v/1000).toFixed(1)}k` : `${v}`} onChange={v => setLiFilters({ ...liFilters, maxEmployees: v })} icon={<Users className="size-3 text-[#777]" />} />
+                          <SliderRow label="Min. pracowników" value={liFilters.minEmployees} min={1} max={500} step={1} format={v => `${v}+`} onChange={v => setLiFilters({ ...liFilters, minEmployees: v })} icon={<Users className="size-3 text-[#A3A09A]" />} />
+                          <SliderRow label="Max. pracowników" value={liFilters.maxEmployees} min={1} max={10000} step={10} format={v => v >= 1000 ? `${(v/1000).toFixed(1)}k` : `${v}`} onChange={v => setLiFilters({ ...liFilters, maxEmployees: v })} icon={<Users className="size-3 text-[#A3A09A]" />} />
                           <div>
-                            <p className="text-[11px] font-medium text-[#4a4a4a] uppercase tracking-wider mb-2">Założona po roku</p>
+                            <p className="text-[11px] font-medium text-[#A3A09A] uppercase tracking-wider mb-2">Założona po roku</p>
                             <input type="number" min={1900} max={2024} placeholder="np. 2015" value={liFilters.foundedAfter} onChange={e => setLiFilters({ ...liFilters, foundedAfter: e.target.value })}
-                              className="w-full px-3 py-2.5 bg-white/[0.03] border border-white/[0.07] rounded-xl text-[13px] text-[#c8c8c8] placeholder:text-[#3a3a3a] focus:outline-none focus:border-white/[0.14] transition-all" />
+                              className="w-full px-3 py-2.5 bg-white/[0.04] border border-white/[0.08] rounded-xl text-[13px] text-[#EAE8E1] placeholder:text-[#827E78] focus:outline-none focus:border-white/[0.2] transition-all" />
                           </div>
                         </div>
                         <div className="space-y-3">
                           <div>
-                            <p className="text-[11px] font-medium text-[#4a4a4a] uppercase tracking-wider mb-2">Wielkość firmy</p>
+                            <p className="text-[11px] font-medium text-[#A3A09A] uppercase tracking-wider mb-2">Wielkość firmy</p>
                             <div className="flex flex-wrap gap-1.5">
                               {COMPANY_SIZES.map(size => (
                                 <button key={size} onClick={() => toggleCompanySize(size)}
-                                  className={`px-2.5 py-1 rounded-lg text-[11px] font-mono border transition-all ${liFilters.companySize.includes(size) ? 'bg-white/[0.08] border-white/[0.15] text-[#c8c8c8]' : 'bg-transparent border-white/[0.06] text-[#555] hover:border-white/[0.12] hover:text-[#888]'}`}
+                                  className={`px-2.5 py-1 rounded-lg text-[11px] font-mono border transition-all ${liFilters.companySize.includes(size) ? 'bg-white/[0.08] border-white/[0.15] text-[#EAE8E1]' : 'bg-transparent border-white/[0.06] text-[#A3A09A] hover:border-white/[0.12] hover:text-[#EAE8E1]'}`}
                                 >{size}</button>
                               ))}
                             </div>
@@ -494,25 +494,25 @@ export function ProspectingPage() {
           </AnimatePresence>
         </div>
 
-        <div className="border-t border-white/[0.05] p-5 flex flex-col md:flex-row items-center justify-between gap-4">
+        <div className="border-t border-white/[0.06] p-5 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex-1 w-full">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-[11px] font-medium text-[#4a4a4a] uppercase tracking-wider">Maksymalna liczba leadów</p>
+              <p className="text-[11px] font-medium text-[#A3A09A] uppercase tracking-wider">Maksymalna liczba leadów</p>
               <div className="flex items-center gap-2">
-                <span className="text-[15px] font-bold text-[#c8c8c8] font-mono">{common.maxLeads}</span>
-                <span className="text-[11px] text-[#333]">· maks. {common.maxLeads * tokenCostPerLead} tokenów</span>
+                <span className="text-[15px] font-bold text-[#EAE8E1] font-mono">{common.maxLeads}</span>
+                <span className="text-[11px] text-[#827E78]">· maks. {common.maxLeads * tokenCostPerLead} tokenów</span>
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <span className="text-[11px] text-[#333] font-mono shrink-0">1</span>
+              <span className="text-[11px] text-[#827E78] font-mono shrink-0">1</span>
               <input type="range" min={1} max={500} step={1} value={common.maxLeads} onChange={e => setCommon({ ...common, maxLeads: parseInt(e.target.value) })}
-                className="flex-1 h-px bg-white/[0.08] rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:size-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#c8c8c8]" />
-              <span className="text-[11px] text-[#333] font-mono shrink-0">500</span>
+                className="flex-1 h-px bg-white/[0.08] rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:size-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#EAE8E1]" />
+              <span className="text-[11px] text-[#827E78] font-mono shrink-0">500</span>
             </div>
-            <p className="text-[11px] text-[#2e2e2e] mt-1.5">Jeśli w danym mieście jest mniej wyników, zwrócimy tyle ile znajdziemy</p>
+            <p className="text-[11px] text-[#A3A09A] mt-1.5">Jeśli w danym mieście jest mniej wyników, zwrócimy tyle ile znajdziemy</p>
           </div>
           <button onClick={handleSearch} disabled={isSearching}
-            className="shrink-0 w-full md:w-auto flex items-center justify-center gap-2 px-8 py-3 bg-[#d4d4d4] hover:bg-white text-[#111] text-[13px] font-semibold rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+            className="shrink-0 w-full md:w-auto flex items-center justify-center gap-2 px-8 py-3 bg-[#EAE8E1] hover:bg-white text-[#1A1A1A] text-[13px] font-semibold rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {isSearching ? <><Loader2 className="size-4 animate-spin" /> Skanowanie sieci...</> : <><Search className="size-4" /> Rozpocznij skanowanie</>}
           </button>
@@ -522,18 +522,18 @@ export function ProspectingPage() {
       {/* Wyniki */}
       {leads.length > 0 && (
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-          className="rounded-2xl border border-white/[0.06] bg-white/[0.02] overflow-hidden"
+          className="rounded-2xl border border-white/[0.08] bg-white/[0.04] overflow-hidden"
         >
-          <div className="px-5 py-4 border-b border-white/[0.05] flex items-center justify-between">
+          <div className="px-5 py-4 border-b border-white/[0.06] flex items-center justify-between">
             <div>
-              <p className="text-[14px] font-semibold text-[#c8c8c8]">Wyniki — {leads.length} firm</p>
-              <p className="text-[12px] text-[#444] mt-0.5">
+              <p className="text-[14px] font-semibold text-[#EAE8E1]">Wyniki — {leads.length} firm</p>
+              <p className="text-[12px] text-[#A3A09A] mt-0.5">
                 {leads.filter(l => l.emailFound).length} z e-mailem · {leads.filter(l => l.status === 'saved').length} zapisanych
               </p>
             </div>
             {selectedLeads.length > 0 && (
               <button onClick={handleSaveSelected}
-                className="flex items-center gap-2 px-4 py-2 bg-[#c8c8c8] hover:bg-white text-[#111] text-[12px] font-semibold rounded-xl transition-all"
+                className="flex items-center gap-2 px-4 py-2 bg-[#EAE8E1] hover:bg-white text-[#1A1A1A] text-[12px] font-semibold rounded-xl transition-all"
               >
                 <BookmarkPlus className="size-3.5" />
                 Zapisz zaznaczone do leadów ({selectedLeads.length})
@@ -542,11 +542,11 @@ export function ProspectingPage() {
           </div>
 
           {/* Header */}
-          <div className="grid grid-cols-12 gap-3 px-5 py-2.5 text-[10px] font-medium text-[#333] uppercase tracking-wider border-b border-white/[0.04]">
+          <div className="grid grid-cols-12 gap-3 px-5 py-2.5 text-[10px] font-medium text-[#A3A09A] uppercase tracking-wider border-b border-white/[0.06]">
             <div className="col-span-1 flex items-center">
               <label className="relative flex items-center justify-center size-3.5 cursor-pointer">
                 <input type="checkbox" checked={selectedLeads.length === leads.length && leads.length > 0} onChange={toggleAll} className="peer sr-only" />
-                <div className="absolute inset-0 rounded border border-white/[0.12] bg-white/[0.03] peer-checked:bg-[#c8c8c8] peer-checked:border-[#c8c8c8] transition-all" />
+                <div className="absolute inset-0 rounded border border-white/[0.12] bg-white/[0.03] peer-checked:bg-[#EAE8E1] peer-checked:border-[#EAE8E1] transition-all" />
                 <Check className="size-2.5 text-black opacity-0 peer-checked:opacity-100 relative z-10" strokeWidth={3} />
               </label>
             </div>
@@ -560,59 +560,59 @@ export function ProspectingPage() {
           {/* Wiersze */}
           <div className="divide-y divide-white/[0.04]">
             {leads.map(lead => (
-              <div key={lead.id} className={`grid grid-cols-12 gap-3 px-5 py-3.5 transition-all hover:bg-white/[0.02] ${selectedLeads.includes(lead.id) ? 'bg-white/[0.03]' : ''}`}>
+              <div key={lead.id} className={`grid grid-cols-12 gap-3 px-5 py-3.5 transition-all hover:bg-white/[0.02] ${selectedLeads.includes(lead.id) ? 'bg-white/[0.06]' : ''}`}>
 
                 <div className="col-span-1 flex items-center">
                   <label className="relative flex items-center justify-center size-3.5 cursor-pointer">
                     <input type="checkbox" checked={selectedLeads.includes(lead.id)} onChange={() => toggleLead(lead.id)} className="peer sr-only" />
-                    <div className="absolute inset-0 rounded border border-white/[0.12] bg-white/[0.03] peer-checked:bg-[#c8c8c8] peer-checked:border-[#c8c8c8] transition-all" />
+                    <div className="absolute inset-0 rounded border border-white/[0.12] bg-white/[0.03] peer-checked:bg-[#EAE8E1] peer-checked:border-[#EAE8E1] transition-all" />
                     <Check className="size-2.5 text-black opacity-0 peer-checked:opacity-100 relative z-10" strokeWidth={3} />
                   </label>
                 </div>
 
                 {/* Firma */}
                 <div className="col-span-3 flex flex-col justify-center">
-                  <p className="text-[13px] font-semibold text-[#c8c8c8] leading-tight">{lead.companyName}</p>
-                  <p className="text-[11px] text-[#444] mt-0.5 flex items-center gap-1"><MapPin className="size-2.5" />{lead.city}</p>
-                  {lead.category && <p className="text-[11px] text-[#333] mt-0.5">{lead.category}</p>}
+                  <p className="text-[13px] font-semibold text-[#EAE8E1] leading-tight">{lead.companyName}</p>
+                  <p className="text-[11px] text-[#A3A09A] mt-0.5 flex items-center gap-1"><MapPin className="size-2.5" />{lead.city}</p>
+                  {lead.category && <p className="text-[11px] text-[#827E78] mt-0.5">{lead.category}</p>}
                 </div>
 
                 {/* Kontakt */}
                 <div className="col-span-2 flex flex-col justify-center gap-1">
                   {lead.website && (
-                    <a href={`https://${lead.domain}`} target="_blank" rel="noopener noreferrer" className="text-[11px] text-[#444] hover:text-[#888] flex items-center gap-1 truncate transition-colors">
+                    <a href={`https://${lead.domain}`} target="_blank" rel="noopener noreferrer" className="text-[11px] text-[#A3A09A] hover:text-[#EAE8E1] flex items-center gap-1 truncate transition-colors">
                       <ExternalLink className="size-2.5 shrink-0" />{lead.domain}
                     </a>
                   )}
                   {lead.phone && (
-                    <p className="text-[11px] text-[#444] flex items-center gap-1">
+                    <p className="text-[11px] text-[#A3A09A] flex items-center gap-1">
                       <Phone className="size-2.5 shrink-0" />{lead.phone}
                     </p>
                   )}
                   {lead.emailFound
-                    ? <p className="text-[11px] text-green-600/70 flex items-center gap-1 truncate"><Mail className="size-2.5 shrink-0" />{lead.emailAddress}</p>
-                    : <p className="text-[11px] text-[#333] flex items-center gap-1"><Mail className="size-2.5 shrink-0" />Brak e-maila</p>
+                    ? <p className="text-[11px] text-[#5d9970] flex items-center gap-1 truncate"><Mail className="size-2.5 shrink-0" />{lead.emailAddress}</p>
+                    : <p className="text-[11px] text-[#827E78] flex items-center gap-1"><Mail className="size-2.5 shrink-0" />Brak e-maila</p>
                   }
                 </div>
 
                 {/* Metryki */}
                 <div className="col-span-2 flex flex-col justify-center gap-1">
                   <div className="flex items-center gap-1.5">
-                    <div className="flex items-center gap-1 px-1.5 py-0.5 bg-white/[0.03] rounded-lg border border-white/[0.06] text-[11px]">
-                      <Star className="size-2.5 text-[#777]" />
-                      <span className="text-[#b0b0b0] font-mono font-semibold">{lead.rating}</span>
+                    <div className="flex items-center gap-1 px-1.5 py-0.5 bg-white/[0.04] rounded-lg border border-white/[0.08] text-[11px]">
+                      <Star className="size-2.5 text-[#A3A09A]" />
+                      <span className="text-[#EAE8E1] font-mono font-semibold">{lead.rating}</span>
                     </div>
-                    <span className="text-[11px] text-[#444]">{lead.reviewsCount} op.</span>
+                    <span className="text-[11px] text-[#A3A09A]">{lead.reviewsCount} op.</span>
                   </div>
                   {(lead.package === 'instagram' || lead.package === 'full') && (
                     lead.instagram?.available && lead.instagram?.followers ? (
-                      <div className="flex items-center gap-1 text-[11px] text-[#888]">
-                        <Instagram className="size-2.5 shrink-0 text-[#555]" />
+                      <div className="flex items-center gap-1 text-[11px] text-[#EAE8E1]">
+                        <Instagram className="size-2.5 shrink-0 text-[#A3A09A]" />
                         <span className="font-mono">{lead.instagram.followers.toLocaleString()}</span>
-                        <span className="text-[#444]">obserwujących</span>
+                        <span className="text-[#A3A09A]">obserwujących</span>
                       </div>
                     ) : (
-                      <div className="flex items-center gap-1 text-[11px] text-[#2e2e2e]">
+                      <div className="flex items-center gap-1 text-[11px] text-[#827E78]">
                         <Instagram className="size-2.5 shrink-0" /><span>Brak profilu IG</span>
                       </div>
                     )
@@ -621,21 +621,21 @@ export function ProspectingPage() {
                     lead.linkedin?.available ? (
                       <>
                         {lead.linkedin.employeeCount && (
-                          <div className="flex items-center gap-1 text-[11px] text-[#888]">
-                            <Users className="size-2.5 shrink-0 text-[#555]" />
+                          <div className="flex items-center gap-1 text-[11px] text-[#EAE8E1]">
+                            <Users className="size-2.5 shrink-0 text-[#A3A09A]" />
                             <span className="font-mono">{lead.linkedin.employeeCount}</span>
-                            <span className="text-[#444]">pracowników</span>
+                            <span className="text-[#A3A09A]">pracowników</span>
                           </div>
                         )}
                         {lead.linkedin.industry && (
-                          <div className="flex items-center gap-1 text-[11px] text-[#555]">
+                          <div className="flex items-center gap-1 text-[11px] text-[#A3A09A]">
                             <Briefcase className="size-2.5 shrink-0" />
                             <span className="truncate">{lead.linkedin.industry}</span>
                           </div>
                         )}
                       </>
                     ) : (
-                      <div className="flex items-center gap-1 text-[11px] text-[#2e2e2e]">
+                      <div className="flex items-center gap-1 text-[11px] text-[#827E78]">
                         <Linkedin className="size-2.5 shrink-0" /><span>Brak profilu LI</span>
                       </div>
                     )
@@ -647,28 +647,28 @@ export function ProspectingPage() {
                   {lead.brief ? (
                     <>
                       <div className="flex items-center gap-1 mb-1">
-                        <Sparkles className="size-2.5 text-[#555]" />
-                        <span className="text-[10px] text-[#444] uppercase tracking-wider font-medium">Brief AI</span>
+                        <Sparkles className="size-2.5 text-[#A3A09A]" />
+                        <span className="text-[10px] text-[#A3A09A] uppercase tracking-wider font-medium">Brief AI</span>
                       </div>
-                      <p className="text-[11px] text-[#666] leading-relaxed line-clamp-3">{lead.brief}</p>
-                      <button onClick={() => setPreviewLead(lead)} className="text-[11px] text-[#555] hover:text-[#888] flex items-center gap-1 mt-1 transition-colors">
+                      <p className="text-[11px] text-[#827E78] leading-relaxed line-clamp-3">{lead.brief}</p>
+                      <button onClick={() => setPreviewLead(lead)} className="text-[11px] text-[#A3A09A] hover:text-[#EAE8E1] flex items-center gap-1 mt-1 transition-colors">
                         <Eye className="size-3" /> Czytaj więcej
                       </button>
                     </>
                   ) : (
-                    <p className="text-[11px] text-[#333]">Brak briefu</p>
+                    <p className="text-[11px] text-[#827E78]">Brak briefu</p>
                   )}
                 </div>
 
                 {/* Akcja */}
                 <div className="col-span-1 flex items-center justify-center">
                   {lead.status === 'saved' ? (
-                    <div className="flex items-center gap-1 text-green-600/70 text-[11px]">
+                    <div className="flex items-center gap-1 text-[#5d9970] text-[11px]">
                       <Check className="size-3" strokeWidth={3} /> Zapisano
                     </div>
                   ) : (
                     <button onClick={() => handleSaveLead(lead)}
-                      className="flex items-center gap-1 px-2.5 py-1.5 bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.08] text-[#888] hover:text-[#c8c8c8] text-[11px] rounded-lg transition-all"
+                      className="flex items-center gap-1 px-2.5 py-1.5 bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.08] text-[#A3A09A] hover:text-[#EAE8E1] text-[11px] rounded-lg transition-all"
                     >
                       <BookmarkPlus className="size-3" />
                     </button>
@@ -680,11 +680,11 @@ export function ProspectingPage() {
 
           {/* Następny krok */}
           {leads.filter(l => l.status === 'saved').length > 0 && (
-            <div className="px-5 py-4 border-t border-white/[0.05] flex items-center justify-between bg-white/[0.01]">
-              <p className="text-[12px] text-[#555]">
+            <div className="px-5 py-4 border-t border-white/[0.06] flex items-center justify-between bg-white/[0.02]">
+              <p className="text-[12px] text-[#A3A09A]">
                 Zapisano {leads.filter(l => l.status === 'saved').length} leadów do bazy
               </p>
-              <a href="/app/campaigns" className="flex items-center gap-2 text-[13px] font-semibold text-[#c8c8c8] hover:text-white transition-colors">
+              <a href="/app/campaigns" className="flex items-center gap-2 text-[13px] font-semibold text-[#EAE8E1] hover:text-white transition-colors">
                 Stwórz kampanię dla tych leadów
                 <ArrowRight className="size-4" />
               </a>
@@ -697,73 +697,73 @@ export function ProspectingPage() {
       <AnimatePresence>
         {previewLead && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-6"
+            className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-6 backdrop-blur-sm"
             onClick={() => setPreviewLead(null)}
           >
             <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-[#111] border border-white/[0.1] rounded-2xl p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto"
+              className="bg-[#1a1a1a] border border-white/[0.1] rounded-2xl p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto"
               onClick={e => e.stopPropagation()}
             >
               <div className="flex items-center justify-between mb-5">
                 <div>
-                  <p className="text-[14px] font-semibold text-[#c8c8c8]">{previewLead.companyName}</p>
-                  <p className="text-[12px] text-[#444] mt-0.5">{previewLead.city} · {previewLead.category}</p>
+                  <p className="text-[14px] font-semibold text-[#EAE8E1]">{previewLead.companyName}</p>
+                  <p className="text-[12px] text-[#A3A09A] mt-0.5">{previewLead.city} · {previewLead.category}</p>
                 </div>
-                <button onClick={() => setPreviewLead(null)} className="text-[#444] hover:text-[#888] transition-colors">
+                <button onClick={() => setPreviewLead(null)} className="text-[#827E78] hover:text-[#EAE8E1] transition-colors">
                   <X className="size-5" />
                 </button>
               </div>
 
               <div className="space-y-4">
                 {previewLead.brief && (
-                  <div className="p-4 bg-white/[0.03] rounded-xl border border-white/[0.06]">
+                  <div className="p-4 bg-white/[0.02] rounded-xl border border-white/[0.08]">
                     <div className="flex items-center gap-2 mb-3">
-                      <Sparkles className="size-3.5 text-[#555]" />
-                      <p className="text-[11px] text-[#444] uppercase tracking-wider font-medium">Brief AI</p>
+                      <Sparkles className="size-3.5 text-[#A3A09A]" />
+                      <p className="text-[11px] text-[#A3A09A] uppercase tracking-wider font-medium">Brief AI</p>
                     </div>
-                    <p className="text-[13px] text-[#888] leading-relaxed">{previewLead.brief}</p>
+                    <p className="text-[13px] text-[#EAE8E1] leading-relaxed">{previewLead.brief}</p>
                   </div>
                 )}
 
                 <div className="grid grid-cols-2 gap-3">
                   {previewLead.emailFound && (
-                    <div className="p-3 bg-white/[0.03] rounded-xl border border-white/[0.06]">
-                      <p className="text-[10px] text-[#444] uppercase tracking-wider mb-1">E-mail</p>
-                      <p className="text-[12px] text-green-600/80">{previewLead.emailAddress}</p>
+                    <div className="p-3 bg-white/[0.02] rounded-xl border border-white/[0.08]">
+                      <p className="text-[10px] text-[#A3A09A] uppercase tracking-wider mb-1">E-mail</p>
+                      <p className="text-[12px] text-[#5d9970]">{previewLead.emailAddress}</p>
                     </div>
                   )}
                   {previewLead.phone && (
-                    <div className="p-3 bg-white/[0.03] rounded-xl border border-white/[0.06]">
-                      <p className="text-[10px] text-[#444] uppercase tracking-wider mb-1">Telefon</p>
-                      <p className="text-[12px] text-[#888]">{previewLead.phone}</p>
+                    <div className="p-3 bg-white/[0.02] rounded-xl border border-white/[0.08]">
+                      <p className="text-[10px] text-[#A3A09A] uppercase tracking-wider mb-1">Telefon</p>
+                      <p className="text-[12px] text-[#EAE8E1]">{previewLead.phone}</p>
                     </div>
                   )}
-                  <div className="p-3 bg-white/[0.03] rounded-xl border border-white/[0.06]">
-                    <p className="text-[10px] text-[#444] uppercase tracking-wider mb-1">Ocena Google</p>
-                    <p className="text-[12px] text-[#888]">{previewLead.rating}/5 · {previewLead.reviewsCount} opinii</p>
+                  <div className="p-3 bg-white/[0.02] rounded-xl border border-white/[0.08]">
+                    <p className="text-[10px] text-[#A3A09A] uppercase tracking-wider mb-1">Ocena Google</p>
+                    <p className="text-[12px] text-[#EAE8E1]">{previewLead.rating}/5 · {previewLead.reviewsCount} opinii</p>
                   </div>
                   {previewLead.instagram?.available && (
-                    <div className="p-3 bg-white/[0.03] rounded-xl border border-white/[0.06]">
-                      <p className="text-[10px] text-[#444] uppercase tracking-wider mb-1">Instagram</p>
-                      <p className="text-[12px] text-[#888]">{previewLead.instagram.followers?.toLocaleString()} obserwujących</p>
+                    <div className="p-3 bg-white/[0.02] rounded-xl border border-white/[0.08]">
+                      <p className="text-[10px] text-[#A3A09A] uppercase tracking-wider mb-1">Instagram</p>
+                      <p className="text-[12px] text-[#EAE8E1]">{previewLead.instagram.followers?.toLocaleString()} obserwujących</p>
                     </div>
                   )}
                   {previewLead.linkedin?.available && (
-                    <div className="p-3 bg-white/[0.03] rounded-xl border border-white/[0.06]">
-                      <p className="text-[10px] text-[#444] uppercase tracking-wider mb-1">LinkedIn</p>
-                      <p className="text-[12px] text-[#888]">{previewLead.linkedin.employeeCount} pracowników · {previewLead.linkedin.industry}</p>
+                    <div className="p-3 bg-white/[0.02] rounded-xl border border-white/[0.08]">
+                      <p className="text-[10px] text-[#A3A09A] uppercase tracking-wider mb-1">LinkedIn</p>
+                      <p className="text-[12px] text-[#EAE8E1]">{previewLead.linkedin.employeeCount} pracowników · {previewLead.linkedin.industry}</p>
                     </div>
                   )}
                 </div>
               </div>
 
               <div className="flex gap-3 mt-6">
-                <button onClick={() => setPreviewLead(null)} className="flex-1 py-2.5 border border-white/[0.08] text-[#555] hover:text-[#888] text-[13px] rounded-xl transition-all">
+                <button onClick={() => setPreviewLead(null)} className="flex-1 py-2.5 border border-white/[0.1] text-[#A3A09A] hover:text-[#EAE8E1] text-[13px] rounded-xl transition-all">
                   Zamknij
                 </button>
                 {previewLead.status !== 'saved' && (
                   <button onClick={() => { handleSaveLead(previewLead); setPreviewLead(null); }}
-                    className="flex-1 py-2.5 bg-[#d4d4d4] hover:bg-white text-[#111] text-[13px] font-semibold rounded-xl transition-all flex items-center justify-center gap-2"
+                    className="flex-1 py-2.5 bg-[#EAE8E1] hover:bg-white text-[#1A1A1A] text-[13px] font-semibold rounded-xl transition-all flex items-center justify-center gap-2"
                   >
                     <BookmarkPlus className="size-4" /> Zapisz do leadów
                   </button>
@@ -781,17 +781,17 @@ export function ProspectingPage() {
             transition={{ type: 'spring', stiffness: 300, damping: 30 }}
             className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50"
           >
-            <div className="bg-[#e8e8e8] rounded-2xl shadow-2xl shadow-black/50 px-6 py-3.5 flex items-center gap-5">
+            <div className="bg-[#1A1A1A] border border-white/[0.1] rounded-2xl shadow-2xl px-6 py-3.5 flex items-center gap-5">
               <div className="flex items-center gap-2.5">
-                <div className="size-7 bg-[#111] rounded-full flex items-center justify-center">
-                  <Check className="size-3 text-white" strokeWidth={3} />
+                <div className="size-7 bg-[#EAE8E1] rounded-full flex items-center justify-center">
+                  <Check className="size-3 text-[#1A1A1A]" strokeWidth={3} />
                 </div>
-                <span className="font-semibold text-[#111] text-[13px]">
+                <span className="font-semibold text-[#EAE8E1] text-[13px]">
                   {selectedLeads.length} {selectedLeads.length === 1 ? 'firma wybrana' : 'firm wybranych'}
                 </span>
               </div>
               <button onClick={handleSaveSelected}
-                className="flex items-center gap-1.5 bg-[#111] hover:bg-[#222] text-white text-[13px] font-semibold px-5 py-2.5 rounded-xl transition-all group"
+                className="flex items-center gap-1.5 bg-[#EAE8E1] hover:bg-white text-[#1A1A1A] text-[13px] font-semibold px-5 py-2.5 rounded-xl transition-all group"
               >
                 <BookmarkPlus className="size-3.5" />
                 Zapisz do leadów
