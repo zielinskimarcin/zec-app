@@ -383,7 +383,7 @@ export function ProspectingPage() {
         className="flex items-start justify-between"
       >
         <div>
-          <h1 className="text-[28px] font-serif text-[#EAE8E1] tracking-tight mb-1">Prospecting</h1>
+          <h1 className="text-[28px] font-serif text-[#EAE8E1] tracking-tight mb-1">Wyszukiwarka</h1>
           <p className="text-[15px] text-[#A3A09A]">Przeszukaj sieć, zidentyfikuj leady i wzbogać swoją bazę.</p>
         </div>
         <div className="flex items-center gap-4 bg-white/[0.04] border border-white/[0.08] px-5 py-2.5 rounded-2xl">
