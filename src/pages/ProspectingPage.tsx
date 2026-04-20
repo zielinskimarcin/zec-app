@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Search, Globe, MapPin, Building2, Star, Mail, Check,
@@ -9,6 +9,9 @@ import {
 } from 'lucide-react';
 import { Instagram, Linkedin } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+
+// IMPORT TWOICH DANYCH Z LISTY
+import { INDUSTRIES, CITIES, COUNTRIES } from '../data/searchOptions';
 
 type Platform = 'google' | 'instagram' | 'linkedin';
 
@@ -64,15 +67,87 @@ function getPackage(platforms: Platform[]): string {
   return 'basic';
 }
 
+// --- KOMPONENT AUTOCOMPLETE (Wymuszający wybór z listy) ---
+
+function Autocomplete({
+  value, onChange, options, placeholder, icon: Icon
+}: {
+  value: string; onChange: (v: string) => void; options: { value: string; label: string }[]; placeholder: string; icon: React.ElementType;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  // Synchronizacja query z podanym `value`, żeby w input zawsze wyświetlał się "label"
+  useEffect(() => {
+    const selectedOpt = options.find(o => o.value === value);
+    setQuery(selectedOpt ? selectedOpt.label : '');
+  }, [value, options]);
+
+  const filtered = options.filter(o => 
+    o.label.toLowerCase().includes(query.toLowerCase()) || 
+    o.value.toLowerCase().includes(query.toLowerCase())
+  );
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+        // Zabezpieczenie: jeśli klikniesz poza pole, a nie wybrałeś nic z listy,
+        // to wracamy do poprzednio poprawnej opcji (lub czyścimy, jeśli nic nie było wybrane).
+        const selectedOpt = options.find(o => o.value === value);
+        setQuery(selectedOpt ? selectedOpt.label : '');
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [value, options]);
+
+  return (
+    <div className="relative w-full" ref={wrapperRef}>
+      <Icon className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-[#827E78] pointer-events-none z-10" />
+      <input
+        type="text"
+        value={query}
+        onChange={e => { setQuery(e.target.value); setIsOpen(true); }}
+        onFocus={() => setIsOpen(true)}
+        placeholder={placeholder}
+        className="w-full pl-10 pr-4 py-3 bg-white/[0.04] border border-white/[0.08] rounded-xl text-[14px] text-[#EAE8E1] placeholder:text-[#827E78] focus:border-white/[0.2] outline-none transition-all relative z-0"
+      />
+      <AnimatePresence>
+        {isOpen && filtered.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }} transition={{ duration: 0.15 }}
+            className="absolute top-[calc(100%+8px)] left-0 right-0 max-h-64 overflow-y-auto bg-[#1A1A1A] border border-white/[0.12] rounded-xl shadow-2xl z-50 p-1 custom-scrollbar"
+          >
+            {filtered.map(opt => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => { onChange(opt.value); setIsOpen(false); }}
+                className="w-full text-left px-4 py-2.5 text-[13px] text-[#EAE8E1] hover:bg-white/[0.06] rounded-lg transition-colors"
+              >
+                {opt.label}
+              </button>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// --- Pozostałe komponenty pomocnicze ---
+
 function SliderRow({ label, value, min, max, step, format, onChange, icon }: {
   label: string; value: number; min: number; max: number; step: number;
   format: (v: number) => string; onChange: (v: number) => void; icon?: React.ReactNode;
 }) {
   return (
     <div>
-      <div className="flex items-center justify-between mb-1.5">
-        <span className="flex items-center gap-1.5 text-[11px] text-[#A3A09A] font-medium uppercase tracking-wider">{icon}{label}</span>
-        <span className="text-[12px] font-mono font-medium text-[#EAE8E1]">{format(value)}</span>
+      <div className="flex items-center justify-between mb-2">
+        <span className="flex items-center gap-1.5 text-[11px] text-[#827E78] font-medium uppercase tracking-wider">{icon}{label}</span>
+        <span className="text-[12px] font-mono font-medium text-[#A3A09A]">{format(value)}</span>
       </div>
       <input type="range" min={min} max={max} step={step} value={value}
         onChange={e => onChange(Number(e.target.value))}
@@ -83,13 +158,12 @@ function SliderRow({ label, value, min, max, step, format, onChange, icon }: {
 
 function CheckRow({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
   return (
-    <label className="flex items-center gap-2.5 cursor-pointer group">
-      <div className="relative flex items-center justify-center size-4 shrink-0">
-        <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)} className="peer sr-only" />
-        <div className="absolute inset-0 rounded border border-white/[0.12] bg-white/[0.04] peer-checked:bg-[#EAE8E1] peer-checked:border-[#EAE8E1] transition-all" />
-        <Check className="size-2.5 text-[#1A1A1A] opacity-0 peer-checked:opacity-100 relative z-10" strokeWidth={3} />
+    <label className="flex items-center gap-3 cursor-pointer group">
+      <div className={`size-4 rounded flex items-center justify-center transition-all border shrink-0 ${checked ? 'bg-[#EAE8E1] border-[#EAE8E1]' : 'border-white/[0.15] bg-transparent group-hover:border-white/[0.3]'}`}>
+        <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)} className="sr-only" />
+        {checked && <Check strokeWidth={3} className="size-2.5 text-[#0a0a0a]" />}
       </div>
-      <span className="text-[12px] text-[#827E78] group-hover:text-[#A3A09A] transition-colors">{label}</span>
+      <span className="text-[13px] text-[#A3A09A] group-hover:text-[#EAE8E1] transition-colors">{label}</span>
     </label>
   );
 }
@@ -112,6 +186,7 @@ export function ProspectingPage() {
 
   const [selectedPlatforms, setSelectedPlatforms] = useState<Platform[]>(['google']);
   const [common, setCommon] = useState({ industry: '', country: 'Polska', city: '', keywords: '', maxLeads: 10 });
+  
   const [gFilters, setGFilters] = useState({ minRating: 4.0, minReviews: 10, requireWebsite: true, requireEmail: false, requirePhone: false, requireOpenNow: false });
   const [igFilters, setIgFilters] = useState({ minFollowers: 1000, maxFollowers: 500000, minEngagementRate: 1, minPosts: 12, businessAccountOnly: true, requireEmail: false, requireWebsite: false });
   const [liFilters, setLiFilters] = useState({ minEmployees: 1, maxEmployees: 250, companySize: [] as string[], requireWebsite: true, hasActiveJobs: false, requireEmail: false, foundedAfter: '' });
@@ -126,8 +201,6 @@ export function ProspectingPage() {
         if (data) {
           setAvailableTokens(data.credits ?? 0);
           setUserProfile({ full_name: data.full_name ?? '', offer: data.offer ?? '', package: data.package ?? 'basic' });
-        } else {
-          setUserProfile({ full_name: '', offer: '', package: 'basic' });
         }
       }
     }
@@ -147,24 +220,22 @@ export function ProspectingPage() {
 
   const handleSearch = async () => {
     setError(null);
-    if (!common.industry || !common.city) { setError('Branża i miasto są wymagane.'); return; }
+    if (!common.industry || !common.city) { setError('Wybierz poprawną branżę i miasto z listy.'); return; }
     setIsSearching(true);
     try {
-      const webhookUrl = 'https://n8n.srv1579942.hstgr.cloud/webhook/c09267cb-9b52-45e1-84a4-cdb53bbeaa77?package=${pkg}';
       const pkg = getPackage(selectedPlatforms);
+      const webhookUrl = `https://n8n.srv1579942.hstgr.cloud/webhook/c09267cb-9b52-45e1-84a4-cdb53bbeaa77?package=${pkg}`;
       const response = await fetch(webhookUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           user_id: userId ?? 'test_user_001',
-          package: pkg,           // kompatybilność wsteczna
-          meta: {
-            package: pkg,         // ← FIX: Code JS3 czyta stąd
-          },
+          package: pkg,
+          meta: { package: pkg },
           client: {
-            name: userProfile?.full_name || 'Jan Kowalski',
-            email: userEmail || 'jan@test.pl',
-            offer: userProfile?.offer || 'Automatyzacja lead generation B2B',
+            name: userProfile?.full_name || 'Użytkownik ZEC',
+            email: userEmail || '',
+            offer: userProfile?.offer || '',
             language: 'pl',
           },
           common: {
@@ -175,45 +246,22 @@ export function ProspectingPage() {
             maxLeads: common.maxLeads,
           },
           filters: {
-            google: {
-              minRating: gFilters.minRating,
-              minReviews: gFilters.minReviews,
-              requireWebsite: gFilters.requireWebsite,
-              requireEmail: gFilters.requireEmail,
-              requirePhone: gFilters.requirePhone,
-              requireOpenNow: gFilters.requireOpenNow,
-            },
-            instagram: {
-              minFollowers: igFilters.minFollowers,
-              maxFollowers: igFilters.maxFollowers,
-              minEngagementRate: igFilters.minEngagementRate,
-              minPosts: igFilters.minPosts,
-              businessAccountOnly: igFilters.businessAccountOnly,
-              requireEmail: igFilters.requireEmail,
-              requireWebsite: igFilters.requireWebsite,
-            },
-            linkedin: {
-              minEmployees: liFilters.minEmployees,
-              maxEmployees: liFilters.maxEmployees,
-              companySize: liFilters.companySize,
-              requireWebsite: liFilters.requireWebsite,
-              hasActiveJobs: liFilters.hasActiveJobs,
-              requireEmail: liFilters.requireEmail,
-              foundedAfter: liFilters.foundedAfter,
-            },
+            google: gFilters,
+            instagram: igFilters,
+            linkedin: liFilters,
           },
         }),
       });
-      if (!response.ok) throw new Error('Błąd serwera.');
+      if (!response.ok) throw new Error('Błąd serwera n8n.');
       const data = await response.json();
       if (data.leads && data.leads.length > 0) {
-        setLeads(data.leads.map((l: any, i: number) => ({ ...l, id: i + 1 })));
+        setLeads(data.leads.map((l: any, i: number) => ({ ...l, id: i + 1, status: 'new' })));
       } else {
         setError('Brak wyników dla podanych kryteriów.');
       }
     } catch (err: any) {
       console.error(err);
-      setError('Błąd połączenia z serwerem.');
+      setError('Błąd połączenia z silnikiem skanującym.');
     } finally {
       setIsSearching(false);
     }
@@ -227,7 +275,14 @@ export function ProspectingPage() {
     const queryHash = `${lead.companyName}_${lead.city}`.toLowerCase().replace(/\s+/g, '_');
     const { data: globalData, error: globalErr } = await supabase
       .from('global_leads')
-      .upsert({ query_hash: queryHash, company_name: lead.companyName, email: lead.emailAddress, city: lead.city, industry: lead.category, website: lead.website }, { onConflict: 'query_hash' })
+      .upsert({ 
+        query_hash: queryHash, 
+        company_name: lead.companyName, 
+        email: lead.emailAddress, 
+        city: lead.city, 
+        industry: lead.category, 
+        website: lead.website 
+      }, { onConflict: 'query_hash' })
       .select('id')
       .single();
 
@@ -242,12 +297,13 @@ export function ProspectingPage() {
       has_linkedin: lead.linkedin?.available ?? false,
       instagram_data: lead.instagram?.available ? lead.instagram : null,
       linkedin_data: lead.linkedin?.available ? lead.linkedin : null,
-      history: [{ date: new Date().toISOString(), action: 'Wyszukano', details: 'Znaleziono przez wyszukiwarkę ZEC.' }],
+      history: [{ date: new Date().toISOString(), action: 'Wyszukano', details: 'Znaleziono przez prospecting ZEC.' }],
     });
   };
 
   const handleSaveSelected = () => {
     leads.filter(l => selectedLeads.includes(l.id) && l.status !== 'saved').forEach(l => handleSaveLead(l));
+    setSelectedLeads([]);
   };
 
   const toggleLead = (id: number) => setSelectedLeads(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
@@ -257,15 +313,12 @@ export function ProspectingPage() {
     setIsAddingCredits(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) { alert('Musisz być zalogowany, aby dodać kredyty.'); setIsAddingCredits(false); return; }
-      const newCreditsAmount = availableTokens + 9999;
-      const { error } = await supabase.from('profiles').update({ credits: newCreditsAmount }).eq('id', session.user.id);
-      if (error) throw error;
+      if (!session) return;
+      const newCreditsAmount = availableTokens + 500;
+      await supabase.from('profiles').update({ credits: newCreditsAmount }).eq('id', session.user.id);
       setAvailableTokens(newCreditsAmount);
-      alert('Dodano 9999 kredytów (DEV).');
-    } catch (err: any) {
-      console.error('Błąd dodawania kredytów:', err);
-      alert('Nie udało się dodać kredytów.');
+    } catch (err) {
+      console.error(err);
     } finally {
       setIsAddingCredits(false);
     }
@@ -279,8 +332,8 @@ export function ProspectingPage() {
         className="flex items-start justify-between"
       >
         <div>
-          <h1 className="text-[28px] font-serif text-[#EAE8E1] tracking-tight mb-1">Prospecting</h1>
-          <p className="text-[15px] text-[#A3A09A]">Znajdź firmy, poznaj je i zapisz do bazy leadów</p>
+          <h1 className="text-[28px] font-serif text-[#EAE8E1] tracking-tight mb-1">Wyszukiwarka</h1>
+          <p className="text-[15px] text-[#A3A09A]">Przeszukaj sieć, zidentyfikuj leady i wzbogać swoją bazę.</p>
         </div>
         <div className="flex items-center gap-4 bg-white/[0.04] border border-white/[0.08] px-5 py-2.5 rounded-2xl">
           <div className="flex items-center gap-3">
@@ -293,7 +346,7 @@ export function ProspectingPage() {
             </div>
           </div>
           <div className="w-px h-8 bg-white/[0.08] mx-1" />
-          <button onClick={handleAddDevCredits} disabled={isAddingCredits} className="p-2 text-[#827E78] hover:text-[#EAE8E1] transition-colors disabled:opacity-50">
+          <button onClick={handleAddDevCredits} disabled={isAddingCredits} className="p-2 text-[#827E78] hover:text-[#5d9970] transition-colors disabled:opacity-50">
             {isAddingCredits ? <Loader2 className="size-4 animate-spin" /> : <PlusCircle className="size-4" />}
           </button>
         </div>
@@ -319,7 +372,7 @@ export function ProspectingPage() {
               >
                 <span className={active ? 'text-[#EAE8E1]' : 'text-[#827E78]'}>{p.icon}</span>
                 {p.label}
-                <span className={`text-[10px] px-1.5 py-0.5 rounded-lg font-mono ${active ? 'bg-white/[0.1] text-[#EAE8E1]' : 'bg-white/[0.04] text-[#827E78]'}`}>{p.tokenCost} tok/lead</span>
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-lg font-mono ${active ? 'bg-white/[0.1] text-[#EAE8E1]' : 'bg-white/[0.04] text-[#827E78]'}`}>{p.tokenCost} tok</span>
               </button>
             );
           })}
@@ -332,84 +385,71 @@ export function ProspectingPage() {
         )}
       </motion.div>
 
-      {/* Filtry */}
+      {/* Główne Filtry (Z AUTOCOMPLETE) */}
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
-        className="rounded-2xl border border-white/[0.08] bg-white/[0.04] overflow-hidden"
+        className="bg-white/[0.02] border border-white/[0.06] rounded-2xl overflow-hidden"
       >
-        <div className="p-6 grid grid-cols-1 md:grid-cols-4 gap-5">
+        <div className="p-6 grid grid-cols-1 md:grid-cols-4 gap-6">
           <div>
             <p className="text-[11px] font-medium text-[#827E78] uppercase tracking-wider mb-2.5">Branża *</p>
-            <div className="relative">
-              <Building2 className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-[#827E78] pointer-events-none" />
-              <select value={common.industry} onChange={e => setCommon({ ...common, industry: e.target.value })}
-                className="w-full pl-10 pr-4 py-3 bg-white/[0.04] border border-white/[0.08] rounded-xl text-[13px] text-[#EAE8E1] focus:outline-none focus:border-white/[0.2] transition-all appearance-none cursor-pointer"
-              >
-                <option value="" className="bg-[#1a1a1a] text-[#827E78]">Wybierz branżę...</option>
-                <option value="architektura" className="bg-[#1a1a1a] text-[#EAE8E1]">Architektura i Projektowanie</option>
-                <option value="deweloper" className="bg-[#1a1a1a] text-[#EAE8E1]">Nieruchomości / Deweloper</option>
-                <option value="marketing" className="bg-[#1a1a1a] text-[#EAE8E1]">Agencje Marketingowe</option>
-                <option value="it" className="bg-[#1a1a1a] text-[#EAE8E1]">Software House / IT</option>
-                <option value="meble" className="bg-[#1a1a1a] text-[#EAE8E1]">Meble i Wyposażenie</option>
-                <option value="produkcja" className="bg-[#1a1a1a] text-[#EAE8E1]">Produkcja / Manufacturing</option>
-                <option value="finanse" className="bg-[#1a1a1a] text-[#EAE8E1]">Finanse / Doradztwo</option>
-                <option value="handel" className="bg-[#1a1a1a] text-[#EAE8E1]">Handel / E-commerce</option>
-                <option value="restauracje" className="bg-[#1a1a1a] text-[#EAE8E1]">Restauracje / HoReCa</option>
-              </select>
-            </div>
+            <Autocomplete 
+              icon={Building2}
+              placeholder="np. Architektura..."
+              options={INDUSTRIES}
+              value={common.industry}
+              onChange={val => setCommon({ ...common, industry: val })}
+            />
           </div>
           <div>
             <p className="text-[11px] font-medium text-[#827E78] uppercase tracking-wider mb-2.5">Kraj</p>
-            <div className="relative">
-              <Globe className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-[#827E78] pointer-events-none" />
-              <select value={common.country} onChange={e => setCommon({ ...common, country: e.target.value })}
-                className="w-full pl-10 pr-4 py-3 bg-white/[0.04] border border-white/[0.08] rounded-xl text-[13px] text-[#EAE8E1] focus:outline-none focus:border-white/[0.2] transition-all appearance-none cursor-pointer"
-              >
-                <option value="Polska" className="bg-[#1a1a1a] text-[#EAE8E1]">Polska</option>
-                <option value="Niemcy" className="bg-[#1a1a1a] text-[#EAE8E1]">Niemcy</option>
-                <option value="Francja" className="bg-[#1a1a1a] text-[#EAE8E1]">Francja</option>
-                <option value="UK" className="bg-[#1a1a1a] text-[#EAE8E1]">Wielka Brytania</option>
-                <option value="Global" className="bg-[#1a1a1a] text-[#EAE8E1]">Cały świat</option>
-              </select>
-            </div>
+            <Autocomplete 
+              icon={Globe}
+              placeholder="Wybierz kraj..."
+              options={COUNTRIES}
+              value={common.country}
+              onChange={val => setCommon({ ...common, country: val })}
+            />
           </div>
           <div>
             <p className="text-[11px] font-medium text-[#827E78] uppercase tracking-wider mb-2.5">Miasto *</p>
-            <div className="relative">
-              <MapPin className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-[#827E78] pointer-events-none" />
-              <input type="text" value={common.city} onChange={e => setCommon({ ...common, city: e.target.value })}
-                placeholder="np. Warszawa"
-                className="w-full pl-10 pr-4 py-3 bg-white/[0.04] border border-white/[0.08] rounded-xl text-[13px] text-[#EAE8E1] placeholder:text-[#827E78] focus:outline-none focus:border-white/[0.2] transition-all"
-              />
-            </div>
+            <Autocomplete 
+              icon={MapPin}
+              placeholder="Wybierz miasto..."
+              options={CITIES}
+              value={common.city}
+              onChange={val => setCommon({ ...common, city: val })}
+            />
           </div>
           <div>
             <p className="text-[11px] font-medium text-[#827E78] uppercase tracking-wider mb-2.5">Słowa kluczowe</p>
-            <div className="relative">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-[#827E78] pointer-events-none" />
+            <div className="relative w-full">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-[#827E78] pointer-events-none z-10" />
               <input type="text" value={common.keywords} onChange={e => setCommon({ ...common, keywords: e.target.value })}
-                placeholder="np. B2B, premium"
-                className="w-full pl-10 pr-4 py-3 bg-white/[0.04] border border-white/[0.08] rounded-xl text-[13px] text-[#EAE8E1] placeholder:text-[#827E78] focus:outline-none focus:border-white/[0.2] transition-all"
+                placeholder="np. luksusowe, b2b..."
+                className="w-full pl-10 pr-4 py-3 bg-white/[0.04] border border-white/[0.08] rounded-xl text-[14px] text-[#EAE8E1] placeholder:text-[#827E78] focus:border-white/[0.2] outline-none transition-all relative z-0"
               />
             </div>
           </div>
         </div>
 
+        {/* Zaawansowane sekcje */}
         <div className="border-t border-white/[0.06]">
           <button onClick={() => setShowAdvanced(!showAdvanced)}
-            className="w-full flex items-center justify-between px-6 py-4 text-[13px] text-[#A3A09A] hover:text-[#EAE8E1] transition-colors bg-white/[0.01] hover:bg-white/[0.03]"
+            className="w-full flex items-center justify-between px-6 py-4 text-[13px] text-[#A3A09A] hover:text-[#EAE8E1] hover:bg-white/[0.02] transition-all"
           >
             <span className="flex items-center gap-2.5 font-medium">
               <SlidersHorizontal className="size-4" />
-              Filtry zaawansowane
-              <span className="text-[10px] px-2.5 py-1 bg-white/[0.06] border border-white/[0.08] rounded-full font-mono text-[#EAE8E1]">{selectedPlatforms.join(' + ')}</span>
+              Parametry szczegółowe
+              <span className="text-[11px] px-2 py-0.5 bg-white/[0.04] border border-white/[0.08] rounded-full font-mono text-[#827E78] lowercase">{selectedPlatforms.join(' + ')}</span>
             </span>
             {showAdvanced ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
           </button>
 
           <AnimatePresence>
             {showAdvanced && (
-              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-                <div className="p-6 space-y-6 bg-white/[0.01]">
+              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden bg-white/[0.01]">
+                <div className="p-6 space-y-6">
+                  {/* Google Maps Filters */}
                   <div className="p-5 rounded-xl bg-white/[0.02] border border-white/[0.06]">
                     <div className="flex items-center gap-2.5 mb-5">
                       <Globe className="size-4 text-[#827E78]" />
@@ -418,71 +458,44 @@ export function ProspectingPage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                       <div className="space-y-5">
                         <SliderRow label="Min. ocena Google" value={gFilters.minRating} min={1} max={5} step={0.1} format={v => `${v.toFixed(1)} ★`} onChange={v => setGFilters({ ...gFilters, minRating: v })} icon={<Star className="size-3.5 text-[#827E78]" />} />
-                        <SliderRow label="Min. liczba opinii" value={gFilters.minReviews} min={0} max={200} step={5} format={v => `${v}+`} onChange={v => setGFilters({ ...gFilters, minReviews: v })} icon={<BarChart2 className="size-3.5 text-[#827E78]" />} />
+                        <SliderRow label="Min. liczba opinii" value={gFilters.minReviews} min={0} max={500} step={10} format={v => `${v}+`} onChange={v => setGFilters({ ...gFilters, minReviews: v })} icon={<BarChart2 className="size-3.5 text-[#827E78]" />} />
                       </div>
                       <div className="space-y-3.5">
                         <CheckRow label="Wymagaj strony WWW" checked={gFilters.requireWebsite} onChange={v => setGFilters({ ...gFilters, requireWebsite: v })} />
-                        <CheckRow label="Wymagaj widocznego e-maila" checked={gFilters.requireEmail} onChange={v => setGFilters({ ...gFilters, requireEmail: v })} />
+                        <CheckRow label="Tylko firmy z widocznym adresem e-mail" checked={gFilters.requireEmail} onChange={v => setGFilters({ ...gFilters, requireEmail: v })} />
                         <CheckRow label="Wymagaj numeru telefonu" checked={gFilters.requirePhone} onChange={v => setGFilters({ ...gFilters, requirePhone: v })} />
                         <CheckRow label="Tylko aktualnie otwarte" checked={gFilters.requireOpenNow} onChange={v => setGFilters({ ...gFilters, requireOpenNow: v })} />
                       </div>
                     </div>
                   </div>
 
-                  {selectedPlatforms.includes('instagram') && (
-                    <div className="p-5 rounded-xl bg-white/[0.02] border border-white/[0.06]">
-                      <div className="flex items-center gap-2.5 mb-5">
-                        <Instagram className="size-4 text-[#827E78]" />
-                        <p className="text-[12px] font-medium text-[#A3A09A] uppercase tracking-wider">Filtry Instagram</p>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  {/* Social Filters if selected */}
+                  {(selectedPlatforms.includes('instagram') || selectedPlatforms.includes('linkedin')) && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-6 border-t border-white/[0.04]">
+                      {selectedPlatforms.includes('instagram') && (
                         <div className="space-y-5">
-                          <SliderRow label="Min. obserwujący" value={igFilters.minFollowers} min={0} max={100000} step={500} format={v => v >= 1000 ? `${(v/1000).toFixed(1)}K` : `${v}`} onChange={v => setIgFilters({ ...igFilters, minFollowers: v })} icon={<Users className="size-3.5 text-[#827E78]" />} />
-                          <SliderRow label="Max. obserwujący" value={igFilters.maxFollowers} min={1000} max={1000000} step={1000} format={v => `${(v/1000).toFixed(0)}K`} onChange={v => setIgFilters({ ...igFilters, maxFollowers: v })} icon={<Users className="size-3.5 text-[#827E78]" />} />
-                          <SliderRow label="Min. engagement rate" value={igFilters.minEngagementRate} min={0} max={20} step={0.1} format={v => `${v.toFixed(1)}%`} onChange={v => setIgFilters({ ...igFilters, minEngagementRate: v })} icon={<TrendingUp className="size-3.5 text-[#827E78]" />} />
-                          <SliderRow label="Min. liczba postów" value={igFilters.minPosts} min={0} max={200} step={1} format={v => `${v}+`} onChange={v => setIgFilters({ ...igFilters, minPosts: v })} icon={<BarChart2 className="size-3.5 text-[#827E78]" />} />
-                        </div>
-                        <div className="space-y-3.5">
+                          <p className="text-[11px] font-bold text-[#827E78] uppercase tracking-widest mb-2 flex items-center gap-2">
+                            <Instagram className="size-3" /> Social Proof (IG)
+                          </p>
+                          <SliderRow label="Min. Followers" value={igFilters.minFollowers} min={0} max={100000} step={1000} format={v => v >= 1000 ? `${(v/1000).toFixed(0)}k` : `${v}`} onChange={v => setIgFilters({ ...igFilters, minFollowers: v })} />
                           <CheckRow label="Tylko konta biznesowe" checked={igFilters.businessAccountOnly} onChange={v => setIgFilters({ ...igFilters, businessAccountOnly: v })} />
-                          <CheckRow label="Wymagaj e-maila w bio" checked={igFilters.requireEmail} onChange={v => setIgFilters({ ...igFilters, requireEmail: v })} />
-                          <CheckRow label="Wymagaj linku do strony w bio" checked={igFilters.requireWebsite} onChange={v => setIgFilters({ ...igFilters, requireWebsite: v })} />
                         </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {selectedPlatforms.includes('linkedin') && (
-                    <div className="p-5 rounded-xl bg-white/[0.02] border border-white/[0.06]">
-                      <div className="flex items-center gap-2.5 mb-5">
-                        <Linkedin className="size-4 text-[#827E78]" />
-                        <p className="text-[12px] font-medium text-[#A3A09A] uppercase tracking-wider">Filtry LinkedIn</p>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                      )}
+                      {selectedPlatforms.includes('linkedin') && (
                         <div className="space-y-5">
-                          <SliderRow label="Min. pracowników" value={liFilters.minEmployees} min={1} max={500} step={1} format={v => `${v}+`} onChange={v => setLiFilters({ ...liFilters, minEmployees: v })} icon={<Users className="size-3.5 text-[#827E78]" />} />
-                          <SliderRow label="Max. pracowników" value={liFilters.maxEmployees} min={1} max={10000} step={10} format={v => v >= 1000 ? `${(v/1000).toFixed(1)}k` : `${v}`} onChange={v => setLiFilters({ ...liFilters, maxEmployees: v })} icon={<Users className="size-3.5 text-[#827E78]" />} />
-                          <div>
-                            <p className="text-[11px] font-medium text-[#827E78] uppercase tracking-wider mb-2.5">Założona po roku</p>
-                            <input type="number" min={1900} max={2024} placeholder="np. 2015" value={liFilters.foundedAfter} onChange={e => setLiFilters({ ...liFilters, foundedAfter: e.target.value })}
-                              className="w-full px-4 py-3 bg-white/[0.04] border border-white/[0.08] rounded-xl text-[13px] text-[#EAE8E1] placeholder:text-[#827E78] focus:outline-none focus:border-white/[0.2] transition-all" />
+                          <p className="text-[11px] font-bold text-[#827E78] uppercase tracking-widest mb-2 flex items-center gap-2">
+                            <Linkedin className="size-3" /> Skala (LinkedIn)
+                          </p>
+                          <SliderRow label="Min. pracowników" value={liFilters.minEmployees} min={1} max={500} step={5} format={v => `${v}+`} onChange={v => setLiFilters({ ...liFilters, minEmployees: v })} />
+                          <div className="flex flex-wrap gap-1.5 mt-2">
+                            {COMPANY_SIZES.slice(0, 4).map(size => (
+                              <button key={size} onClick={() => toggleCompanySize(size)}
+                                className={`px-2.5 py-1 rounded-lg text-[10px] font-mono border transition-all ${liFilters.companySize.includes(size) ? 'bg-white/[0.08] border-white/[0.2] text-[#EAE8E1]' : 'bg-transparent border-white/[0.06] text-[#827E78]'}`}
+                              >{size}</button>
+                            ))}
                           </div>
                         </div>
-                        <div className="space-y-4">
-                          <div>
-                            <p className="text-[11px] font-medium text-[#827E78] uppercase tracking-wider mb-2.5">Wielkość firmy</p>
-                            <div className="flex flex-wrap gap-2">
-                              {COMPANY_SIZES.map(size => (
-                                <button key={size} onClick={() => toggleCompanySize(size)}
-                                  className={`px-3 py-1.5 rounded-lg text-[11px] font-mono border transition-all ${liFilters.companySize.includes(size) ? 'bg-white/[0.08] border-white/[0.2] text-[#EAE8E1]' : 'bg-transparent border-white/[0.08] text-[#827E78] hover:border-white/[0.15] hover:text-[#A3A09A]'}`}
-                                >{size}</button>
-                              ))}
-                            </div>
-                          </div>
-                          <CheckRow label="Wymagaj strony WWW" checked={liFilters.requireWebsite} onChange={v => setLiFilters({ ...liFilters, requireWebsite: v })} />
-                          <CheckRow label="Aktywne oferty pracy" checked={liFilters.hasActiveJobs} onChange={v => setLiFilters({ ...liFilters, hasActiveJobs: v })} />
-                          <CheckRow label="Szukaj adresu e-mail" checked={liFilters.requireEmail} onChange={v => setLiFilters({ ...liFilters, requireEmail: v })} />
-                        </div>
-                      </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -491,59 +504,50 @@ export function ProspectingPage() {
           </AnimatePresence>
         </div>
 
-        <div className="border-t border-white/[0.06] p-6 flex flex-col md:flex-row items-center justify-between gap-6 bg-white/[0.01]">
-          <div className="flex-1 w-full max-w-md">
+        {/* Footer sterujący skanowaniem */}
+        <div className="border-t border-white/[0.06] p-6 flex flex-col md:flex-row items-center gap-8 bg-white/[0.01]">
+          <div className="flex-1 w-full">
             <div className="flex items-center justify-between mb-3">
-              <p className="text-[11px] font-medium text-[#827E78] uppercase tracking-wider">Ilość leadów do pobrania</p>
+              <p className="text-[12px] font-medium text-[#827E78] uppercase tracking-wider">Ilość leadów do pobrania</p>
               <div className="flex items-center gap-2">
-                <span className="text-[15px] font-bold text-[#EAE8E1] font-mono">{common.maxLeads}</span>
-                <span className="text-[12px] text-[#A3A09A]">· {common.maxLeads * tokenCostPerLead} tokenów</span>
+                <span className="text-[16px] font-bold text-[#EAE8E1] font-mono">{common.maxLeads}</span>
+                <span className="text-[12px] text-[#3a3a3a]">/ {common.maxLeads * tokenCostPerLead} tokenów</span>
               </div>
             </div>
-            <div className="flex items-center gap-4">
-              <span className="text-[11px] text-[#827E78] font-mono shrink-0">1</span>
-              <input type="range" min={1} max={500} step={1} value={common.maxLeads} onChange={e => setCommon({ ...common, maxLeads: parseInt(e.target.value) })}
-                className="flex-1 h-px bg-white/[0.08] rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:size-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#EAE8E1]" />
-              <span className="text-[11px] text-[#827E78] font-mono shrink-0">500</span>
-            </div>
+            <input type="range" min={1} max={50} step={1} value={common.maxLeads} onChange={e => setCommon({ ...common, maxLeads: parseInt(e.target.value) })}
+              className="w-full h-px bg-white/[0.08] rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:size-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#EAE8E1] [&::-webkit-slider-thumb]:border-4 [&::-webkit-slider-thumb]:border-[#1a1a1a]" />
           </div>
-          <button onClick={handleSearch} disabled={isSearching}
-            className="shrink-0 w-full md:w-auto flex items-center justify-center gap-2.5 px-8 py-3.5 bg-[#EAE8E1] hover:bg-white text-[#1A1A1A] text-[14px] font-semibold rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-md"
+          <button onClick={handleSearch} disabled={isSearching || !availableTokens}
+            className="shrink-0 w-full md:w-auto flex items-center justify-center gap-2.5 px-10 py-4 bg-[#EAE8E1] hover:bg-white text-[#0a0a0a] text-[14px] font-bold rounded-2xl transition-all disabled:opacity-30 shadow-lg shadow-black/20"
           >
-            {isSearching ? <><Loader2 className="size-4 animate-spin" /> Skanowanie sieci...</> : <><Search className="size-4" /> Rozpocznij skanowanie</>}
+            {isSearching ? <><Loader2 className="size-5 animate-spin" /> Skanowanie sieci...</> : <><Search className="size-5" /> Rozpocznij skanowanie</>}
           </button>
         </div>
       </motion.div>
 
-      {/* Wyniki */}
+      {/* Sekcja Wyników */}
       {leads.length > 0 && (
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
-          className="rounded-2xl border border-white/[0.08] bg-white/[0.04] overflow-hidden"
+          className="bg-white/[0.02] border border-white/[0.06] rounded-2xl overflow-hidden"
         >
-          <div className="px-6 py-5 border-b border-white/[0.06] flex items-center justify-between">
+          <div className="px-6 py-4 border-b border-white/[0.06] flex items-center justify-between bg-white/[0.01]">
             <div>
               <p className="text-[15px] font-medium text-[#EAE8E1]">Wyniki wyszukiwania ({leads.length})</p>
-              <p className="text-[13px] text-[#A3A09A] mt-0.5">
-                {leads.filter(l => l.emailFound).length} z e-mailem · {leads.filter(l => l.status === 'saved').length} zapisanych
-              </p>
+              <p className="text-[12px] text-[#827E78] mt-0.5">Zidentyfikowano e-mail dla {leads.filter(l => l.emailFound).length} podmiotów</p>
             </div>
             {selectedLeads.length > 0 && (
-              <button onClick={handleSaveSelected}
-                className="flex items-center gap-2 px-5 py-2.5 bg-[#EAE8E1] hover:bg-white text-[#1A1A1A] text-[13px] font-semibold rounded-xl transition-all"
-              >
-                <BookmarkPlus className="size-4" />
-                Zapisz wybrane ({selectedLeads.length})
+              <button onClick={handleSaveSelected} className="flex items-center gap-2 px-4 py-2 bg-[#EAE8E1] hover:bg-white text-[#0a0a0a] text-[13px] font-semibold rounded-xl transition-all">
+                <BookmarkPlus className="size-4" /> Zapisz wybrane ({selectedLeads.length})
               </button>
             )}
           </div>
 
-          {/* Header */}
-          <div className="grid grid-cols-12 gap-4 px-6 py-3 border-b border-white/[0.06] bg-white/[0.02] text-[11px] font-medium text-[#827E78] uppercase tracking-wider">
+          <div className="grid grid-cols-12 gap-3 px-5 py-2.5 text-[10px] font-medium text-[#333] uppercase tracking-wider border-b border-white/[0.04]">
             <div className="col-span-1 flex items-center">
-              <label className="relative flex items-center justify-center size-4 cursor-pointer group">
+              <label className="relative flex items-center justify-center size-3.5 cursor-pointer">
                 <input type="checkbox" checked={selectedLeads.length === leads.length && leads.length > 0} onChange={toggleAll} className="peer sr-only" />
-                <div className="absolute inset-0 rounded border border-white/[0.15] bg-transparent peer-checked:bg-[#EAE8E1] peer-checked:border-[#EAE8E1] transition-all group-hover:border-white/[0.3]" />
-                <Check className="size-3 text-[#1A1A1A] opacity-0 peer-checked:opacity-100 relative z-10" strokeWidth={3} />
+                <div className="absolute inset-0 rounded border border-white/[0.12] bg-white/[0.03] peer-checked:bg-[#EAE8E1] peer-checked:border-[#EAE8E1] transition-all" />
+                <Check className="size-2.5 text-[#1A1A1A] opacity-0 peer-checked:opacity-100 relative z-10" strokeWidth={3} />
               </label>
             </div>
             <div className="col-span-3">Firma</div>
@@ -553,63 +557,62 @@ export function ProspectingPage() {
             <div className="col-span-1 text-right">Zapisz</div>
           </div>
 
-          {/* Wiersze */}
           <div className="divide-y divide-white/[0.04]">
             {leads.map(lead => (
-              <div key={lead.id} className={`grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-white/[0.02] transition-all ${selectedLeads.includes(lead.id) ? 'bg-white/[0.04]' : ''}`}>
+              <div key={lead.id} className={`grid grid-cols-12 gap-3 px-5 py-3.5 transition-all hover:bg-white/[0.02] ${selectedLeads.includes(lead.id) ? 'bg-white/[0.03]' : ''}`}>
 
                 <div className="col-span-1 flex items-center">
-                  <label className="relative flex items-center justify-center size-4 cursor-pointer group">
+                  <label className="relative flex items-center justify-center size-3.5 cursor-pointer">
                     <input type="checkbox" checked={selectedLeads.includes(lead.id)} onChange={() => toggleLead(lead.id)} className="peer sr-only" />
-                    <div className="absolute inset-0 rounded border border-white/[0.15] bg-transparent peer-checked:bg-[#EAE8E1] peer-checked:border-[#EAE8E1] transition-all group-hover:border-white/[0.3]" />
-                    <Check className="size-3 text-[#1A1A1A] opacity-0 peer-checked:opacity-100 relative z-10" strokeWidth={3} />
+                    <div className="absolute inset-0 rounded border border-white/[0.12] bg-white/[0.03] peer-checked:bg-[#EAE8E1] peer-checked:border-[#EAE8E1] transition-all" />
+                    <Check className="size-2.5 text-[#1A1A1A] opacity-0 peer-checked:opacity-100 relative z-10" strokeWidth={3} />
                   </label>
                 </div>
 
                 {/* Firma */}
                 <div className="col-span-3 flex flex-col justify-center">
-                  <p className="text-[14px] font-medium text-[#EAE8E1] leading-tight truncate pr-2">{lead.companyName}</p>
-                  <p className="text-[12px] text-[#827E78] mt-1 flex items-center gap-1.5"><MapPin className="size-3" />{lead.city}</p>
-                  {lead.category && <p className="text-[12px] text-[#A3A09A] mt-0.5 truncate">{lead.category}</p>}
+                  <p className="text-[13px] font-semibold text-[#EAE8E1] leading-tight">{lead.companyName}</p>
+                  <p className="text-[11px] text-[#827E78] mt-0.5 flex items-center gap-1"><MapPin className="size-2.5" />{lead.city}</p>
+                  {lead.category && <p className="text-[11px] text-[#A3A09A] mt-0.5">{lead.category}</p>}
                 </div>
 
                 {/* Kontakt */}
-                <div className="col-span-2 flex flex-col justify-center gap-1.5">
+                <div className="col-span-2 flex flex-col justify-center gap-1">
                   {lead.website && (
-                    <a href={`https://${lead.domain}`} target="_blank" rel="noopener noreferrer" className="text-[12px] text-[#A3A09A] hover:text-[#EAE8E1] flex items-center gap-1.5 truncate transition-colors">
-                      <ExternalLink className="size-3 shrink-0" />{lead.domain}
+                    <a href={`https://${lead.domain}`} target="_blank" rel="noopener noreferrer" className="text-[11px] text-[#A3A09A] hover:text-[#EAE8E1] flex items-center gap-1 truncate transition-colors">
+                      <ExternalLink className="size-2.5 shrink-0" />{lead.domain}
                     </a>
                   )}
                   {lead.phone && (
-                    <p className="text-[12px] text-[#A3A09A] flex items-center gap-1.5">
-                      <Phone className="size-3 shrink-0" />{lead.phone}
+                    <p className="text-[11px] text-[#A3A09A] flex items-center gap-1">
+                      <Phone className="size-2.5 shrink-0" />{lead.phone}
                     </p>
                   )}
                   {lead.emailFound
-                    ? <p className="text-[12px] text-[#5d9970] flex items-center gap-1.5 font-medium truncate"><Mail className="size-3 shrink-0" />{lead.emailAddress}</p>
-                    : <p className="text-[12px] text-[#827E78] flex items-center gap-1.5 italic"><Mail className="size-3 shrink-0" />Brak e-maila</p>
+                    ? <p className="text-[11px] text-[#5d9970] flex items-center gap-1 truncate"><Mail className="size-2.5 shrink-0" />{lead.emailAddress}</p>
+                    : <p className="text-[11px] text-[#827E78] flex items-center gap-1"><Mail className="size-2.5 shrink-0" />Brak e-maila</p>
                   }
                 </div>
 
                 {/* Metryki */}
-                <div className="col-span-2 flex flex-col justify-center gap-2">
-                  <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-1 px-1.5 py-0.5 bg-white/[0.04] rounded border border-white/[0.08] text-[11px]">
+                <div className="col-span-2 flex flex-col justify-center gap-1">
+                  <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1 px-1.5 py-0.5 bg-white/[0.04] rounded-lg border border-white/[0.08] text-[11px]">
                       <Star className="size-2.5 text-[#A3A09A]" />
-                      <span className="text-[#EAE8E1] font-mono font-medium">{lead.rating}</span>
+                      <span className="text-[#EAE8E1] font-mono font-semibold">{lead.rating}</span>
                     </div>
-                    <span className="text-[11px] text-[#827E78]">{lead.reviewsCount} opinii</span>
+                    <span className="text-[11px] text-[#A3A09A]">{lead.reviewsCount} op.</span>
                   </div>
                   {(lead.package === 'instagram' || lead.package === 'full') && (
                     lead.instagram?.available && lead.instagram?.followers ? (
-                      <div className="flex items-center gap-1.5 text-[11px] text-[#EAE8E1]">
-                        <Instagram className="size-3 shrink-0 text-[#A3A09A]" />
+                      <div className="flex items-center gap-1 text-[11px] text-[#EAE8E1]">
+                        <Instagram className="size-2.5 shrink-0 text-[#A3A09A]" />
                         <span className="font-mono">{lead.instagram.followers.toLocaleString()}</span>
                         <span className="text-[#827E78]">obserwujących</span>
                       </div>
                     ) : (
-                      <div className="flex items-center gap-1.5 text-[11px] text-[#827E78]">
-                        <Instagram className="size-3 shrink-0 opacity-50" /><span>Brak IG</span>
+                      <div className="flex items-center gap-1 text-[11px] text-[#827E78]">
+                        <Instagram className="size-2.5 shrink-0 opacity-50" /><span>Brak IG</span>
                       </div>
                     )
                   )}
@@ -617,16 +620,22 @@ export function ProspectingPage() {
                     lead.linkedin?.available ? (
                       <>
                         {lead.linkedin.employeeCount && (
-                          <div className="flex items-center gap-1.5 text-[11px] text-[#EAE8E1]">
-                            <Users className="size-3 shrink-0 text-[#A3A09A]" />
+                          <div className="flex items-center gap-1 text-[11px] text-[#EAE8E1]">
+                            <Users className="size-2.5 shrink-0 text-[#A3A09A]" />
                             <span className="font-mono">{lead.linkedin.employeeCount}</span>
                             <span className="text-[#827E78]">pracowników</span>
                           </div>
                         )}
+                        {lead.linkedin.industry && (
+                          <div className="flex items-center gap-1 text-[11px] text-[#A3A09A]">
+                            <Briefcase className="size-2.5 shrink-0" />
+                            <span className="truncate">{lead.linkedin.industry}</span>
+                          </div>
+                        )}
                       </>
                     ) : (
-                      <div className="flex items-center gap-1.5 text-[11px] text-[#827E78]">
-                        <Linkedin className="size-3 shrink-0 opacity-50" /><span>Brak LI</span>
+                      <div className="flex items-center gap-1 text-[11px] text-[#827E78]">
+                        <Linkedin className="size-2.5 shrink-0 opacity-50" /><span>Brak LI</span>
                       </div>
                     )
                   )}
@@ -686,7 +695,7 @@ export function ProspectingPage() {
       <AnimatePresence>
         {previewLead && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-6"
+            className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-6 backdrop-blur-sm"
             onClick={() => setPreviewLead(null)}
           >
             <motion.div initial={{ scale: 0.95, opacity: 0, y: 10 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.95, opacity: 0, y: 10 }}
