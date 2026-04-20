@@ -67,7 +67,7 @@ function getPackage(platforms: Platform[]): string {
   return 'basic';
 }
 
-// --- KOMPONENT AUTOCOMPLETE (Wymuszający wybór z listy) ---
+// --- KOMPONENT AUTOCOMPLETE ---
 
 function Autocomplete({
   value, onChange, options, placeholder, icon: Icon
@@ -78,7 +78,6 @@ function Autocomplete({
   const [query, setQuery] = useState('');
   const wrapperRef = useRef<HTMLDivElement>(null);
 
-  // Synchronizacja query z podanym `value`
   useEffect(() => {
     const selectedOpt = options.find(o => o.value === value);
     setQuery(selectedOpt ? selectedOpt.label : '');
@@ -189,51 +188,56 @@ export function ProspectingPage() {
   const [igFilters, setIgFilters] = useState({ minFollowers: 1000, maxFollowers: 500000, minEngagementRate: 1, minPosts: 12, businessAccountOnly: true, requireEmail: false, requireWebsite: false });
   const [liFilters, setLiFilters] = useState({ minEmployees: 1, maxEmployees: 250, companySize: [] as string[], requireWebsite: true, hasActiveJobs: false, requireEmail: false, foundedAfter: '' });
 
-  // PANCERNE POBIERANIE SESJI I KREDYTÓW
+  // PANCERNE POBIERANIE SESJI I KREDYTÓW (Poprawione)
   useEffect(() => {
     let isMounted = true;
 
-    const fetchProfile = async (currentUserId: string) => {
+    const loadUserData = async () => {
       try {
-        const { data, error: dbError } = await supabase
-          .from('profiles')
-          .select('credits, full_name, offer, package')
-          .eq('id', currentUserId)
-          .single();
-
-        if (dbError) {
-          console.error("Błąd pobierania danych profilu z bazy:", dbError);
+        // Twarde wymuszenie weryfikacji tokena po stronie serwera/zaufanej pamięci
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        
+        if (authError || !user) {
+          console.error("Brak zalogowanego użytkownika:", authError);
           return;
         }
 
-        if (data && isMounted) {
-          setAvailableTokens(data.credits ?? 0);
+        if (isMounted) {
+          setUserId(user.id);
+          setUserEmail(user.email ?? null);
+        }
+
+        // Twarde pobranie profilu (bezpośrednio powiązane z ID usera)
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .select('credits, full_name, offer, package')
+          .eq('id', user.id)
+          .single();
+
+        if (profileError) {
+          console.error("Błąd pobierania danych profilu:", profileError);
+          return;
+        }
+
+        if (profileData && isMounted) {
+          setAvailableTokens(profileData.credits ?? 0);
           setUserProfile({ 
-            full_name: data.full_name ?? '', 
-            offer: data.offer ?? '', 
-            package: data.package ?? 'basic' 
+            full_name: profileData.full_name ?? '', 
+            offer: profileData.offer ?? '', 
+            package: profileData.package ?? 'basic' 
           });
         }
       } catch (err) {
-        console.error("Nieoczekiwany błąd pobierania:", err);
+        console.error("Nieoczekiwany błąd inicjalizacji danych:", err);
       }
     };
 
-    // 1. Inicjalne pobranie przy wejściu na widok
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user && isMounted) {
-        setUserId(session.user.id);
-        setUserEmail(session.user.email ?? null);
-        fetchProfile(session.user.id);
-      }
-    });
+    loadUserData();
 
-    // 2. Nasłuchiwanie na wszelkie zmiany sesji w tle
+    // Dodatkowy nasłuch, gdyby sesja zaktualizowała się z innej zakładki przeglądarki
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user && isMounted) {
-        setUserId(session.user.id);
-        setUserEmail(session.user.email ?? null);
-        fetchProfile(session.user.id);
+        loadUserData();
       }
     });
 
@@ -299,10 +303,8 @@ export function ProspectingPage() {
           },
         }),
       });
-      
       if (!response.ok) throw new Error('Błąd serwera n8n.');
       const data = await response.json();
-      
       if (data.leads && data.leads.length > 0) {
         setLeads(data.leads.map((l: any, i: number) => ({ ...l, id: i + 1, status: 'new' })));
         
@@ -311,6 +313,7 @@ export function ProspectingPage() {
            const { data: profile } = await supabase.from('profiles').select('credits').eq('id', userId).single();
            if (profile) setAvailableTokens(profile.credits);
         }
+
       } else {
         setError('Brak wyników dla podanych kryteriów.');
       }
@@ -370,7 +373,7 @@ export function ProspectingPage() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
       
-      // Pobierz z bazy absolutnie najnowszy stan
+      // Zawsze pobieraj aktualny stan z bazy przed dodaniem (chroni przed Race Condition)
       const { data: profile } = await supabase.from('profiles').select('credits').eq('id', session.user.id).single();
       const currentCredits = profile?.credits || 0;
       
@@ -379,10 +382,10 @@ export function ProspectingPage() {
       const { error } = await supabase.from('profiles').update({ credits: newCreditsAmount }).eq('id', session.user.id);
       if (error) throw error;
       
-      // Aktualizuj na żywo w interfejsie
+      // Natychmiast uaktualnij UI
       setAvailableTokens(newCreditsAmount);
     } catch (err) {
-      console.error("Błąd podczas dodawania kredytów:", err);
+      console.error(err);
     } finally {
       setIsAddingCredits(false);
     }
@@ -396,7 +399,7 @@ export function ProspectingPage() {
         className="flex items-start justify-between"
       >
         <div>
-          <h1 className="text-[28px] font-serif text-[#EAE8E1] tracking-tight mb-1">Wyszukiwarka</h1>
+          <h1 className="text-[28px] font-serif text-[#EAE8E1] tracking-tight mb-1">Prospecting</h1>
           <p className="text-[15px] text-[#A3A09A]">Przeszukaj sieć, zidentyfikuj leady i wzbogać swoją bazę.</p>
         </div>
         <div className="flex items-center gap-4 bg-white/[0.04] border border-white/[0.08] px-5 py-2.5 rounded-2xl">
@@ -410,7 +413,7 @@ export function ProspectingPage() {
             </div>
           </div>
           <div className="w-px h-8 bg-white/[0.08] mx-1" />
-          <button onClick={handleAddDevCredits} disabled={isAddingCredits} className="p-2 text-[#827E78] hover:text-[#5d9970] transition-colors disabled:opacity-50" title="DEV: Dodaj 500 kredytów">
+          <button onClick={handleAddDevCredits} disabled={isAddingCredits} className="p-2 text-[#827E78] hover:text-[#5d9970] transition-colors disabled:opacity-50">
             {isAddingCredits ? <Loader2 className="size-4 animate-spin" /> : <PlusCircle className="size-4" />}
           </button>
         </div>
