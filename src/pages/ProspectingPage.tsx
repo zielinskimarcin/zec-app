@@ -5,7 +5,7 @@ import {
   ArrowRight, Coins, ChevronDown, ChevronUp, AlertCircle,
   Loader2, Users, TrendingUp, BarChart2,
   ExternalLink, SlidersHorizontal, Phone, Eye, X, Briefcase,
-  BookmarkPlus, Sparkles, PlusCircle // Dodano ikonę PlusCircle
+  BookmarkPlus, Sparkles, PlusCircle
 } from 'lucide-react';
 import { Instagram, Linkedin } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -108,7 +108,6 @@ export function ProspectingPage() {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
 
-  // Stan dla przycisku deweloperskiego
   const [isAddingCredits, setIsAddingCredits] = useState(false);
 
   const [selectedPlatforms, setSelectedPlatforms] = useState<Platform[]>(['google']);
@@ -151,19 +150,57 @@ export function ProspectingPage() {
     if (!common.industry || !common.city) { setError('Branża i miasto są wymagane.'); return; }
     setIsSearching(true);
     try {
-      const webhookUrl = 'https://n8n.srv1579942.hstgr.cloud/webhook/c09267cb-9b52-45e1-84a4-cdb53bbeaa77';
+      const webhookUrl = 'https://n8n.srv1579942.hstgr.cloud/webhook/c09267cb-9b52-45e1-84a4-cdb53bbeaa77?package=${pkg}';
+      const pkg = getPackage(selectedPlatforms);
       const response = await fetch(webhookUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          user_id: 'test_user_001',
-          package: getPackage(selectedPlatforms),
-          client: { name: userProfile?.full_name || 'Jan Kowalski', email: userEmail || 'jan@test.pl', offer: userProfile?.offer || 'Automatyzacja lead generation B2B', language: 'pl' },
-          common: { industry: common.industry, country: common.country, city: common.city, keywords: common.keywords, maxLeads: common.maxLeads },
+          user_id: userId ?? 'test_user_001',
+          package: pkg,           // kompatybilność wsteczna
+          meta: {
+            package: pkg,         // ← FIX: Code JS3 czyta stąd
+          },
+          client: {
+            name: userProfile?.full_name || 'Jan Kowalski',
+            email: userEmail || 'jan@test.pl',
+            offer: userProfile?.offer || 'Automatyzacja lead generation B2B',
+            language: 'pl',
+          },
+          common: {
+            industry: common.industry,
+            country: common.country,
+            city: common.city,
+            keywords: common.keywords,
+            maxLeads: common.maxLeads,
+          },
           filters: {
-            google: { minRating: gFilters.minRating, minReviews: gFilters.minReviews, requireWebsite: gFilters.requireWebsite, requireEmail: gFilters.requireEmail, requirePhone: gFilters.requirePhone, requireOpenNow: gFilters.requireOpenNow },
-            instagram: { minFollowers: igFilters.minFollowers, maxFollowers: igFilters.maxFollowers, minEngagementRate: igFilters.minEngagementRate, minPosts: igFilters.minPosts, businessAccountOnly: igFilters.businessAccountOnly, requireEmail: igFilters.requireEmail, requireWebsite: igFilters.requireWebsite },
-            linkedin: { minEmployees: liFilters.minEmployees, maxEmployees: liFilters.maxEmployees, companySize: liFilters.companySize, requireWebsite: liFilters.requireWebsite, hasActiveJobs: liFilters.hasActiveJobs, requireEmail: liFilters.requireEmail, foundedAfter: liFilters.foundedAfter },
+            google: {
+              minRating: gFilters.minRating,
+              minReviews: gFilters.minReviews,
+              requireWebsite: gFilters.requireWebsite,
+              requireEmail: gFilters.requireEmail,
+              requirePhone: gFilters.requirePhone,
+              requireOpenNow: gFilters.requireOpenNow,
+            },
+            instagram: {
+              minFollowers: igFilters.minFollowers,
+              maxFollowers: igFilters.maxFollowers,
+              minEngagementRate: igFilters.minEngagementRate,
+              minPosts: igFilters.minPosts,
+              businessAccountOnly: igFilters.businessAccountOnly,
+              requireEmail: igFilters.requireEmail,
+              requireWebsite: igFilters.requireWebsite,
+            },
+            linkedin: {
+              minEmployees: liFilters.minEmployees,
+              maxEmployees: liFilters.maxEmployees,
+              companySize: liFilters.companySize,
+              requireWebsite: liFilters.requireWebsite,
+              hasActiveJobs: liFilters.hasActiveJobs,
+              requireEmail: liFilters.requireEmail,
+              foundedAfter: liFilters.foundedAfter,
+            },
           },
         }),
       });
@@ -207,7 +244,6 @@ export function ProspectingPage() {
       linkedin_data: lead.linkedin?.available ? lead.linkedin : null,
       history: [{ date: new Date().toISOString(), action: 'Wyszukano', details: 'Znaleziono przez wyszukiwarkę ZEC.' }],
     });
-
   };
 
   const handleSaveSelected = () => {
@@ -217,26 +253,14 @@ export function ProspectingPage() {
   const toggleLead = (id: number) => setSelectedLeads(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
   const toggleAll = () => selectedLeads.length === leads.length ? setSelectedLeads([]) : setSelectedLeads(leads.map(l => l.id));
 
-  // Funkcja deweloperska dodająca 9999 kredytów
   const handleAddDevCredits = async () => {
     setIsAddingCredits(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        alert('Musisz być zalogowany, aby dodać kredyty.');
-        setIsAddingCredits(false);
-        return;
-      }
-
+      if (!session) { alert('Musisz być zalogowany, aby dodać kredyty.'); setIsAddingCredits(false); return; }
       const newCreditsAmount = availableTokens + 9999;
-
-      const { error } = await supabase
-        .from('profiles')
-        .update({ credits: newCreditsAmount })
-        .eq('id', session.user.id);
-
+      const { error } = await supabase.from('profiles').update({ credits: newCreditsAmount }).eq('id', session.user.id);
       if (error) throw error;
-
       setAvailableTokens(newCreditsAmount);
       alert('Dodano 9999 kredytów (DEV).');
     } catch (err: any) {
@@ -265,9 +289,8 @@ export function ProspectingPage() {
               <p className="text-[10px] text-[#333] uppercase tracking-wider">Kredyty</p>
               <p className="text-[15px] font-bold text-[#c8c8c8] font-mono leading-none">{availableTokens.toLocaleString('pl-PL')}</p>
             </div>
-            {/* Przycisk DEV: Dodaj 9999 Kredytów */}
-            <button 
-              onClick={handleAddDevCredits} 
+            <button
+              onClick={handleAddDevCredits}
               disabled={isAddingCredits}
               title="DEV: Dodaj 9999 Kredytów"
               className="ml-2 text-green-500/70 hover:text-green-500 bg-green-500/10 hover:bg-green-500/20 p-1.5 rounded-lg transition-colors flex items-center justify-center border border-green-500/20 disabled:opacity-50"
