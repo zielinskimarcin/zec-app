@@ -67,7 +67,7 @@ function getPackage(platforms: Platform[]): string {
   return 'basic';
 }
 
-// --- KOMPONENT AUTOCOMPLETE ---
+// --- KOMPONENT AUTOCOMPLETE (Wymuszający wybór z listy) ---
 
 function Autocomplete({
   value, onChange, options, placeholder, icon: Icon
@@ -188,56 +188,56 @@ export function ProspectingPage() {
   const [igFilters, setIgFilters] = useState({ minFollowers: 1000, maxFollowers: 500000, minEngagementRate: 1, minPosts: 12, businessAccountOnly: true, requireEmail: false, requireWebsite: false });
   const [liFilters, setLiFilters] = useState({ minEmployees: 1, maxEmployees: 250, companySize: [] as string[], requireWebsite: true, hasActiveJobs: false, requireEmail: false, foundedAfter: '' });
 
-  // PANCERNE POBIERANIE SESJI I KREDYTÓW (Poprawione)
+  // PANCERNE POBIERANIE SESJI I KREDYTÓW
   useEffect(() => {
     let isMounted = true;
 
-    const loadUserData = async () => {
+    const fetchUserData = async (currentUserId: string, currentUserEmail: string | null) => {
+      if (isMounted) {
+        setUserId(currentUserId);
+        setUserEmail(currentUserEmail);
+      }
+
       try {
-        // Twarde wymuszenie weryfikacji tokena po stronie serwera/zaufanej pamięci
-        const { data: { user }, error: authError } = await supabase.auth.getUser();
-        
-        if (authError || !user) {
-          console.error("Brak zalogowanego użytkownika:", authError);
-          return;
-        }
-
-        if (isMounted) {
-          setUserId(user.id);
-          setUserEmail(user.email ?? null);
-        }
-
-        // Twarde pobranie profilu (bezpośrednio powiązane z ID usera)
+        // Pobieramy TYLKO to co istnieje, żeby uniknąć błędów 400
         const { data: profileData, error: profileError } = await supabase
           .from('profiles')
-          .select('credits, full_name, offer, package')
-          .eq('id', user.id)
+          .select('credits, full_name')
+          .eq('id', currentUserId)
           .single();
 
-        if (profileError) {
-          console.error("Błąd pobierania danych profilu:", profileError);
-          return;
-        }
+        if (profileError) console.error("Błąd pobierania profilu:", profileError);
 
-        if (profileData && isMounted) {
-          setAvailableTokens(profileData.credits ?? 0);
+        const { data: companyData } = await supabase
+          .from('companies')
+          .select('short_description')
+          .eq('user_id', currentUserId)
+          .single();
+
+        if (isMounted) {
+          setAvailableTokens(profileData?.credits ?? 0);
           setUserProfile({ 
-            full_name: profileData.full_name ?? '', 
-            offer: profileData.offer ?? '', 
-            package: profileData.package ?? 'basic' 
+            full_name: profileData?.full_name ?? '', 
+            offer: companyData?.short_description ?? '', 
+            package: 'basic' 
           });
         }
       } catch (err) {
-        console.error("Nieoczekiwany błąd inicjalizacji danych:", err);
+        console.error("Błąd pobierania danych:", err);
       }
     };
 
-    loadUserData();
+    // Od razu przy montowaniu sprawdzamy, czy mamy już sesję w pamięci
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        fetchUserData(session.user.id, session.user.email ?? null);
+      }
+    });
 
-    // Dodatkowy nasłuch, gdyby sesja zaktualizowała się z innej zakładki przeglądarki
+    // Nasłuchujemy zmian autoryzacji (np. po przeładowaniu strony)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user && isMounted) {
-        loadUserData();
+      if (session?.user) {
+        fetchUserData(session.user.id, session.user.email ?? null);
       }
     });
 
@@ -373,16 +373,13 @@ export function ProspectingPage() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
       
-      // Zawsze pobieraj aktualny stan z bazy przed dodaniem (chroni przed Race Condition)
       const { data: profile } = await supabase.from('profiles').select('credits').eq('id', session.user.id).single();
       const currentCredits = profile?.credits || 0;
-      
       const newCreditsAmount = currentCredits + 500;
       
       const { error } = await supabase.from('profiles').update({ credits: newCreditsAmount }).eq('id', session.user.id);
       if (error) throw error;
       
-      // Natychmiast uaktualnij UI
       setAvailableTokens(newCreditsAmount);
     } catch (err) {
       console.error(err);
