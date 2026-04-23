@@ -217,7 +217,7 @@ function MailPreview({ lead, onClose }: { lead: CampaignLead; onClose: () => voi
 
         <div className="flex-1 overflow-y-auto px-8 py-6">
           {lead.mail_content ? (
-            <p className="text-[15px] text-[#EAE8E1] leading-[1.8] whitespace-pre-wrap font-serif">
+            <p className="text-[15px] text-[#EAE8E1] leading-[1.8] whitespace-pre-wrap font-sans font-bold">
               {lead.mail_content}
             </p>
           ) : (
@@ -321,7 +321,7 @@ function CampaignDetail({ campaign: initialCampaign, onBack }: { campaign: Campa
         <div className="flex items-start justify-between">
           <div>
             <div className="flex items-center gap-3 mb-1">
-              <h1 className="text-[28px] font-serif text-[#EAE8E1] tracking-tight">{campaign.name}</h1>
+              <h1 className="text-[28px] font-sans font-bold text-[#EAE8E1] tracking-tight">{campaign.name}</h1>
               <span className={`text-[12px] font-medium px-3 py-1.5 rounded-full ${st.cls}`}>{st.label}</span>
             </div>
             <p className="text-[14px] text-[#827E78]">
@@ -601,7 +601,7 @@ function CampaignsList({ onSelect }: { onSelect: (c: Campaign) => void }) {
 
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-[28px] font-serif text-[#EAE8E1] tracking-tight">Kampanie</h1>
+          <h1 className="text-[28px] font-sans font-bold text-[#EAE8E1] tracking-tight">Kampanie</h1>
           <p className="text-[15px] text-[#A3A09A] mt-1.5">Zarządzaj kampaniami i śledź postęp wysyłki</p>
         </div>
         <button onClick={() => setIsCreatorOpen(true)} className="flex items-center gap-2.5 px-5 py-3 bg-[#EAE8E1] hover:bg-white text-[#1A1A1A] text-[14px] font-medium rounded-xl transition-all">

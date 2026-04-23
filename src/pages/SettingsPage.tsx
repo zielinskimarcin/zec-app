@@ -1049,7 +1049,7 @@ export function SettingsPage() {
   return (
     <div className="max-w-5xl mx-auto">
       <div className="mb-12">
-        <h1 className="text-[28px] font-serif text-[#EAE8E1] tracking-tight">Ustawienia</h1>
+        <h1 className="text-[28px] font-sans font-bold text-[#EAE8E1] tracking-tight">Ustawienia</h1>
         <p className="text-[15px] text-[#A3A09A] mt-2">Zarządzaj kontem, firmą, skrzynkami i preferencjami</p>
       </div>
 

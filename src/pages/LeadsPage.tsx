@@ -265,7 +265,7 @@ export function LeadsPage() {
       
       {/* Header */}
       <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}>
-        <h1 className="text-[28px] font-serif text-[#EAE8E1] tracking-tight mb-1">Baza leadów</h1>
+        <h1 className="text-[28px] font-sans font-bold text-[#EAE8E1] tracking-tight mb-1">Baza leadów</h1>
         <p className="text-[15px] text-[#A3A09A]">Zarządzaj swoimi kontaktami. Wzbogacaj dane i przypisuj do kampanii.</p>
       </motion.div>
 
@@ -474,7 +474,7 @@ export function LeadsPage() {
             <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 200 }} className="fixed right-0 top-[72px] h-[calc(100vh-72px)] w-full max-w-xl bg-[#0a0a0a] border-l border-white/[0.08] z-40 flex flex-col shadow-2xl">
               <div className="px-8 py-6 border-b border-white/[0.06] flex justify-between items-start bg-white/[0.02]">
                 <div>
-                  <h2 className="text-[22px] font-serif text-[#EAE8E1] mb-1">{selectedLead.company}</h2>
+                  <h2 className="text-[22px] font-sans font-bold text-[#EAE8E1] mb-1">{selectedLead.company}</h2>
                   <p className="text-[14px] text-[#A3A09A] flex items-center gap-2">
                     {selectedLead.industry || 'Brak branży'} {selectedLead.city && <><span className="size-1 rounded-full bg-white/[0.15]" /> {selectedLead.city}</>}
                   </p>
