@@ -116,7 +116,7 @@ export function Testimonials() {
               {['MK', 'AW', 'PN', 'JK', 'AS'].map((initials, i) => (
                 <div
                   key={i}
-                  className="size-8 bg-white/10 rounded-full border-2 border-black flex items-center justify-center"
+                  className="size-8 bg-white/10 rounded-full border-2 border-[#0a0a0a] flex items-center justify-center"
                 >
                   <span className="text-white text-xs font-semibold">{initials}</span>
                 </div>
