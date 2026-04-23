@@ -51,7 +51,7 @@ export function SearchCombobox({
     option.label.toLowerCase().includes(trimmedInput.toLowerCase())
   );
 
-  const shouldShowDropdown = isOpen && trimmedInput.length > 0;
+  const shouldShowDropdown = isOpen;
 
   return (
     <div ref={wrapperRef} className="relative w-full">

@@ -239,7 +239,7 @@ export function Hero() {
           >
             <div className="mb-6">
               <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/[0.04] border border-white/[0.08] text-sm text-[#A3A09A] backdrop-blur-sm">
-                3 free leads • No signup required
+                3 leady za darmo • Bez rejestracji
               </span>
             </div>
 
@@ -247,7 +247,7 @@ export function Hero() {
               className="text-5xl md:text-6xl lg:text-7xl font-bold text-[#EAE8E1] mb-6 tracking-tight leading-[1.1]"
               style={{ fontFamily: "'Libre Baskerville', serif" }}
             >
-              Znajdź setki klientów
+              Odkryj setki nowych współprac
               <br />
               jednym kliknięciem
             </h1>
