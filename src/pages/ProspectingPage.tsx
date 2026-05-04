@@ -275,7 +275,7 @@ export function ProspectingPage() {
     setIsSearching(true);
     try {
       const pkg = getPackage(selectedPlatforms);
-      const webhookUrl = `https://n8n.srv1579942.hstgr.cloud/webhook/52991c18-36e9-4d84-8b1b-7dfcfc8f8956`;
+      const webhookUrl = pkg === 'basic' ? 'https://n8n.srv1579942.hstgr.cloud/webhook/52991c18-36e9-4d84-8b1b-7dfcfc8f8956' : 'https://n8n.srv1579942.hstgr.cloud/webhook/355cdacd-850b-4d81-bddc-1c1c73f4336b';
       const response = await fetch(webhookUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
