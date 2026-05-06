@@ -245,7 +245,7 @@ function CampaignDetail({ campaign: initialCampaign, onBack }: { campaign: Campa
 
   useEffect(() => {
     const fetchLeads = async () => {
-      setLoadingLeads(true);
+      setLoadingLeads(true); 
       try {
         const { data: emails } = await supabase
           .from('campaign_emails')

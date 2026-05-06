@@ -17,7 +17,7 @@ interface Lead {
   email: string;
   website: string;
   status: LeadStatus;
-  city: string;
+  city: string; 
   industry: string;
   addedDate: string;
   campaignId?: string;
