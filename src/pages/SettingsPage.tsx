@@ -1049,7 +1049,7 @@ export function SettingsPage() {
   return (
     <div className="max-w-5xl mx-auto">
       <div className="mb-12">
-        <h1 className="text-[28px] font-sans font-bold text-[#EAE8E1] tracking-tight">Ustawienia</h1>
+        <h1 className="text-[28px] font-serif text-[#EAE8E1] tracking-tight">Ustawienia</h1>
         <p className="text-[15px] text-[#A3A09A] mt-2">Zarządzaj kontem, firmą, skrzynkami i preferencjami</p>
       </div>
 
@@ -1076,7 +1076,7 @@ export function SettingsPage() {
             <motion.div
               key={activeTab}
               initial={{ opacity: 0, y: 5 }}
-              animate={{ opacity: 1, y: 0 }} 
+              animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -5 }}
               transition={{ duration: 0.12 }}
             >
