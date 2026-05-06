@@ -54,7 +54,7 @@ export function Features() {
             <span className="text-gray-500">Nic zbędnego.</span>
           </h2>
           <p className="text-xl text-gray-400 max-w-2xl mx-auto">
-            Przestań tracić czas na manualne prospecting. Pozwól automatyzacji zrobić robotę.
+            Zautomatyzuj poszukiwanie nowych współprac i odzyskaj godziny cennego czasu każdego dnia.
           </p>
         </motion.div>
 

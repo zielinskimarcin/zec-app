@@ -275,7 +275,7 @@ export function ProspectingPage() {
     setIsSearching(true);
     try {
       const pkg = getPackage(selectedPlatforms);
-      const webhookUrl = `https://n8n.srv1579942.hstgr.cloud/webhook/c09267cb-9b52-45e1-84a4-cdb53bbeaa77?package=${pkg}`;
+      const webhookUrl = pkg === 'basic' ? 'https://n8n.srv1579942.hstgr.cloud/webhook/52991c18-36e9-4d84-8b1b-7dfcfc8f8956' : 'https://n8n.srv1579942.hstgr.cloud/webhook/355cdacd-850b-4d81-bddc-1c1c73f4336b';
       const response = await fetch(webhookUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -396,7 +396,7 @@ export function ProspectingPage() {
         className="flex items-start justify-between"
       >
         <div>
-          <h1 className="text-[28px] font-serif text-[#EAE8E1] tracking-tight mb-1">Prospecting</h1>
+          <h1 className="text-[28px] font-sans font-bold text-[#EAE8E1] tracking-tight mb-1">Prospecting</h1>
           <p className="text-[15px] text-[#A3A09A]">Przeszukaj sieć, zidentyfikuj leady i wzbogać swoją bazę.</p>
         </div>
         <div className="flex items-center gap-4 bg-white/[0.04] border border-white/[0.08] px-5 py-2.5 rounded-2xl">
@@ -768,7 +768,7 @@ export function ProspectingPage() {
             >
               <div className="flex items-start justify-between mb-8">
                 <div>
-                  <h2 className="text-[24px] font-serif text-[#EAE8E1] mb-1.5">{previewLead.companyName}</h2>
+                  <h2 className="text-[24px] font-sans font-bold text-[#EAE8E1] mb-1.5">{previewLead.companyName}</h2>
                   <p className="text-[14px] text-[#A3A09A] flex items-center gap-1.5">
                     <MapPin className="size-3.5" /> {previewLead.city} <span className="mx-1 text-white/[0.1]">•</span> {previewLead.category}
                   </p>

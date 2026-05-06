@@ -256,7 +256,7 @@ export const INDUSTRIES = [
 ];
 
 export const CITIES = [
-  { value: "polska_cala", label: "Cała Polska (Bez podziału)" },
+  { value: "Polska", label: "Cała Polska (Bez podziału)" },
   { value: "warszawa", label: "Warszawa (Mazowieckie)" },
   { value: "krakow", label: "Kraków (Małopolskie)" },
   { value: "wroclaw", label: "Wrocław (Dolnośląskie)" },

@@ -297,7 +297,7 @@ export function OnboardingSandbox({ onComplete }: OnboardingSandboxProps) {
                           <p className="text-[11px] text-gray-400 mb-1.5">{selectedMailbox} → Studio Interio</p>
                           <p className="text-[16px] font-semibold text-gray-900">{MOCK_EMAIL.subject}</p>
                         </div>
-                        <div className="px-6 py-4 max-h-44 overflow-y-auto">
+                        <div className="px-6 py-4 max-h-[80vh] overflow-y-auto overscroll-contain">
                           <p className="text-[13px] text-gray-700 leading-[1.8] whitespace-pre-wrap font-serif">{MOCK_EMAIL.body}</p>
                         </div>
                       </div>

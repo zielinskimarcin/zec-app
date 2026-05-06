@@ -91,7 +91,7 @@ export function DashboardPage() {
 
       {/* Header */}
       <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}>
-        <h1 className="text-[28px] font-serif text-[#EAE8E1] tracking-tight">
+        <h1 className="text-[28px] font-sans font-bold text-[#EAE8E1] tracking-tight">
           Dzień dobry{userName ? `, ${userName}` : ''}.
         </h1>
         <p className="text-[15px] text-[#A3A09A] mt-1.5">

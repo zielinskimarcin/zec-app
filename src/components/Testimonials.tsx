@@ -112,11 +112,11 @@ export function Testimonials() {
           className="mt-16 text-center"
         >
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10">
-            <div className="flex -space-x-2">
+            <div className="flex gap-1">
               {['MK', 'AW', 'PN', 'JK', 'AS'].map((initials, i) => (
                 <div
                   key={i}
-                  className="size-8 bg-white/10 rounded-full border-2 border-black flex items-center justify-center"
+                  className="size-8 bg-white/10 rounded-full border-2 border-[#111111] flex items-center justify-center"
                 >
                   <span className="text-white text-xs font-semibold">{initials}</span>
                 </div>

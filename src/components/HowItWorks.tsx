@@ -62,14 +62,14 @@ export function HowItWorks() {
               )}
 
               {/* Step Card */}
-              <div className="relative">
+              <div className="relative pt-6 pl-4">
                 {/* Number badge */}
-                <div className="absolute -top-4 -left-4 size-12 bg-white rounded-xl flex items-center justify-center shadow-2xl shadow-white/10">
+                <div className="absolute top-0 left-0 size-12 bg-white rounded-xl flex items-center justify-center shadow-2xl shadow-white/10 z-10">
                   <span className="text-black font-bold text-lg">{step.number}</span>
                 </div>
 
                 {/* Main content */}
-                <div className="bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 p-8 pt-12 hover:border-white/20 transition-all group">
+                <div className="bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 p-8 pt-10 hover:border-white/20 transition-all group">
                   {/* Icon */}
                   <div className="size-14 bg-white/10 rounded-xl flex items-center justify-center mb-6 group-hover:bg-white/15 transition-all">
                     <step.icon className="size-7 text-white" />

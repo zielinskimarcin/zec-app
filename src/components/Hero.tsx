@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router';
 import { motion, AnimatePresence } from 'motion/react';
-import { Sparkles, Search, Loader2 } from 'lucide-react';
+import { Search, Loader2 } from 'lucide-react';
 import { LeadRow } from './LeadRow';
 import { SearchCombobox } from './SearchCombobox';
 import { INDUSTRIES, CITIES } from '../data/searchOptions';
@@ -70,12 +70,9 @@ export function Hero() {
   const [isSearching, setIsSearching] = useState(false);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [resultsCount, setResultsCount] = useState<number | null>(null);
-
-  // --- NOWE STANY DLA AUTORYZACJI ---
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
 
-  // --- EFFECT SPRAWDZAJĄCY SESJĘ ---
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setIsLoggedIn(!!session);
@@ -110,28 +107,21 @@ export function Hero() {
 
       const response = await fetch(webhookUrl, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           industry: selectedIndustryLabel,
           city: selectedCityLabel,
         }),
       });
 
-      if (!response.ok) {
-        throw new Error(`Błąd serwera: ${response.status}`);
-      }
+      if (!response.ok) throw new Error(`Błąd serwera: ${response.status}`);
 
       const responseText = await response.text();
-      console.log('SUROWA ODPOWIEDŹ Z N8N:', responseText);
-
       let parsedResponse: N8NResponse;
 
       try {
         parsedResponse = extractJsonFromText(responseText);
-      } catch (parseError) {
-        console.error('Nie udało się sparsować odpowiedzi:', parseError);
+      } catch {
         throw new Error('Webhook zwrócił odpowiedź w nieobsługiwanym formacie.');
       }
 
@@ -145,7 +135,6 @@ export function Hero() {
       const finalData = dataObject as N8NResponse;
 
       if (!finalData || !Array.isArray(finalData.leads)) {
-        console.error('Zrozumiany obiekt:', finalData);
         throw new Error('W odpowiedzi nie znaleziono prawidłowej tablicy leadów.');
       }
 
@@ -165,11 +154,10 @@ export function Hero() {
       setLeads(top3);
       setResultsCount(Math.floor(Math.random() * (490 - 370 + 1)) + 370);
 
-      // Zapisujemy ukradkiem do przeglądarki
       localStorage.setItem('zec_temp_leads', JSON.stringify(top3));
-      localStorage.setItem('zec_temp_query', JSON.stringify({ 
-        industry: selectedIndustryLabel, 
-        city: selectedCityLabel 
+      localStorage.setItem('zec_temp_query', JSON.stringify({
+        industry: selectedIndustryLabel,
+        city: selectedCityLabel,
       }));
     } catch (error) {
       console.error('Błąd podczas pobierania leadów:', error);
@@ -180,275 +168,212 @@ export function Hero() {
   };
 
   return (
-    <div className="relative bg-[#111111] overflow-hidden min-h-screen">
+    <div className="relative bg-[#0d0d0d] overflow-hidden min-h-screen">
+
+      {/* Soft center glow */}
+      <div className="absolute inset-0 flex items-start justify-center pt-32 pointer-events-none">
+        <div className="w-[600px] h-[400px] bg-white/[0.03] rounded-full blur-[120px]" />
+      </div>
+
+      {/* Subtle grid — very faint */}
+      <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.015)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.015)_1px,transparent_1px)] bg-[size:64px_64px] [mask-image:radial-gradient(ellipse_70%_50%_at_50%_0%,#000_60%,transparent_100%)]" />
+
+      {/* Header */}
       <header className="absolute top-0 left-0 right-0 z-50 px-6 py-5">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          
-          {/* NOWE LOGO */}
-          <Link to="/" className="flex items-center gap-[10px] group">
-            <div className="w-7 h-7 bg-white/[0.06] border border-white/[0.12] rounded-lg flex items-center justify-center shadow-sm group-hover:bg-white/[0.1] transition-all p-0.5">
+        <div className="max-w-6xl mx-auto flex items-center justify-between">
+          <Link to="/" className="flex items-center gap-2.5 group">
+            <div className="w-7 h-7 bg-white/[0.06] border border-white/[0.10] rounded-lg flex items-center justify-center group-hover:bg-white/[0.1] transition-all p-0.5">
               <img src="/logo.png" alt="ZEC Logo" className="w-4 h-4 object-contain opacity-90 invert brightness-0" />
             </div>
-            <span 
-              className="text-[22px] font-semibold lowercase text-[#EAE8E1] tracking-[0.08em] -mt-[2px]" 
-              style={{ fontFamily: "'Outfit', sans-serif" }}
-            >
+            <span className="text-[20px] font-semibold lowercase text-[#EAE8E1] tracking-[0.08em]" style={{ fontFamily: "'Outfit', sans-serif" }}>
               zec
             </span>
           </Link>
 
           <div className="flex items-center gap-6">
-            <a href="#features" className="text-sm text-[#827E78] hover:text-[#EAE8E1] transition-colors">
-              Features
-            </a>
-            <a href="#pricing" className="text-sm text-[#827E78] hover:text-[#EAE8E1] transition-colors">
-              Pricing
-            </a>
-            
-            {/* --- ZMODYFIKOWANA SEKCJA PRZYCISKÓW --- */}
+            <a href="#features" className="text-sm text-[#666] hover:text-[#EAE8E1] transition-colors">Features</a>
+            <a href="#pricing" className="text-sm text-[#666] hover:text-[#EAE8E1] transition-colors">Pricing</a>
             {!isLoadingAuth && (
               isLoggedIn ? (
-                <Link to="/app" className="text-sm px-5 py-2 bg-white text-[#1A1A1A] rounded-lg hover:bg-gray-200 transition-all font-medium">
-                  Przejdź do panelu
+                <Link to="/app" className="text-sm px-4 py-2 bg-white text-[#1A1A1A] rounded-lg hover:bg-gray-100 transition-all font-medium">
+                  Panel
                 </Link>
               ) : (
                 <>
-                  <Link to="/login" className="text-sm text-[#A3A09A] hover:text-[#EAE8E1] transition-colors">
-                    Logowanie
-                  </Link>
-                  <Link to="/register" className="text-sm px-4 py-2 bg-white text-[#1A1A1A] rounded-lg hover:bg-gray-200 transition-all font-medium">
+                  <Link to="/login" className="text-sm text-[#777] hover:text-[#EAE8E1] transition-colors">Logowanie</Link>
+                  <Link to="/register" className="text-sm px-4 py-2 bg-white text-[#1A1A1A] rounded-lg hover:bg-gray-100 transition-all font-medium">
                     Zacznij za darmo
                   </Link>
                 </>
               )
             )}
-            
           </div>
         </div>
       </header>
 
-      <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:64px_64px] [mask-image:radial-gradient(ellipse_80%_50%_at_50%_0%,#000_70%,transparent_100%)]" />
+      {/* Main content */}
+      <div className="relative z-10 flex flex-col items-center justify-start pt-40 pb-20 px-6">
 
-      <div className="relative z-10 pt-32 pb-20">
-        <div className="max-w-7xl mx-auto px-6">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            className="text-center max-w-4xl mx-auto mb-16"
-          >
-            <div className="mb-6">
-              <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/[0.04] border border-white/[0.08] text-sm text-[#A3A09A] backdrop-blur-sm">
-                3 free leads • No signup required
-              </span>
+        {/* Badge */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="mb-10"
+        >
+          <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/[0.04] border border-white/[0.08] text-xs text-[#777] tracking-wide">
+            3 leady za darmo • Bez rejestracji
+          </span>
+        </motion.div>
+
+        {/* Headline */}
+        <motion.h1
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.1 }}
+          className="text-5xl md:text-6xl lg:text-7xl font-extrabold text-[#EAE8E1] tracking-tight text-center leading-[1.08] mb-6 max-w-3xl"
+        >
+          Odkryj setki nowych
+          <br />
+          współprac jednym
+          <br />
+          kliknięciem
+        </motion.h1>
+
+        {/* Subheadline */}
+        <motion.p
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.2 }}
+          className="text-base md:text-lg text-[#666] text-center leading-relaxed mb-14 max-w-xl"
+        >
+          Automatyczne scrapowanie Google Maps, wyszukiwanie maili
+          i personalizowany outreach. Wszystko w jednym miejscu.
+        </motion.p>
+
+        {/* Search form */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.3 }}
+          className="w-full max-w-2xl"
+        >
+          <div className="bg-white/[0.03] border border-white/[0.08] rounded-2xl p-2 flex flex-col md:flex-row gap-2">
+            <div className="flex-1">
+              <SearchCombobox
+                options={INDUSTRIES}
+                value={industry}
+                onChange={setIndustry}
+                placeholder="Branża, np. Architekt"
+                searchPlaceholder="Wpisz branżę..."
+              />
             </div>
-
-            <h1
-              className="text-5xl md:text-6xl lg:text-7xl font-bold text-[#EAE8E1] mb-6 tracking-tight leading-[1.1]"
-              style={{ fontFamily: "'Libre Baskerville', serif" }}
+            <div className="flex-1">
+              <SearchCombobox
+                options={CITIES}
+                value={city}
+                onChange={setCity}
+                placeholder="Miasto, np. Warszawa"
+                searchPlaceholder="Wpisz miasto..."
+              />
+            </div>
+            <button
+              onClick={handleSearch}
+              disabled={isSearching || !industry || !city}
+              className="h-[48px] px-6 rounded-xl bg-white text-[#1A1A1A] font-semibold text-sm hover:bg-gray-100 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 shrink-0"
             >
-              Znajdź setki klientów
-              <br />
-              jednym kliknięciem
-            </h1>
+              {isSearching ? (
+                <><Loader2 className="size-4 animate-spin" />Szukam...</>
+              ) : (
+                <><Search className="size-4" />Znajdź leady</>
+              )}
+            </button>
+          </div>
+        </motion.div>
 
-            <p className="text-lg md:text-xl text-[#A3A09A] leading-relaxed">
-              Automatyczne scrapowanie Google Maps, wyszukiwanie maili i personalizowany outreach.
-              <br className="hidden md:block" />
-              Wszystko w jednym miejscu.
-            </p>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 30, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            transition={{ duration: 0.7, delay: 0.2 }}
-            className="rounded-2xl overflow-hidden shadow-2xl max-w-6xl mx-auto relative"
-          >
-            <div className="absolute -inset-[1px] bg-gradient-to-b from-white/20 to-white/5 rounded-2xl" />
-
-            <div className="relative bg-[#0f0f0f] border border-[#1f1f1f] rounded-2xl">
-              <div className="p-6 md:p-8 border-b border-white/10">
-                <div className="flex flex-col md:flex-row gap-4">
-                  <div className="flex-1">
-                    <label className="block text-sm text-[#A3A09A] mb-2 font-medium">
-                      Branża
-                    </label>
-                    <SearchCombobox
-                      options={INDUSTRIES}
-                      value={industry}
-                      onChange={setIndustry}
-                      placeholder="np. Architekt"
-                      searchPlaceholder="Wpisz branżę (np. Architekt)"
-                    />
+        {/* Results */}
+        <AnimatePresence>
+          {(leads.length > 0 || isSearching) && (
+            <motion.div
+              initial={{ opacity: 0, y: 24 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.5 }}
+              className="w-full max-w-4xl mt-10"
+            >
+              <div className="bg-white/[0.02] border border-white/[0.07] rounded-2xl overflow-hidden">
+                {leads.length > 0 && (
+                  <div className="px-6 py-4 border-b border-white/[0.06]">
+                    <p className="text-sm text-[#666]">
+                      Znaleziono <span className="text-[#EAE8E1] font-semibold">{resultsCount ?? 420}+</span> leadów z branży {INDUSTRIES.find((i) => i.value === industry)?.label || industry}
+                    </p>
                   </div>
+                )}
 
-                  <div className="flex-1">
-                    <label className="block text-sm text-[#A3A09A] mb-2 font-medium">
-                      Lokalizacja
-                    </label>
-                    <SearchCombobox
-                      options={CITIES}
-                      value={city}
-                      onChange={setCity}
-                      placeholder="np. Warszawa"
-                      searchPlaceholder="np. Warszawa"
-                    />
-                  </div>
-
-                  <div className="flex items-end">
-                    <button
-                      onClick={handleSearch}
-                      disabled={isSearching || !industry || !city}
-                      className="w-full md:w-auto h-[48px] md:h-[50px] px-8 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-medium bg-white text-[#1A1A1A] hover:bg-gray-200 shadow-lg shadow-white/10"
-                    >
-                      {isSearching ? (
-                        <>
-                          <Loader2 className="size-4 animate-spin" />
-                          Szukam...
-                        </>
-                      ) : (
-                        <>
-                          <Search className="size-4" />
-                          Znajdź leady
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-black/20 backdrop-blur-sm" style={{ height: '500px', overflowY: 'auto' }}>
-                <div className="p-6 md:p-8">
-                  <AnimatePresence>
-                    {leads.length > 0 && (
-                      <motion.div
-                        initial={{ opacity: 0, y: -10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="mb-6"
-                      >
-                        <h3 className="text-lg font-semibold text-[#EAE8E1]">
-                          Znaleziono {resultsCount ?? 420}+ leadów z branży {INDUSTRIES.find((i) => i.value === industry)?.label || industry}
-                        </h3>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-
-                  <div className="space-y-4 relative">
-                    <AnimatePresence mode="popLayout">
-                      {leads.map((lead, index) => (
-                        <motion.div
-                          key={lead.id}
-                          initial={{ opacity: 0, y: 20 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -20 }}
-                          transition={{
-                            duration: 0.3,
-                            delay: index * 0.05,
-                          }}
-                        >
-                          <LeadRow lead={lead} dark />
-                        </motion.div>
-                      ))}
-                    </AnimatePresence>
-
-                    {leads.length > 0 && (
-                      <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.5 }}
-                        className="relative"
-                      >
-                        <div className="space-y-4 pointer-events-none select-none">
-                          {[1, 2, 3, 4, 5].map((i) => (
-                            <div
-                              key={`blur-${i}`}
-                              className="rounded-xl border bg-white/5 border-white/10 backdrop-blur-xl p-6 opacity-50 blur-sm"
-                            >
-                              <div className="space-y-4">
-                                <div className="h-5 rounded w-1/3 bg-white/20" />
-                                <div className="h-4 rounded w-full bg-white/10" />
-                                <div className="h-4 rounded w-3/4 bg-white/10" />
-                                <div className="flex gap-4">
-                                  <div className="h-4 rounded w-32 bg-white/10" />
-                                  <div className="h-4 rounded w-32 bg-white/10" />
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-
-                        <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-b from-transparent via-[#0a0a0a]/90 to-[#0a0a0a] backdrop-blur-md">
-                          <div className="text-center px-6 py-12 max-w-md">
-                            <div className="mb-6">
-                              <div className="inline-flex items-center gap-3 px-6 py-3 rounded-full bg-white/5 border border-white/10 backdrop-blur-xl mb-4">
-                                <div className="size-2 bg-gray-400 rounded-full" />
-                                <span className="text-[#EAE8E1] text-sm font-medium">
-                                  {resultsCount ?? 420}+ leadów gotowych
-                                </span>
-                              </div>
-                            </div>
-
-                            <h3 className="text-3xl md:text-4xl font-bold text-[#EAE8E1] mb-4 leading-tight">
-                              Odblokuj pełną listę
-                            </h3>
-
-                            <p className="text-[#A3A09A] text-base mb-8 leading-relaxed">
-                              Zdobądź dostęp do {resultsCount ?? 420}+ zweryfikowanych leadów z personalizowanymi wiadomościami AI
-                            </p>
-
-                            <Link to="/pricing" className="block w-full px-8 py-4 rounded-lg text-base font-semibold transition-all bg-white text-[#1A1A1A] hover:bg-gray-100">
-                              Upgrade do Premium
-                            </Link>
-
-                            <p className="text-[#827E78] text-sm mt-4">
-                              Bez zobowiązań • Anuluj kiedy chcesz
-                            </p>
-                          </div>
-                        </div>
-                      </motion.div>
-                    )}
-                  </div>
-
+                <div className="p-6 space-y-4" style={{ maxHeight: '500px', overflowY: 'auto' }}>
                   {isSearching && (
                     <div className="space-y-4">
                       {[1, 2, 3].map((i) => (
-                        <div
-                          key={i}
-                          className="rounded-lg p-6 border bg-white/5 border-white/10"
-                        >
-                          <div className="animate-pulse space-y-4">
-                            <div className="h-5 rounded w-1/4 bg-white/10" />
-                            <div className="h-4 rounded w-full bg-white/5" />
-                            <div className="h-4 rounded w-3/4 bg-white/5" />
-                            <div className="flex gap-4">
-                              <div className="h-4 rounded w-32 bg-white/5" />
-                              <div className="h-4 rounded w-32 bg-white/5" />
-                            </div>
+                        <div key={i} className="rounded-xl p-6 border bg-white/[0.03] border-white/[0.06]">
+                          <div className="animate-pulse space-y-3">
+                            <div className="h-4 rounded w-1/4 bg-white/10" />
+                            <div className="h-3 rounded w-full bg-white/[0.06]" />
+                            <div className="h-3 rounded w-3/4 bg-white/[0.06]" />
                           </div>
                         </div>
                       ))}
                     </div>
                   )}
 
-                  {!isSearching && leads.length === 0 && (
-                    <div className="text-center py-20">
-                      <div className="size-16 rounded-full flex items-center justify-center mx-auto mb-4 bg-white/5">
-                        <Search className="size-8 text-[#A3A09A]" />
+                  {!isSearching && leads.map((lead, index) => (
+                    <motion.div
+                      key={lead.id}
+                      initial={{ opacity: 0, y: 16 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.06 }}
+                    >
+                      <LeadRow lead={lead} dark />
+                    </motion.div>
+                  ))}
+
+                  {!isSearching && leads.length > 0 && (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 0.4 }}
+                      className="relative"
+                    >
+                      <div className="space-y-4 pointer-events-none select-none">
+                        {[1, 2, 3].map((i) => (
+                          <div key={`blur-${i}`} className="rounded-xl border bg-white/[0.03] border-white/[0.06] p-6 opacity-40 blur-sm">
+                            <div className="space-y-3">
+                              <div className="h-4 rounded w-1/3 bg-white/20" />
+                              <div className="h-3 rounded w-full bg-white/10" />
+                              <div className="h-3 rounded w-2/3 bg-white/10" />
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                      <h3 className="text-lg font-medium mb-2 text-[#EAE8E1]">
-                        Wprowadź branżę i lokalizację
-                      </h3>
-                      <p className="text-[#A3A09A]">
-                        Znajdziemy setki leadów w kilka sekund
-                      </p>
-                    </div>
+
+                      <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-b from-transparent via-[#0d0d0d]/80 to-[#0d0d0d]">
+                        <div className="text-center px-6 py-8 max-w-sm">
+                          <h3 className="text-2xl font-bold text-[#EAE8E1] mb-3">Odblokuj pełną listę</h3>
+                          <p className="text-[#666] text-sm mb-6 leading-relaxed">
+                            Zdobądź dostęp do {resultsCount ?? 420}+ zweryfikowanych leadów z personalizowanymi wiadomościami AI
+                          </p>
+                          <Link to="/pricing" className="inline-block px-8 py-3 rounded-xl text-sm font-semibold bg-white text-[#1A1A1A] hover:bg-gray-100 transition-all">
+                            Upgrade do Premium
+                          </Link>
+                          <p className="text-[#444] text-xs mt-4">Bez zobowiązań • Anuluj kiedy chcesz</p>
+                        </div>
+                      </div>
+                    </motion.div>
                   )}
                 </div>
               </div>
-            </div>
-          </motion.div>
-        </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );
