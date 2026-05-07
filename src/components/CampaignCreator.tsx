@@ -37,6 +37,7 @@ function MicrosoftLogo({ size = 18 }: { size?: number }) {
 type Step = 1 | 2 | 3 | 4 | 5;
 type LeadReviewStatus = 'pending' | 'accepted' | 'skipped';
 type Provider = 'gmail' | 'outlook' | 'other' | null;
+type SendingWindow = 'business_hours' | 'all_day';
 
 interface DatabaseLead {
   id: string;
@@ -123,6 +124,7 @@ interface CampaignDraft {
   campaignName: string;
   promptAngle: string;
   selectedMailboxIds: string[];
+  sendingWindow: SendingWindow;
   savedAt: string;
 }
 
@@ -362,6 +364,7 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
   const [launching, setLaunching] = useState(false);
   const [launched, setLaunched] = useState(false);
   const [completedAction, setCompletedAction] = useState<'saved' | 'launched' | null>(null);
+  const [sendingWindow, setSendingWindow] = useState<SendingWindow>('business_hours');
 
   // Draft
   const [draftExists, setDraftExists] = useState(false);
@@ -388,6 +391,7 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
     setEditingIndex(null);
     setLaunched(false);
     setCompletedAction(null);
+    setSendingWindow('business_hours');
     setDbCampaignId(null);
     setLastScheduledTime(new Date());
 
@@ -479,6 +483,7 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
     setCampaignName(draft.campaignName);
     setPromptAngle(draft.promptAngle);
     setSelectedMailboxIds(draft.selectedMailboxIds);
+    setSendingWindow(draft.sendingWindow || 'business_hours');
     setDraftExists(false);
   };
 
@@ -502,6 +507,7 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
         campaignName,
         promptAngle,
         selectedMailboxIds,
+        sendingWindow,
         savedAt: new Date().toISOString(),
       });
     }
@@ -661,7 +667,8 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
           prompt_angle: promptAngle,
           status: 'draft',
           total_count: selectedLeads.length,
-          email_account_id: selectedMailboxIds[0] || null
+          email_account_id: selectedMailboxIds[0] || null,
+          sending_window: sendingWindow,
         })
         .select()
         .single();
@@ -913,6 +920,17 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
   const handleLaunch = async () => {
     setLaunching(true);
     if (dbCampaignId) {
+      const { error: updateError } = await supabase
+        .from('campaigns')
+        .update({ sending_window: sendingWindow })
+        .eq('id', dbCampaignId);
+      if (updateError) {
+        console.error('Nie udało się zapisać okna wysyłki:', updateError);
+        alert(updateError.message || 'Nie udało się zapisać okna wysyłki.');
+        setLaunching(false);
+        return;
+      }
+
       const { error } = await supabase.rpc('zec_start_campaign_sending', { p_campaign_id: dbCampaignId });
       if (error) {
         console.error('Nie udało się uruchomić wysyłki:', error);
@@ -931,7 +949,7 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
   const handleSaveCampaign = async () => {
     setLaunching(true);
     if (dbCampaignId) {
-      await supabase.from('campaigns').update({ status: 'draft' }).eq('id', dbCampaignId);
+      await supabase.from('campaigns').update({ status: 'draft', sending_window: sendingWindow }).eq('id', dbCampaignId);
     }
     await new Promise(r => setTimeout(r, 700));
     setLaunching(false);
@@ -1579,8 +1597,22 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
                           <div className="flex items-start gap-3 p-4 rounded-xl bg-white/[0.02] border border-white/[0.05] text-left">
                             <Info className="size-4 text-[#827E78] shrink-0 mt-0.5" />
                             <p className="text-[13px] text-[#827E78] leading-relaxed">
-                              System wyśle <span className="text-[#A3A09A]">{accepted} wiadomości</span> w losowych odstępach między 9:00–15:00, po ok. 40 maili dziennie z każdej skrzynki. Chroni to Twoją domenę przed spamem.
+                              System wyśle <span className="text-[#A3A09A]">{accepted} wiadomości</span> w losowych odstępach {sendingWindow === 'all_day' ? 'przez całą dobę' : 'między 9:00–15:00'}, po ok. 40 maili dziennie z każdej skrzynki. Chroni to Twoją domenę przed spamem.
                             </p>
+                          </div>
+
+                          <div className="flex justify-end -mt-5 opacity-35 hover:opacity-90 transition-opacity">
+                            <button
+                              type="button"
+                              onClick={() => setSendingWindow(prev => prev === 'business_hours' ? 'all_day' : 'business_hours')}
+                              className="flex items-center gap-2 px-2 py-1 text-[10px] text-[#827E78] hover:text-[#A3A09A] rounded-md transition-colors"
+                              title="Dev test: przełącz okno wysyłki"
+                            >
+                              <span className={`relative inline-flex h-3 w-6 rounded-full transition-colors ${sendingWindow === 'all_day' ? 'bg-[#a3956a]/60' : 'bg-white/[0.12]'}`}>
+                                <span className={`absolute top-0.5 size-2 rounded-full bg-[#827E78] transition-transform ${sendingWindow === 'all_day' ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
+                              </span>
+                              dev {sendingWindow === 'all_day' ? '24h' : '9-15'}
+                            </button>
                           </div>
 
                           {hasSelectedMailbox ? (
