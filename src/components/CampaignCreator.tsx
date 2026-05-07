@@ -43,7 +43,13 @@ interface DatabaseLead {
   company: string;
   industry: string;
   email: string;
+  website?: string;
   city?: string;
+  person?: string;
+  summary?: string;
+  instagramData?: unknown;
+  linkedinData?: unknown;
+  history?: unknown;
 }
 
 interface Mailbox {
@@ -68,6 +74,7 @@ interface CompanyInfo {
 
 interface GeneratedLead {
   id: string;
+  leadId: string;
   company: string;
   person: string;
   industry: string;
@@ -81,6 +88,25 @@ interface GeneratedLead {
   body: string;
   reviewStatus: LeadReviewStatus;
   isGenerating: boolean;
+}
+
+interface GeneratedEmailDraft {
+  lead_id: string;
+  subject: string;
+  body: string;
+  person?: string;
+  website?: string;
+  intel?: {
+    social?: string;
+    keywords?: string[];
+    summary?: string;
+  };
+}
+
+interface EmailGenerationResponse {
+  success?: boolean;
+  count?: number;
+  mails?: GeneratedEmailDraft[];
 }
 
 interface CampaignCreatorProps {
@@ -109,6 +135,9 @@ function detectMailboxProvider(email: string, smtpHost?: string): 'google' | 'mi
 }
 
 const DRAFT_KEY = 'zec_campaign_draft';
+const CAMPAIGN_EMAIL_WEBHOOK_URL =
+  import.meta.env.VITE_N8N_CAMPAIGN_EMAIL_WEBHOOK_URL ||
+  'https://n8n.srv1579942.hstgr.cloud/webhook/zec-campaign-email-generator';
 
 function saveDraftToStorage(draft: CampaignDraft) {
   try { localStorage.setItem(DRAFT_KEY, JSON.stringify(draft)); } catch {}
@@ -128,29 +157,6 @@ function loadDraftFromStorage(): CampaignDraft | null {
 function clearDraftFromStorage() {
   try { localStorage.removeItem(DRAFT_KEY); } catch {}
 }
-
-// ─── Mock data (fake content only) ───────────────────────────────────────────
-
-const fakeTemplates = [
-  {
-    subject: 'Szybkie pytanie o realizację z portfolio',
-    body: 'Cześć,\n\nGratuluję świetnych realizacji! Widziałem Wasze najnowsze wpisy i dbałość o detale robi wrażenie.\n\nZauważyłem, że przy projektach premium firmy często tracą czas na ręczne przygotowywanie dokumentacji. Zbudowaliśmy system, który to automatyzuje, oszczędzając ok. 10 godzin tygodniowo.\n\nCzy szukacie obecnie optymalizacji w tym obszarze?\n\nPozdrawiam,\nJan'
-  },
-  {
-    subject: 'Skalowanie procesów i rekrutacja',
-    body: 'Dzień dobry,\n\nWidziałem informacje o nowym projekcie – świetny kierunek rozwoju. Szybki wzrost oznacza jednak często wąskie gardła organizacyjne.\n\nPomagamy firmom w optymalizacji wdrażania i procesów operacyjnych, skracając time-to-productivity o 40%.\n\nCzy chwila na krótką rozmowę w przyszłym tygodniu miałaby sens?\n\nZ poważaniem,\nJan'
-  },
-  {
-    subject: 'Automatyzacja procesów projektowych',
-    body: 'Dzień dobry,\n\nŚledzę Wasz rozwój na LinkedIn i widzę, że realizujecie coraz więcej złożonych projektów.\n\nWiemy, że koordynacja wielu zadań naraz to ogromne wyzwanie. Nasz system AI pomaga automatyzować komunikację z zespołem i klientami.\n\nCzy to coś, co mogłoby Was zainteresować?\n\nPozdrawiam,\nJan'
-  }
-];
-
-const fakeIntels = [
-  { person: 'Jan', website: 'strona-firmowa.pl', social: '"Ukończyliśmy właśnie kluczowy projekt. Dziękujemy zespołowi!"', keywords: ['Premium', 'Rozwój', 'B2B'], summary: 'Dynamicznie rosnąca firma z aktywną obecnością w social mediach.' },
-  { person: 'Piotr', website: 'studio-pro.pl', social: '"Poszukujemy nowych talentów do naszego zespołu w Warszawie."', keywords: ['Skalowanie', 'Rekrutacja', 'Projekty'], summary: 'Skupieni na budowaniu zespołu do nowych rynków zagranicznych.' },
-  { person: 'Anna', website: 'tech-dev.pl', social: '"Kolejny udany kwartał za nami! Wyniki przerosły oczekiwania."', keywords: ['Wzrost', 'Innowacje', 'Tech'], summary: 'Rozwijają własny produkt, otwarci na optymalizację.' }
-];
 
 // ─── Step progress bar ────────────────────────────────────────────────────────
 
@@ -369,7 +375,10 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
       if (!session) { setIsLoadingLeads(false); return; }
       const { data, error } = await supabase
         .from('user_leads')
-        .select('id, global_leads ( company_name, email, city, industry )')
+        .select(`
+          id, name, summary, instagram_data, linkedin_data, history,
+          global_leads ( company_name, email, city, industry, website )
+        `)
         .eq('user_id', session.user.id);
       if (!error && data) {
         setDatabaseLeads(data.map((item: any) => ({
@@ -377,7 +386,13 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
           company: item.global_leads?.company_name || 'Brak firmy',
           industry: item.global_leads?.industry || '',
           email: item.global_leads?.email || '',
+          website: item.global_leads?.website || '',
           city: item.global_leads?.city || '',
+          person: item.name || '',
+          summary: item.summary || '',
+          instagramData: item.instagram_data || null,
+          linkedinData: item.linkedin_data || null,
+          history: item.history || [],
         })));
       }
       setIsLoadingLeads(false);
@@ -477,9 +492,22 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
   const handleStartGeneration = async () => {
     if (!canGoNext()) return;
     setIsGeneratingMails(true);
+    let createdCampaignId: string | null = null;
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error("Brak sesji użytkownika");
+
+      const selectedLeads = selectedLeadIds
+        .map(id => databaseLeads.find(lead => lead.id === id))
+        .filter(Boolean) as DatabaseLead[];
+
+      if (selectedLeads.length === 0) throw new Error("Nie znaleziono wybranych leadów");
+
+      if (Object.values(companyInfo).some(value => value.trim().length > 0)) {
+        await supabase
+          .from('companies')
+          .upsert({ user_id: session.user.id, ...companyInfo }, { onConflict: 'user_id' });
+      }
 
       const { data: campaign, error: campErr } = await supabase
         .from('campaigns')
@@ -488,23 +516,67 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
           name: campaignName,
           prompt_angle: promptAngle,
           status: 'draft',
-          total_count: selectedLeadIds.length
+          total_count: selectedLeads.length,
+          email_account_id: selectedMailboxIds[0] || null
         })
         .select()
         .single();
 
       if (campErr || !campaign) throw campErr;
+      createdCampaignId = campaign.id;
       setDbCampaignId(campaign.id);
       clearDraftFromStorage();
       setDraftExists(false);
 
-      const dbEmailsToInsert = selectedLeadIds.map((leadId, idx) => {
-        const template = fakeTemplates[idx % fakeTemplates.length];
+      const selectedMailboxes = mailboxes.filter(mailbox => selectedMailboxIds.includes(mailbox.id));
+      const response = await fetch(CAMPAIGN_EMAIL_WEBHOOK_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          campaign: {
+            id: campaign.id,
+            name: campaignName,
+            promptAngle,
+          },
+          company: companyInfo,
+          mailboxes: selectedMailboxes,
+          leads: selectedLeads.map(lead => ({
+            id: lead.id,
+            company: lead.company,
+            email: lead.email,
+            website: lead.website,
+            industry: lead.industry,
+            city: lead.city,
+            person: lead.person,
+            summary: lead.summary,
+            instagram_data: lead.instagramData,
+            linkedin_data: lead.linkedinData,
+            history: lead.history,
+          })),
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`n8n zwrócił błąd ${response.status}`);
+      }
+
+      const generation = await response.json() as EmailGenerationResponse;
+      const generatedMails = generation.mails || [];
+      if (!generation.success || generatedMails.length === 0) {
+        throw new Error("n8n nie zwrócił wygenerowanych maili");
+      }
+
+      const generatedByLeadId = new Map(generatedMails.map(mail => [mail.lead_id, mail]));
+      const dbEmailsToInsert = selectedLeads.map((lead) => {
+        const generated = generatedByLeadId.get(lead.id);
+        if (!generated?.body) {
+          throw new Error(`Brak wygenerowanego maila dla leada ${lead.company}`);
+        }
         return {
           campaign_id: campaign.id,
-          lead_id: leadId,
-          subject: template.subject,
-          body: template.body,
+          lead_id: lead.id,
+          subject: generated.subject || 'Szybkie pytanie',
+          body: generated.body,
           status: 'pending_review'
         };
       });
@@ -516,20 +588,31 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
 
       if (emailErr || !insertedEmails) throw emailErr;
 
+      await supabase
+        .from('user_leads')
+        .update({ campaign_id: campaign.id, status: 'sent' })
+        .in('id', selectedLeads.map(lead => lead.id));
+
       const uiLeads = insertedEmails.map((dbEmail, i) => {
         const leadDb = databaseLeads.find(l => l.id === dbEmail.lead_id);
-        const intel = fakeIntels[i % fakeIntels.length];
+        const generated = generatedByLeadId.get(dbEmail.lead_id) || generatedMails[i];
+        const intel = generated?.intel || {};
         return {
           id: dbEmail.id,
+          leadId: dbEmail.lead_id,
           company: leadDb?.company || 'Brak danych',
           industry: leadDb?.industry || 'Brak branży',
-          person: intel.person,
-          website: intel.website,
-          intel: intel,
+          person: generated?.person || leadDb?.person || '—',
+          website: generated?.website || leadDb?.website || '—',
+          intel: {
+            social: intel.social || leadDb?.summary || '',
+            keywords: intel.keywords || [],
+            summary: intel.summary || leadDb?.summary || '',
+          },
           subject: dbEmail.subject,
           body: dbEmail.body,
           reviewStatus: 'pending' as LeadReviewStatus,
-          isGenerating: true
+          isGenerating: false
         };
       });
 
@@ -538,14 +621,14 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
       setLastScheduledTime(new Date());
       setStep(4);
 
-      uiLeads.forEach((_, i) => {
-        setTimeout(() => {
-          setGeneratedLeads(prev => prev.map((l, idx) => idx === i ? { ...l, isGenerating: false } : l));
-        }, (i + 1) * 1500);
-      });
-
     } catch (error) {
       console.error("Błąd podczas zapisywania kampanii do Supabase:", error);
+      if (createdCampaignId) {
+        await supabase.from('campaign_emails').delete().eq('campaign_id', createdCampaignId);
+        await supabase.from('campaigns').delete().eq('id', createdCampaignId);
+        setDbCampaignId(null);
+      }
+      alert(error instanceof Error ? error.message : "Nie udało się wygenerować kampanii.");
     } finally {
       setIsGeneratingMails(false);
     }
@@ -580,6 +663,90 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
       i === editingIndex ? { ...l, subject: editSubject, body: editBody } : l
     ));
     setEditingIndex(null);
+  };
+
+  const regenerateCurrentLead = async () => {
+    if (!currentLead || !dbCampaignId) return;
+    const leadDb = databaseLeads.find(lead => lead.id === currentLead.leadId);
+    if (!leadDb) return;
+
+    setGeneratedLeads(prev => prev.map((lead, index) =>
+      index === currentIndex ? { ...lead, isGenerating: true } : lead
+    ));
+
+    try {
+      const selectedMailboxes = mailboxes.filter(mailbox => selectedMailboxIds.includes(mailbox.id));
+      const response = await fetch(CAMPAIGN_EMAIL_WEBHOOK_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          campaign: {
+            id: dbCampaignId,
+            name: campaignName,
+            promptAngle,
+          },
+          company: companyInfo,
+          mailboxes: selectedMailboxes,
+          leads: [{
+            id: leadDb.id,
+            company: leadDb.company,
+            email: leadDb.email,
+            website: leadDb.website,
+            industry: leadDb.industry,
+            city: leadDb.city,
+            person: leadDb.person,
+            summary: leadDb.summary,
+            instagram_data: leadDb.instagramData,
+            linkedin_data: leadDb.linkedinData,
+            history: leadDb.history,
+          }],
+        }),
+      });
+
+      if (!response.ok) throw new Error(`n8n zwrócił błąd ${response.status}`);
+
+      const generation = await response.json() as EmailGenerationResponse;
+      const generated = generation.mails?.[0];
+      if (!generation.success || !generated?.body) {
+        throw new Error("n8n nie zwrócił nowej wersji maila");
+      }
+
+      await supabase
+        .from('campaign_emails')
+        .update({
+          subject: generated.subject || 'Szybkie pytanie',
+          body: generated.body,
+          status: 'pending_review',
+          scheduled_at: null,
+        })
+        .eq('id', currentLead.id);
+
+      const intel = generated.intel || {};
+      setGeneratedLeads(prev => prev.map((lead, index) =>
+        index === currentIndex
+          ? {
+              ...lead,
+              subject: generated.subject || 'Szybkie pytanie',
+              body: generated.body,
+              person: generated.person || leadDb.person || '—',
+              website: generated.website || leadDb.website || '—',
+              intel: {
+                social: intel.social || leadDb.summary || '',
+                keywords: intel.keywords || [],
+                summary: intel.summary || leadDb.summary || '',
+              },
+              reviewStatus: 'pending',
+              isGenerating: false,
+            }
+          : lead
+      ));
+    } catch (error) {
+      console.error("Błąd regenerowania maila:", error);
+      alert(error instanceof Error ? error.message : "Nie udało się zregenerować maila.");
+      setGeneratedLeads(prev => prev.map((lead, index) =>
+        index === currentIndex ? { ...lead, isGenerating: false } : lead
+      ));
+    }
   };
 
   const handleAction = async (action: 'accepted' | 'skipped') => {
@@ -1117,12 +1284,8 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
                                   Pomiń leada
                                 </button>
 
-                                <button onClick={() => {
-                                  setGeneratedLeads(prev => prev.map((l, i) => i === currentIndex ? { ...l, isGenerating: true } : l));
-                                  setTimeout(() => {
-                                    setGeneratedLeads(prev => prev.map((l, i) => i === currentIndex ? { ...l, isGenerating: false } : l));
-                                  }, 1500);
-                                }} className="flex items-center gap-2 px-5 py-2.5 border border-white/[0.08] text-[#A3A09A] text-[13px] font-medium rounded-xl hover:text-[#EAE8E1] hover:border-white/[0.15] transition-all ml-auto">
+                                <button onClick={regenerateCurrentLead} disabled={currentLead.isGenerating}
+                                  className="flex items-center gap-2 px-5 py-2.5 border border-white/[0.08] text-[#A3A09A] text-[13px] font-medium rounded-xl hover:text-[#EAE8E1] hover:border-white/[0.15] transition-all ml-auto disabled:opacity-40">
                                   <RotateCcw className="size-3.5" /> Regeneruj
                                 </button>
 
