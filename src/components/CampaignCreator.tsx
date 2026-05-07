@@ -673,19 +673,35 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
       setDraftExists(false);
 
       const selectedMailboxes = mailboxes.filter(mailbox => selectedMailboxIds.includes(mailbox.id));
+      const mailboxIdForIndex = (index: number) =>
+        selectedMailboxes.length > 0 ? selectedMailboxes[index % selectedMailboxes.length].id : null;
+
+      if (selectedMailboxes.length > 0) {
+        const { error: senderErr } = await supabase
+          .from('campaign_email_accounts')
+          .insert(selectedMailboxes.map(mailbox => ({
+            campaign_id: campaign.id,
+            email_account_id: mailbox.id,
+            daily_limit: mailbox.daily_limit ?? 40,
+          })));
+        if (senderErr) throw senderErr;
+      }
+
       await supabase
         .from('user_leads')
-        .update({ campaign_id: campaign.id, status: 'sent' })
+        .update({ campaign_id: campaign.id, status: 'pending' })
         .in('id', selectedLeads.map(lead => lead.id));
 
       const { data: placeholderEmails, error: placeholderErr } = await supabase
         .from('campaign_emails')
-        .insert(selectedLeads.map(lead => ({
+        .insert(selectedLeads.map((lead, index) => ({
           campaign_id: campaign.id,
           lead_id: lead.id,
           subject: '',
           body: '',
-          status: 'pending_review'
+          status: 'pending_review',
+          queue_position: index + 1,
+          email_account_id: mailboxIdForIndex(index),
         })))
         .select();
 
@@ -800,7 +816,7 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
 
       await supabase
         .from('user_leads')
-        .update({ campaign_id: dbCampaignId, status: 'sent' })
+        .update({ campaign_id: dbCampaignId, status: 'pending' })
         .eq('id', leadDb.id);
 
       const intel = generated.intel || {};
@@ -844,7 +860,7 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
           status: 'queued',
           subject: lead.subject,
           body: lead.body,
-          scheduled_at: nextTime.toISOString()
+          queue_position: currentIndex + 1,
         }).eq('id', lead.emailId);
       } else {
         await supabase.from('campaign_emails').update({ status: 'failed' }).eq('id', lead.emailId);
@@ -880,7 +896,7 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
         updatePromises.push(
           supabase.from('campaign_emails').update({
             status: 'queued',
-            scheduled_at: currentTime.toISOString(),
+            queue_position: i + 1,
             subject: lead.subject,
             body: lead.body
           }).eq('id', lead.emailId)
@@ -897,7 +913,13 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
   const handleLaunch = async () => {
     setLaunching(true);
     if (dbCampaignId) {
-      await supabase.from('campaigns').update({ status: 'active' }).eq('id', dbCampaignId);
+      const { error } = await supabase.rpc('zec_start_campaign_sending', { p_campaign_id: dbCampaignId });
+      if (error) {
+        console.error('Nie udało się uruchomić wysyłki:', error);
+        alert(error.message || 'Nie udało się uruchomić wysyłki.');
+        setLaunching(false);
+        return;
+      }
     }
     await new Promise(r => setTimeout(r, 1200));
     setLaunching(false);

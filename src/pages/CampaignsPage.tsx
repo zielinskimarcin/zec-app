@@ -12,7 +12,7 @@ import { CampaignCreator } from "../components/CampaignCreator";
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type CampaignStatus = 'active' | 'paused' | 'completed' | 'draft' | 'canceled';
-type LeadStatus = 'queued' | 'sent' | 'replied' | 'bounced' | 'skipped';
+type LeadStatus = 'queued' | 'processing' | 'sent' | 'replied' | 'bounced' | 'skipped';
 
 interface Campaign {
   id: string;
@@ -36,6 +36,7 @@ interface CampaignLead {
   status: LeadStatus;
   raw_status: string | null;
   sent_at: string | null;
+  scheduled_at: string | null;
   sent_from: string | null;
   subject: string | null;
   mail_content: string | null;
@@ -48,6 +49,7 @@ interface CampaignLead {
   linkedinData: any;
   isGenerating: boolean;
   priority: boolean;
+  queue_position: number;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -66,6 +68,7 @@ function statusLabel(s: CampaignStatus) {
 function leadStatusLabel(s: LeadStatus) {
   const map: Record<LeadStatus, { label: string; cls: string; icon: React.ReactNode }> = {
     queued:  { label: 'W kolejce',    cls: 'text-[#827E78]',  icon: <Clock className="size-3.5" /> },
+    processing: { label: 'Wysyłanie', cls: 'text-[#a3956a]',  icon: <Loader2 className="size-3.5" /> },
     sent:    { label: 'Wysłany',      cls: 'text-[#A3A09A]',  icon: <Mail className="size-3.5" /> },
     replied: { label: 'Odpowiedział', cls: 'text-[#5d9970]',  icon: <Check className="size-3.5" /> },
     bounced: { label: 'Odbity',       cls: 'text-[#b56060]',  icon: <AlertCircle className="size-3.5" /> },
@@ -77,6 +80,7 @@ function leadStatusLabel(s: LeadStatus) {
 function mapDbEmailStatus(dbStatus: string | null): LeadStatus {
   switch (dbStatus) {
     case 'queued': return 'queued';
+    case 'processing': return 'processing';
     case 'sent': return 'sent';
     case 'replied': return 'replied';
     case 'bounced': return 'bounced';
@@ -227,7 +231,7 @@ function CampaignMailReview({
   if (!lead) return null;
 
   const ls = leadStatusLabel(lead.status);
-  const canEdit = lead.status !== 'sent' && lead.status !== 'replied' && !lead.isGenerating;
+  const canEdit = lead.status !== 'sent' && lead.status !== 'replied' && lead.status !== 'processing' && !lead.isGenerating;
   const socialNotes = [lead.instagramData, lead.linkedinData]
     .filter(Boolean)
     .map(item => typeof item === 'string' ? item : JSON.stringify(item))
@@ -434,8 +438,9 @@ function CampaignDetail({ campaign: initialCampaign, onBack }: { campaign: Campa
     try {
       const { data: emails } = await supabase
         .from('campaign_emails')
-        .select('id, lead_id, subject, body, status, scheduled_at')
+        .select('id, lead_id, subject, body, status, scheduled_at, sent_at, sent_from_email, email_account_id, priority_score, queue_position, email_accounts(email_address)')
         .eq('campaign_id', campaign.id)
+        .order('queue_position', { ascending: true })
         .order('created_at', { ascending: true });
 
       if (!emails || emails.length === 0) {
@@ -466,8 +471,9 @@ function CampaignDetail({ campaign: initialCampaign, onBack }: { campaign: Campa
           email: gl?.email || '—',
           status: mapDbEmailStatus(email.status),
           raw_status: email.status || null,
-          sent_at: email.scheduled_at || null,
-          sent_from: null,
+          sent_at: email.sent_at || null,
+          scheduled_at: email.scheduled_at || null,
+          sent_from: email.sent_from_email || email.email_accounts?.email_address || null,
           subject: email.subject || null,
           mail_content: email.body || null,
           website: gl?.website || null,
@@ -478,7 +484,8 @@ function CampaignDetail({ campaign: initialCampaign, onBack }: { campaign: Campa
           instagramData: leadRow?.instagram_data || null,
           linkedinData: leadRow?.linkedin_data || null,
           isGenerating,
-          priority: false,
+          priority: (email.priority_score ?? 0) > 0,
+          queue_position: email.queue_position ?? 0,
         };
       });
 
@@ -496,8 +503,28 @@ function CampaignDetail({ campaign: initialCampaign, onBack }: { campaign: Campa
     return () => window.clearInterval(interval);
   }, [fetchLeads]);
 
-  const togglePriority = (id: string) => {
-    setLeads(prev => prev.map(l => l.id === id ? { ...l, priority: !l.priority } : l));
+  const togglePriority = async (lead: CampaignLead) => {
+    const { error } = await supabase.rpc('zec_set_campaign_email_priority', {
+      p_email_id: lead.id,
+      p_priority: !lead.priority,
+    });
+    if (error) {
+      console.error('Nie udało się zmienić priorytetu:', error);
+      return;
+    }
+    await fetchLeads(false);
+  };
+
+  const moveQueuedLead = async (lead: CampaignLead, direction: 'up' | 'down') => {
+    const { error } = await supabase.rpc('zec_move_campaign_email', {
+      p_email_id: lead.id,
+      p_direction: direction,
+    });
+    if (error) {
+      console.error('Nie udało się przesunąć maila w kolejce:', error);
+      return;
+    }
+    await fetchLeads(false);
   };
 
   const markReplied = async (id: string) => {
@@ -512,8 +539,14 @@ function CampaignDetail({ campaign: initialCampaign, onBack }: { campaign: Campa
   };
 
   const startSending = async () => {
-    await supabase.from('campaigns').update({ status: 'active' }).eq('id', campaign.id);
+    const { error } = await supabase.rpc('zec_start_campaign_sending', { p_campaign_id: campaign.id });
+    if (error) {
+      console.error('Nie udało się rozpocząć wysyłki:', error);
+      alert(error.message || 'Nie udało się rozpocząć wysyłki.');
+      return;
+    }
     setCampaign(prev => ({ ...prev, status: 'active' }));
+    await fetchLeads(false);
   };
 
   const updateLead = (updated: CampaignLead) => {
@@ -632,7 +665,7 @@ function CampaignDetail({ campaign: initialCampaign, onBack }: { campaign: Campa
           <div className="col-span-4">Firma</div>
           <div className="col-span-3">E-mail</div>
           <div className="col-span-2">Status</div>
-          <div className="col-span-2">Wysłano</div>
+          <div className="col-span-2">Termin</div>
           <div className="col-span-1"></div>
         </div>
 
@@ -664,6 +697,9 @@ function CampaignDetail({ campaign: initialCampaign, onBack }: { campaign: Campa
 
                   <div className="col-span-3">
                     <p className="text-[13px] text-[#827E78] truncate">{lead.email}</p>
+                    {lead.sent_from && (
+                      <p className="text-[11px] text-[#3a3a3a] truncate">z {lead.sent_from}</p>
+                    )}
                   </div>
 
                   <div className="col-span-2">
@@ -677,7 +713,9 @@ function CampaignDetail({ campaign: initialCampaign, onBack }: { campaign: Campa
                   </div>
 
                   <div className="col-span-2">
-                    <p className="text-[12px] text-[#3a3a3a]">{lead.sent_at ? formatDate(lead.sent_at) : '—'}</p>
+                    <p className="text-[12px] text-[#3a3a3a]">
+                      {lead.sent_at ? formatDate(lead.sent_at) : lead.scheduled_at ? formatDate(lead.scheduled_at) : '—'}
+                    </p>
                   </div>
 
                   <div className="col-span-1 flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
@@ -692,8 +730,18 @@ function CampaignDetail({ campaign: initialCampaign, onBack }: { campaign: Campa
                       </button>
                     )}
                     {lead.status === 'queued' && (
-                      <button onClick={() => togglePriority(lead.id)} className={`p-1.5 rounded-lg transition-all ${lead.priority ? 'text-[#a3956a]' : 'text-[#2e2e2e] hover:text-[#a3956a]'} hover:bg-white/[0.04]`} title={lead.priority ? 'Usuń priorytet' : 'Ustaw jako priorytet'}>
+                      <button onClick={() => moveQueuedLead(lead, 'up')} className="p-1.5 text-[#2e2e2e] hover:text-[#A3A09A] hover:bg-white/[0.04] rounded-lg transition-all" title="Przesuń wyżej">
                         <ChevronUp className="size-3.5" />
+                      </button>
+                    )}
+                    {lead.status === 'queued' && (
+                      <button onClick={() => moveQueuedLead(lead, 'down')} className="p-1.5 text-[#2e2e2e] hover:text-[#A3A09A] hover:bg-white/[0.04] rounded-lg transition-all" title="Przesuń niżej">
+                        <ChevronDown className="size-3.5" />
+                      </button>
+                    )}
+                    {lead.status === 'queued' && (
+                      <button onClick={() => togglePriority(lead)} className={`p-1.5 rounded-lg transition-all ${lead.priority ? 'text-[#a3956a]' : 'text-[#2e2e2e] hover:text-[#a3956a]'} hover:bg-white/[0.04]`} title={lead.priority ? 'Usuń priorytet' : 'Wyślij wcześniej'}>
+                        <SlidersHorizontal className="size-3.5" />
                       </button>
                     )}
                     {lead.mail_content && lead.status !== 'sent' && lead.status !== 'replied' && (
