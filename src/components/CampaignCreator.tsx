@@ -74,6 +74,7 @@ interface CompanyInfo {
 
 interface GeneratedLead {
   id: string;
+  emailId?: string;
   leadId: string;
   company: string;
   person: string;
@@ -88,6 +89,7 @@ interface GeneratedLead {
   body: string;
   reviewStatus: LeadReviewStatus;
   isGenerating: boolean;
+  generationError?: string;
 }
 
 interface GeneratedEmailDraft {
@@ -138,6 +140,22 @@ const DRAFT_KEY = 'zec_campaign_draft';
 const CAMPAIGN_EMAIL_WEBHOOK_URL =
   import.meta.env.VITE_N8N_CAMPAIGN_EMAIL_WEBHOOK_URL ||
   'https://n8n.srv1579942.hstgr.cloud/webhook/zec-campaign-email-generator';
+
+async function requestCampaignEmailGeneration(payload: unknown): Promise<EmailGenerationResponse> {
+  const response = await fetch(CAMPAIGN_EMAIL_WEBHOOK_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  const text = await response.text();
+  if (!response.ok) throw new Error(`n8n zwrócił błąd ${response.status}`);
+  try {
+    return JSON.parse(text) as EmailGenerationResponse;
+  } catch {
+    throw new Error("n8n zwrócił niepoprawny JSON");
+  }
+}
 
 function saveDraftToStorage(draft: CampaignDraft) {
   try { localStorage.setItem(DRAFT_KEY, JSON.stringify(draft)); } catch {}
@@ -348,7 +366,12 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
   const [draftExists, setDraftExists] = useState(false);
 
   const totalSelected = selectedLeadIds.length;
-  const estimatedMinutes = Math.ceil((totalSelected * 8) / 60) || 1;
+  const generatedCount = generatedLeads.filter(l => !l.isGenerating && !l.generationError && l.body.trim()).length;
+  const generatingCount = generatedLeads.filter(l => l.isGenerating).length;
+  const remainingGenerationCount = step === 4 && generatedLeads.length > 0
+    ? generatingCount
+    : totalSelected;
+  const estimatedMinutes = Math.ceil((remainingGenerationCount * 8) / 60) || 1;
 
   // Reset on open + fetch data
   useEffect(() => {
@@ -489,6 +512,106 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
 
   // ─── Generation + Supabase ────────────────────────────────────────────────
 
+  const createPlaceholderLead = (lead: DatabaseLead): GeneratedLead => ({
+    id: lead.id,
+    leadId: lead.id,
+    company: lead.company || 'Brak danych',
+    industry: lead.industry || 'Brak branży',
+    person: lead.person || '—',
+    website: lead.website || '—',
+    intel: {
+      social: lead.summary || '',
+      keywords: [],
+      summary: lead.summary || '',
+    },
+    subject: '',
+    body: '',
+    reviewStatus: 'pending',
+    isGenerating: true,
+  });
+
+  const buildGenerationPayload = (campaignId: string, selectedMailboxes: Mailbox[], leads: DatabaseLead[]) => ({
+    campaign: {
+      id: campaignId,
+      name: campaignName,
+      promptAngle,
+    },
+    company: companyInfo,
+    mailboxes: selectedMailboxes,
+    leads: leads.map(lead => ({
+      id: lead.id,
+      company: lead.company,
+      email: lead.email,
+      website: lead.website,
+      industry: lead.industry,
+      city: lead.city,
+      person: lead.person,
+      summary: lead.summary,
+      instagram_data: lead.instagramData,
+      linkedin_data: lead.linkedinData,
+      history: lead.history,
+    })),
+  });
+
+  const generateAndStoreLeadEmail = async (campaignId: string, lead: DatabaseLead, selectedMailboxes: Mailbox[]) => {
+    try {
+      const generation = await requestCampaignEmailGeneration(
+        buildGenerationPayload(campaignId, selectedMailboxes, [lead])
+      );
+      const generated = generation.mails?.find(mail => mail.lead_id === lead.id) || generation.mails?.[0];
+      if (!generation.success || !generated?.body) {
+        throw new Error("n8n nie zwrócił wygenerowanego maila");
+      }
+
+      const { data: dbEmail, error: emailErr } = await supabase
+        .from('campaign_emails')
+        .insert({
+          campaign_id: campaignId,
+          lead_id: lead.id,
+          subject: generated.subject || 'Szybkie pytanie',
+          body: generated.body,
+          status: 'pending_review'
+        })
+        .select()
+        .single();
+
+      if (emailErr || !dbEmail) throw emailErr;
+
+      const intel = generated.intel || {};
+      setGeneratedLeads(prev => prev.map(item =>
+        item.leadId === lead.id
+          ? {
+              ...item,
+              emailId: dbEmail.id,
+              person: generated.person || lead.person || '—',
+              website: generated.website || lead.website || '—',
+              intel: {
+                social: intel.social || lead.summary || '',
+                keywords: intel.keywords || [],
+                summary: intel.summary || lead.summary || '',
+              },
+              subject: dbEmail.subject,
+              body: dbEmail.body,
+              reviewStatus: 'pending',
+              isGenerating: false,
+              generationError: undefined,
+            }
+          : item
+      ));
+    } catch (error) {
+      console.error(`Błąd generowania maila dla ${lead.company}:`, error);
+      setGeneratedLeads(prev => prev.map(item =>
+        item.leadId === lead.id
+          ? {
+              ...item,
+              isGenerating: false,
+              generationError: error instanceof Error ? error.message : "Nie udało się wygenerować maila.",
+            }
+          : item
+      ));
+    }
+  };
+
   const handleStartGeneration = async () => {
     if (!canGoNext()) return;
     setIsGeneratingMails(true);
@@ -529,97 +652,24 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
       setDraftExists(false);
 
       const selectedMailboxes = mailboxes.filter(mailbox => selectedMailboxIds.includes(mailbox.id));
-      const response = await fetch(CAMPAIGN_EMAIL_WEBHOOK_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          campaign: {
-            id: campaign.id,
-            name: campaignName,
-            promptAngle,
-          },
-          company: companyInfo,
-          mailboxes: selectedMailboxes,
-          leads: selectedLeads.map(lead => ({
-            id: lead.id,
-            company: lead.company,
-            email: lead.email,
-            website: lead.website,
-            industry: lead.industry,
-            city: lead.city,
-            person: lead.person,
-            summary: lead.summary,
-            instagram_data: lead.instagramData,
-            linkedin_data: lead.linkedinData,
-            history: lead.history,
-          })),
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`n8n zwrócił błąd ${response.status}`);
-      }
-
-      const generation = await response.json() as EmailGenerationResponse;
-      const generatedMails = generation.mails || [];
-      if (!generation.success || generatedMails.length === 0) {
-        throw new Error("n8n nie zwrócił wygenerowanych maili");
-      }
-
-      const generatedByLeadId = new Map(generatedMails.map(mail => [mail.lead_id, mail]));
-      const dbEmailsToInsert = selectedLeads.map((lead) => {
-        const generated = generatedByLeadId.get(lead.id);
-        if (!generated?.body) {
-          throw new Error(`Brak wygenerowanego maila dla leada ${lead.company}`);
-        }
-        return {
-          campaign_id: campaign.id,
-          lead_id: lead.id,
-          subject: generated.subject || 'Szybkie pytanie',
-          body: generated.body,
-          status: 'pending_review'
-        };
-      });
-
-      const { data: insertedEmails, error: emailErr } = await supabase
-        .from('campaign_emails')
-        .insert(dbEmailsToInsert)
-        .select();
-
-      if (emailErr || !insertedEmails) throw emailErr;
-
       await supabase
         .from('user_leads')
         .update({ campaign_id: campaign.id, status: 'sent' })
         .in('id', selectedLeads.map(lead => lead.id));
 
-      const uiLeads = insertedEmails.map((dbEmail, i) => {
-        const leadDb = databaseLeads.find(l => l.id === dbEmail.lead_id);
-        const generated = generatedByLeadId.get(dbEmail.lead_id) || generatedMails[i];
-        const intel = generated?.intel || {};
-        return {
-          id: dbEmail.id,
-          leadId: dbEmail.lead_id,
-          company: leadDb?.company || 'Brak danych',
-          industry: leadDb?.industry || 'Brak branży',
-          person: generated?.person || leadDb?.person || '—',
-          website: generated?.website || leadDb?.website || '—',
-          intel: {
-            social: intel.social || leadDb?.summary || '',
-            keywords: intel.keywords || [],
-            summary: intel.summary || leadDb?.summary || '',
-          },
-          subject: dbEmail.subject,
-          body: dbEmail.body,
-          reviewStatus: 'pending' as LeadReviewStatus,
-          isGenerating: false
-        };
-      });
-
-      setGeneratedLeads(uiLeads);
+      setGeneratedLeads(selectedLeads.map(createPlaceholderLead));
       setCurrentIndex(0);
       setLastScheduledTime(new Date());
       setStep(4);
+      setIsGeneratingMails(false);
+
+      const [firstLead, ...remainingLeads] = selectedLeads;
+      void (async () => {
+        if (firstLead) await generateAndStoreLeadEmail(campaign.id, firstLead, selectedMailboxes);
+        remainingLeads.forEach(lead => {
+          void generateAndStoreLeadEmail(campaign.id, lead, selectedMailboxes);
+        });
+      })();
 
     } catch (error) {
       console.error("Błąd podczas zapisywania kampanii do Supabase:", error);
@@ -652,7 +702,7 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
   const currentLead = generatedLeads[currentIndex];
 
   const startEdit = () => {
-    if (!currentLead) return;
+    if (!currentLead || currentLead.isGenerating || currentLead.generationError) return;
     setEditingIndex(currentIndex);
     setEditSubject(currentLead.subject);
     setEditBody(currentLead.body);
@@ -676,58 +726,55 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
 
     try {
       const selectedMailboxes = mailboxes.filter(mailbox => selectedMailboxIds.includes(mailbox.id));
-      const response = await fetch(CAMPAIGN_EMAIL_WEBHOOK_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          campaign: {
-            id: dbCampaignId,
-            name: campaignName,
-            promptAngle,
-          },
-          company: companyInfo,
-          mailboxes: selectedMailboxes,
-          leads: [{
-            id: leadDb.id,
-            company: leadDb.company,
-            email: leadDb.email,
-            website: leadDb.website,
-            industry: leadDb.industry,
-            city: leadDb.city,
-            person: leadDb.person,
-            summary: leadDb.summary,
-            instagram_data: leadDb.instagramData,
-            linkedin_data: leadDb.linkedinData,
-            history: leadDb.history,
-          }],
-        }),
-      });
-
-      if (!response.ok) throw new Error(`n8n zwrócił błąd ${response.status}`);
-
-      const generation = await response.json() as EmailGenerationResponse;
+      const generation = await requestCampaignEmailGeneration(
+        buildGenerationPayload(dbCampaignId, selectedMailboxes, [leadDb])
+      );
       const generated = generation.mails?.[0];
       if (!generation.success || !generated?.body) {
         throw new Error("n8n nie zwrócił nowej wersji maila");
       }
 
+      const emailPayload = {
+        subject: generated.subject || 'Szybkie pytanie',
+        body: generated.body,
+        status: 'pending_review',
+        scheduled_at: null,
+      };
+
+      const { data: dbEmail, error: emailErr } = currentLead.emailId
+        ? await supabase
+            .from('campaign_emails')
+            .update(emailPayload)
+            .eq('id', currentLead.emailId)
+            .select()
+            .single()
+        : await supabase
+            .from('campaign_emails')
+            .insert({
+              campaign_id: dbCampaignId,
+              lead_id: leadDb.id,
+              subject: generated.subject || 'Szybkie pytanie',
+              body: generated.body,
+              status: 'pending_review'
+            })
+            .select()
+            .single();
+
+      if (emailErr || !dbEmail) throw emailErr;
+
       await supabase
-        .from('campaign_emails')
-        .update({
-          subject: generated.subject || 'Szybkie pytanie',
-          body: generated.body,
-          status: 'pending_review',
-          scheduled_at: null,
-        })
-        .eq('id', currentLead.id);
+        .from('user_leads')
+        .update({ campaign_id: dbCampaignId, status: 'sent' })
+        .eq('id', leadDb.id);
 
       const intel = generated.intel || {};
       setGeneratedLeads(prev => prev.map((lead, index) =>
         index === currentIndex
           ? {
               ...lead,
-              subject: generated.subject || 'Szybkie pytanie',
-              body: generated.body,
+              emailId: dbEmail.id,
+              subject: dbEmail.subject,
+              body: dbEmail.body,
               person: generated.person || leadDb.person || '—',
               website: generated.website || leadDb.website || '—',
               intel: {
@@ -737,6 +784,7 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
               },
               reviewStatus: 'pending',
               isGenerating: false,
+              generationError: undefined,
             }
           : lead
       ));
@@ -751,7 +799,7 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
 
   const handleAction = async (action: 'accepted' | 'skipped') => {
     const lead = currentLead;
-    if (!lead) return;
+    if (!lead || lead.isGenerating || lead.generationError || !lead.emailId) return;
     try {
       if (action === 'accepted') {
         const nextTime = new Date(lastScheduledTime.getTime() + 20 * 60000);
@@ -761,9 +809,9 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
           subject: lead.subject,
           body: lead.body,
           scheduled_at: nextTime.toISOString()
-        }).eq('id', lead.id);
+        }).eq('id', lead.emailId);
       } else {
-        await supabase.from('campaign_emails').update({ status: 'failed' }).eq('id', lead.id);
+        await supabase.from('campaign_emails').update({ status: 'failed' }).eq('id', lead.emailId);
       }
     } catch (err) {
       console.error("Błąd podczas aktualizacji rekordu w Supabase:", err);
@@ -774,8 +822,11 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
     setJustActioned({ id: lead.id, action });
     setTimeout(() => {
       setJustActioned(null);
-      if (currentIndex < generatedLeads.length - 1) {
-        setCurrentIndex(prev => prev + 1);
+      const nextIndex = generatedLeads.findIndex((item, index) =>
+        index !== currentIndex && (item.isGenerating || item.reviewStatus === 'pending')
+      );
+      if (nextIndex >= 0) {
+        setCurrentIndex(nextIndex);
       } else {
         setStep(5);
       }
@@ -787,17 +838,18 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
     const newLeads = [...generatedLeads];
     const updatePromises = [];
     for (let i = currentIndex; i < newLeads.length; i++) {
-      if (newLeads[i].reviewStatus === 'pending') {
+      const lead = newLeads[i];
+      if (lead.reviewStatus === 'pending' && !lead.isGenerating && !lead.generationError && lead.emailId) {
         currentTime = new Date(currentTime.getTime() + 20 * 60000);
         updatePromises.push(
           supabase.from('campaign_emails').update({
             status: 'queued',
             scheduled_at: currentTime.toISOString(),
-            subject: newLeads[i].subject,
-            body: newLeads[i].body
-          }).eq('id', newLeads[i].id)
+            subject: lead.subject,
+            body: lead.body
+          }).eq('id', lead.emailId)
         );
-        newLeads[i].reviewStatus = 'accepted';
+        lead.reviewStatus = 'accepted';
       }
     }
     setLastScheduledTime(currentTime);
@@ -873,7 +925,13 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
                 {step === 4 && (
                   <div className="flex items-center gap-2 text-[12px] text-[#827E78]">
                     <Clock className="size-3.5" />
-                    <span>Szacowany czas: ok. <span className="text-[#A3A09A]">{estimatedMinutes} min</span></span>
+                    <span>
+                      Wygenerowano <span className="text-[#A3A09A] font-mono">{generatedCount}</span>
+                      <span className="text-[#3a3a3a]"> / </span>
+                      <span className="text-[#A3A09A] font-mono">{generatedLeads.length}</span>
+                    </span>
+                    <span className="text-[#3a3a3a] mx-1">·</span>
+                    <span>Pozostało ok. <span className="text-[#A3A09A]">{estimatedMinutes} min</span></span>
                     <span className="text-[#3a3a3a] mx-1">·</span>
                     <span className="text-[#A3A09A]">Możesz zamknąć i wrócić później</span>
                   </div>
@@ -1158,7 +1216,11 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
                         <div className="flex items-center gap-1.5 ml-2">
                           {generatedLeads.map((l, i) => (
                             <div key={l.id} className={`h-1 rounded-full transition-all ${
-                              i < currentIndex
+                              l.generationError
+                                ? 'w-4 bg-[#b56060]'
+                                : l.isGenerating
+                                ? 'w-3 bg-white/[0.08] animate-pulse'
+                                : i < currentIndex
                                 ? l.reviewStatus === 'accepted' ? 'w-4 bg-[#5d9970]' : 'w-4 bg-[#827E78]'
                                 : i === currentIndex ? 'w-4 bg-[#EAE8E1]' : 'w-3 bg-white/[0.08]'
                             }`} />
@@ -1167,8 +1229,8 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
                       </div>
 
                       <div className="flex items-center gap-4">
-                        <button onClick={handleBulkApprove}
-                          className="text-[12px] font-medium text-[#827E78] hover:text-[#EAE8E1] transition-colors underline underline-offset-4 decoration-white/[0.15]">
+                        <button onClick={handleBulkApprove} disabled={generatingCount > 0 || generatedCount === 0}
+                          className="text-[12px] font-medium text-[#827E78] hover:text-[#EAE8E1] transition-colors underline underline-offset-4 decoration-white/[0.15] disabled:opacity-30 disabled:cursor-not-allowed">
                           Zatwierdź wszystkie i przejdź dalej
                         </button>
                         <div className="w-px h-4 bg-white/[0.08]" />
@@ -1213,6 +1275,22 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
                               <div className="flex items-center justify-center gap-2 mt-4 text-[13px] text-[#827E78]">
                                 <Loader2 className="size-4 animate-spin" />
                                 AI generuje wiadomość...
+                              </div>
+                            </div>
+                          </div>
+                        ) : currentLead?.generationError ? (
+                          <div className="flex-1 flex flex-col items-center justify-center p-8">
+                            <div className="w-full max-w-lg text-center">
+                              <div className="bg-white rounded-2xl p-8 shadow-lg">
+                                <div className="size-11 bg-[#b56060]/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                                  <AlertCircle className="size-5 text-[#b56060]" />
+                                </div>
+                                <h3 className="text-[18px] font-semibold text-gray-900 mb-2">Nie udało się wygenerować wiadomości</h3>
+                                <p className="text-[14px] text-gray-500 leading-relaxed mb-6">{currentLead.generationError}</p>
+                                <button onClick={regenerateCurrentLead}
+                                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-gray-900 text-white text-[13px] font-medium rounded-xl hover:bg-gray-700 transition-all">
+                                  <RotateCcw className="size-3.5" /> Spróbuj ponownie
+                                </button>
                               </div>
                             </div>
                           </div>
@@ -1289,8 +1367,8 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
                                   <RotateCcw className="size-3.5" /> Regeneruj
                                 </button>
 
-                                <button onClick={() => handleAction('accepted')}
-                                  className="flex items-center gap-2 px-8 py-2.5 bg-[#EAE8E1] hover:bg-white text-[#1A1A1A] text-[14px] font-semibold rounded-xl transition-all">
+                                <button onClick={() => handleAction('accepted')} disabled={!currentLead.emailId}
+                                  className="flex items-center gap-2 px-8 py-2.5 bg-[#EAE8E1] hover:bg-white text-[#1A1A1A] text-[14px] font-semibold rounded-xl transition-all disabled:opacity-40">
                                   Akceptuj <ArrowRight className="size-4" />
                                 </button>
                               </div>
@@ -1301,7 +1379,7 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
 
                       {/* RIGHT: Intel panel (40%) */}
                       <div className="col-span-4 bg-[#111111] overflow-y-auto p-6">
-                        {currentLead && !currentLead.isGenerating && (
+                        {currentLead && !currentLead.isGenerating && !currentLead.generationError && (
                           <div className="space-y-5">
                             <div className="flex items-center gap-3 pb-5 border-b border-white/[0.06]">
                               <div className="size-12 bg-white/[0.04] border border-white/[0.08] rounded-2xl flex items-center justify-center text-[#EAE8E1] font-serif text-xl shrink-0">
@@ -1365,6 +1443,15 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
                             <div className="text-center">
                               <Loader2 className="size-6 text-[#827E78] animate-spin mx-auto mb-3" />
                               <p className="text-[13px] text-[#827E78]">Ładowanie danych firmy...</p>
+                            </div>
+                          </div>
+                        )}
+
+                        {currentLead?.generationError && (
+                          <div className="flex items-center justify-center h-full">
+                            <div className="text-center max-w-xs">
+                              <AlertCircle className="size-6 text-[#b56060] mx-auto mb-3" />
+                              <p className="text-[13px] text-[#827E78] leading-relaxed">Ten lead czeka na ponowną próbę generowania.</p>
                             </div>
                           </div>
                         )}
