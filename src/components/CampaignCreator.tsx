@@ -361,6 +361,7 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
   // Step 5
   const [launching, setLaunching] = useState(false);
   const [launched, setLaunched] = useState(false);
+  const [completedAction, setCompletedAction] = useState<'saved' | 'launched' | null>(null);
 
   // Draft
   const [draftExists, setDraftExists] = useState(false);
@@ -386,6 +387,7 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
     setCurrentIndex(0);
     setEditingIndex(null);
     setLaunched(false);
+    setCompletedAction(null);
     setDbCampaignId(null);
     setLastScheduledTime(new Date());
 
@@ -486,6 +488,13 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
   };
 
   const handleClose = () => {
+    if (dbCampaignId) {
+      clearDraftFromStorage();
+      setDraftExists(false);
+      onClose();
+      return;
+    }
+
     if (!launched && (step > 1 || selectedLeadIds.length > 0 || campaignName.trim())) {
       saveDraftToStorage({
         step,
@@ -512,8 +521,9 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
 
   // ─── Generation + Supabase ────────────────────────────────────────────────
 
-  const createPlaceholderLead = (lead: DatabaseLead): GeneratedLead => ({
+  const createPlaceholderLead = (lead: DatabaseLead, emailId?: string): GeneratedLead => ({
     id: lead.id,
+    emailId,
     leadId: lead.id,
     company: lead.company || 'Brak danych',
     industry: lead.industry || 'Brak branży',
@@ -553,7 +563,7 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
     })),
   });
 
-  const generateAndStoreLeadEmail = async (campaignId: string, lead: DatabaseLead, selectedMailboxes: Mailbox[]) => {
+  const generateAndStoreLeadEmail = async (campaignId: string, lead: DatabaseLead, selectedMailboxes: Mailbox[], emailId?: string) => {
     try {
       const generation = await requestCampaignEmailGeneration(
         buildGenerationPayload(campaignId, selectedMailboxes, [lead])
@@ -563,17 +573,28 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
         throw new Error("n8n nie zwrócił wygenerowanego maila");
       }
 
-      const { data: dbEmail, error: emailErr } = await supabase
-        .from('campaign_emails')
-        .insert({
-          campaign_id: campaignId,
-          lead_id: lead.id,
-          subject: generated.subject || 'Szybkie pytanie',
-          body: generated.body,
-          status: 'pending_review'
-        })
-        .select()
-        .single();
+      const emailPayload = {
+        subject: generated.subject || 'Szybkie pytanie',
+        body: generated.body,
+        status: 'pending_review',
+      };
+
+      const { data: dbEmail, error: emailErr } = emailId
+        ? await supabase
+            .from('campaign_emails')
+            .update(emailPayload)
+            .eq('id', emailId)
+            .select()
+            .single()
+        : await supabase
+            .from('campaign_emails')
+            .insert({
+              campaign_id: campaignId,
+              lead_id: lead.id,
+              ...emailPayload
+            })
+            .select()
+            .single();
 
       if (emailErr || !dbEmail) throw emailErr;
 
@@ -657,7 +678,22 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
         .update({ campaign_id: campaign.id, status: 'sent' })
         .in('id', selectedLeads.map(lead => lead.id));
 
-      setGeneratedLeads(selectedLeads.map(createPlaceholderLead));
+      const { data: placeholderEmails, error: placeholderErr } = await supabase
+        .from('campaign_emails')
+        .insert(selectedLeads.map(lead => ({
+          campaign_id: campaign.id,
+          lead_id: lead.id,
+          subject: '',
+          body: '',
+          status: 'pending_review'
+        })))
+        .select();
+
+      if (placeholderErr || !placeholderEmails) throw placeholderErr;
+
+      const emailIdByLeadId = new Map((placeholderEmails as any[]).map(email => [email.lead_id, email.id]));
+
+      setGeneratedLeads(selectedLeads.map(lead => createPlaceholderLead(lead, emailIdByLeadId.get(lead.id))));
       setCurrentIndex(0);
       setLastScheduledTime(new Date());
       setStep(4);
@@ -665,9 +701,9 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
 
       const [firstLead, ...remainingLeads] = selectedLeads;
       void (async () => {
-        if (firstLead) await generateAndStoreLeadEmail(campaign.id, firstLead, selectedMailboxes);
+        if (firstLead) await generateAndStoreLeadEmail(campaign.id, firstLead, selectedMailboxes, emailIdByLeadId.get(firstLead.id));
         remainingLeads.forEach(lead => {
-          void generateAndStoreLeadEmail(campaign.id, lead, selectedMailboxes);
+          void generateAndStoreLeadEmail(campaign.id, lead, selectedMailboxes, emailIdByLeadId.get(lead.id));
         });
       })();
 
@@ -866,7 +902,20 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
     await new Promise(r => setTimeout(r, 1200));
     setLaunching(false);
     setLaunched(true);
+    setCompletedAction('launched');
     setTimeout(() => onClose(), 2000);
+  };
+
+  const handleSaveCampaign = async () => {
+    setLaunching(true);
+    if (dbCampaignId) {
+      await supabase.from('campaigns').update({ status: 'draft' }).eq('id', dbCampaignId);
+    }
+    await new Promise(r => setTimeout(r, 700));
+    setLaunching(false);
+    setLaunched(true);
+    setCompletedAction('saved');
+    setTimeout(() => onClose(), 1600);
   };
 
   const canGoNext = () => {
@@ -883,6 +932,7 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
 
   const accepted = generatedLeads.filter(l => l.reviewStatus === 'accepted').length;
   const skipped = generatedLeads.filter(l => l.reviewStatus === 'skipped').length;
+  const hasSelectedMailbox = selectedMailboxIds.length > 0;
 
   if (!isOpen) return null;
 
@@ -1470,8 +1520,14 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
                           <div className="size-16 bg-[#5d9970]/10 border border-[#5d9970]/20 rounded-full flex items-center justify-center mx-auto">
                             <CheckCircle2 className="size-8 text-[#5d9970]" />
                           </div>
-                          <h3 className="text-[26px] font-serif text-[#EAE8E1] tracking-tight">Kampania uruchomiona</h3>
-                          <p className="text-[15px] text-[#A3A09A] leading-relaxed">Wiadomości trafiły do kolejki. Możesz śledzić postęp w zakładce Kampanie.</p>
+                          <h3 className="text-[26px] font-serif text-[#EAE8E1] tracking-tight">
+                            {completedAction === 'saved' ? 'Kampania zapisana' : 'Kampania uruchomiona'}
+                          </h3>
+                          <p className="text-[15px] text-[#A3A09A] leading-relaxed">
+                            {completedAction === 'saved'
+                              ? 'Wiadomości są zapisane. Wyślesz je później z zakładki Kampanie.'
+                              : 'Wiadomości trafiły do kolejki. Możesz śledzić postęp w zakładce Kampanie.'}
+                          </p>
                         </div>
                       ) : (
                         <>
@@ -1505,10 +1561,23 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
                             </p>
                           </div>
 
-                          <button onClick={handleLaunch} disabled={launching || accepted === 0}
-                            className="w-full py-4 bg-[#EAE8E1] hover:bg-white text-[#1A1A1A] text-[15px] font-semibold rounded-xl transition-all disabled:opacity-40 flex items-center justify-center gap-2">
-                            {launching ? <><Loader2 className="size-4 animate-spin" />Uruchamiam...</> : `Uruchom kampanię (${accepted} maili)`}
-                          </button>
+                          {hasSelectedMailbox ? (
+                            <div className="space-y-3">
+                              <button onClick={handleLaunch} disabled={launching || accepted === 0}
+                                className="w-full py-4 bg-[#EAE8E1] hover:bg-white text-[#1A1A1A] text-[15px] font-semibold rounded-xl transition-all disabled:opacity-40 flex items-center justify-center gap-2">
+                                {launching ? <><Loader2 className="size-4 animate-spin" />Uruchamiam...</> : `Uruchom kampanię (${accepted} maili)`}
+                              </button>
+                              <button onClick={handleSaveCampaign} disabled={launching || accepted === 0}
+                                className="w-full py-2.5 text-[13px] font-medium text-[#827E78] hover:text-[#EAE8E1] transition-colors disabled:opacity-40">
+                                Zapisz i wyślij później
+                              </button>
+                            </div>
+                          ) : (
+                            <button onClick={handleSaveCampaign} disabled={launching || accepted === 0}
+                              className="w-full py-4 bg-[#EAE8E1] hover:bg-white text-[#1A1A1A] text-[15px] font-semibold rounded-xl transition-all disabled:opacity-40 flex items-center justify-center gap-2">
+                              {launching ? <><Loader2 className="size-4 animate-spin" />Zapisuję...</> : `Zapisz kampanię (${accepted} maili)`}
+                            </button>
+                          )}
                         </>
                       )}
                     </div>

@@ -3,7 +3,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   Plus, ArrowLeft, Loader2, Mail, Check, Clock,
   AlertCircle, ChevronUp, Trash2, Pause, Play,
-  Eye, X, Download, ArrowRight, Info, Archive, SlidersHorizontal, Search, ChevronDown
+  Eye, X, Download, ArrowRight, Info, Archive, SlidersHorizontal, Search, ChevronDown,
+  ChevronLeft, ChevronRight, Edit3, Building2, Globe, Hash, Save
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { CampaignCreator } from "../components/CampaignCreator";
@@ -29,12 +30,23 @@ interface Campaign {
 
 interface CampaignLead {
   id: string;
+  lead_id: string | null;
   company_name: string;
   email: string;
   status: LeadStatus;
+  raw_status: string | null;
   sent_at: string | null;
   sent_from: string | null;
+  subject: string | null;
   mail_content: string | null;
+  website: string | null;
+  city: string | null;
+  industry: string | null;
+  person: string | null;
+  summary: string | null;
+  instagramData: any;
+  linkedinData: any;
+  isGenerating: boolean;
   priority: boolean;
 }
 
@@ -180,58 +192,232 @@ function ArchiveModal({ name, onConfirm, onCancel }: { name: string; onConfirm: 
   );
 }
 
-// ─── Mail preview drawer ──────────────────────────────────────────────────────
+function CampaignMailReview({
+  campaign,
+  leads,
+  initialIndex,
+  onBack,
+  onUpdateLead,
+}: {
+  campaign: Campaign;
+  leads: CampaignLead[];
+  initialIndex: number;
+  onBack: () => void;
+  onUpdateLead: (lead: CampaignLead) => void;
+}) {
+  const [currentIndex, setCurrentIndex] = useState(initialIndex);
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [editSubject, setEditSubject] = useState('');
+  const [editBody, setEditBody] = useState('');
 
-function MailPreview({ lead, onClose }: { lead: CampaignLead; onClose: () => void }) {
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
-  }, [onClose]);
+    setCurrentIndex(Math.min(initialIndex, Math.max(0, leads.length - 1)));
+  }, [initialIndex, leads.length]);
+
+  const lead = leads[currentIndex];
+
+  useEffect(() => {
+    if (!lead) return;
+    setEditing(false);
+    setEditSubject(lead.subject || '');
+    setEditBody(lead.mail_content || '');
+  }, [lead?.id]);
+
+  if (!lead) return null;
+
+  const ls = leadStatusLabel(lead.status);
+  const canEdit = lead.status !== 'sent' && lead.status !== 'replied' && !lead.isGenerating;
+  const socialNotes = [lead.instagramData, lead.linkedinData]
+    .filter(Boolean)
+    .map(item => typeof item === 'string' ? item : JSON.stringify(item))
+    .join('\n\n');
+
+  const startEditing = () => {
+    setEditSubject(lead.subject || '');
+    setEditBody(lead.mail_content || '');
+    setEditing(true);
+  };
+
+  const saveEdit = async () => {
+    if (!canEdit) return;
+    setSaving(true);
+    const { error } = await supabase
+      .from('campaign_emails')
+      .update({ subject: editSubject, body: editBody })
+      .eq('id', lead.id);
+
+    if (!error) {
+      onUpdateLead({ ...lead, subject: editSubject, mail_content: editBody });
+      setEditing(false);
+    } else {
+      console.error('Nie udało się zapisać maila:', error);
+    }
+    setSaving(false);
+  };
 
   return (
-    <>
-      <motion.div
-        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-        onClick={onClose} className="fixed inset-0 z-30 bg-black/40"
-      />
-      <motion.div
-        initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} transition={{ duration: 0.18 }}
-        className="fixed right-0 top-0 bottom-0 w-full max-w-lg bg-[#1a1a1a] border-l border-white/[0.08] z-40 flex flex-col shadow-2xl"
-      >
-        <div className="flex items-center justify-between px-8 py-6 border-b border-white/[0.06]">
-          <div>
-            <p className="text-[16px] font-medium text-[#EAE8E1]">{lead.company_name}</p>
-            <p className="text-[13px] text-[#827E78] mt-0.5">{lead.email}</p>
+    <div className="max-w-5xl mx-auto space-y-6 pb-12">
+      <div className="flex items-start justify-between">
+        <div>
+          <button onClick={onBack} className="flex items-center gap-2 text-[13px] text-[#827E78] hover:text-[#EAE8E1] transition-colors mb-6">
+            <ArrowLeft className="size-4" /> Szczegóły kampanii
+          </button>
+          <div className="flex items-center gap-3">
+            <h1 className="text-[28px] font-serif text-[#EAE8E1] tracking-tight">{campaign.name}</h1>
+            <span className={`flex items-center gap-1.5 text-[12px] font-medium px-3 py-1.5 rounded-full ${ls.cls}`}>
+              {ls.icon}
+              {lead.isGenerating ? 'Generuje się' : ls.label}
+            </span>
           </div>
-          <button onClick={onClose} className="p-2 text-[#827E78] hover:text-[#EAE8E1] hover:bg-white/[0.06] rounded-lg transition-all">
-            <X className="size-4" />
+          <p className="text-[14px] text-[#827E78] mt-1">
+            {lead.company_name} · {currentIndex + 1} z {leads.length}
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setCurrentIndex(prev => Math.max(0, prev - 1))}
+            disabled={currentIndex === 0}
+            className="p-2.5 rounded-xl border border-white/[0.1] text-[#A3A09A] hover:text-[#EAE8E1] hover:border-white/[0.2] disabled:opacity-30 disabled:hover:border-white/[0.1] transition-all"
+            title="Poprzedni mail"
+          >
+            <ChevronLeft className="size-4" />
+          </button>
+          <button
+            onClick={() => setCurrentIndex(prev => Math.min(leads.length - 1, prev + 1))}
+            disabled={currentIndex === leads.length - 1}
+            className="p-2.5 rounded-xl border border-white/[0.1] text-[#A3A09A] hover:text-[#EAE8E1] hover:border-white/[0.2] disabled:opacity-30 disabled:hover:border-white/[0.1] transition-all"
+            title="Następny mail"
+          >
+            <ChevronRight className="size-4" />
           </button>
         </div>
+      </div>
 
-        <div className="px-8 py-4 border-b border-white/[0.06] flex items-center gap-5 text-[13px] text-[#827E78]">
-          <span>Wysłano: <span className="text-[#A3A09A]">{formatDate(lead.sent_at)}</span></span>
-          <span className="text-white/[0.1]">·</span>
-          <span>Ze skrzynki: <span className="text-[#A3A09A]">{lead.sent_from || '—'}</span></span>
-        </div>
-
-        <div className="flex-1 overflow-y-auto px-8 py-6">
-          {lead.mail_content ? (
-            <p className="text-[15px] text-[#EAE8E1] leading-[1.8] whitespace-pre-wrap font-serif">
-              {lead.mail_content}
-            </p>
+      <div className="grid grid-cols-12 rounded-2xl border border-white/[0.08] bg-white/[0.04] overflow-hidden min-h-[640px]">
+        <div className="col-span-7 bg-[#F7F5EF] text-[#1A1A1A] p-8">
+          {lead.isGenerating ? (
+            <div className="h-full flex items-center justify-center">
+              <div className="w-full max-w-md bg-white border border-black/[0.06] shadow-sm rounded-sm p-8 animate-pulse">
+                <div className="h-3 bg-black/[0.08] rounded w-2/3 mb-8" />
+                <div className="space-y-3">
+                  <div className="h-3 bg-black/[0.08] rounded w-full" />
+                  <div className="h-3 bg-black/[0.08] rounded w-11/12" />
+                  <div className="h-3 bg-black/[0.08] rounded w-10/12" />
+                  <div className="h-3 bg-black/[0.08] rounded w-9/12" />
+                </div>
+                <div className="space-y-3 mt-8">
+                  <div className="h-3 bg-black/[0.08] rounded w-11/12" />
+                  <div className="h-3 bg-black/[0.08] rounded w-8/12" />
+                </div>
+              </div>
+            </div>
+          ) : editing ? (
+            <div className="h-full flex flex-col gap-5">
+              <input
+                value={editSubject}
+                onChange={(e) => setEditSubject(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl bg-white border border-black/[0.08] text-[18px] font-medium outline-none focus:border-black/[0.18]"
+                placeholder="Temat maila"
+              />
+              <textarea
+                value={editBody}
+                onChange={(e) => setEditBody(e.target.value)}
+                className="flex-1 w-full px-4 py-4 rounded-xl bg-white border border-black/[0.08] text-[15px] leading-[1.8] font-serif outline-none resize-none focus:border-black/[0.18]"
+                placeholder="Treść maila"
+              />
+              <div className="flex justify-end gap-3">
+                <button onClick={() => setEditing(false)} className="px-4 py-2.5 text-[13px] font-medium text-[#5f5b55] hover:text-[#1A1A1A] transition-colors">
+                  Anuluj
+                </button>
+                <button onClick={saveEdit} disabled={saving} className="flex items-center gap-2 px-4 py-2.5 bg-[#1A1A1A] hover:bg-[#2a2a2a] text-white text-[13px] font-medium rounded-xl transition-all disabled:opacity-50">
+                  {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+                  Zapisz zmiany
+                </button>
+              </div>
+            </div>
           ) : (
-            <p className="text-[14px] text-[#827E78]">Brak treści do wyświetlenia.</p>
+            <div className="h-full bg-white border border-black/[0.06] shadow-sm p-8 overflow-y-auto">
+              <div className="flex items-start justify-between gap-4 mb-8">
+                <div>
+                  <p className="text-[11px] font-medium text-[#8a8680] uppercase tracking-wider mb-2">Temat</p>
+                  <h2 className="text-[22px] font-serif text-[#1A1A1A] leading-snug">{lead.subject || 'Bez tematu'}</h2>
+                </div>
+                {canEdit && (
+                  <button onClick={startEditing} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-black/[0.08] text-[12px] font-medium text-[#5f5b55] hover:text-[#1A1A1A] hover:border-black/[0.16] transition-all">
+                    <Edit3 className="size-3.5" /> Edytuj
+                  </button>
+                )}
+              </div>
+              <p className="text-[15px] text-[#2a2a2a] leading-[1.9] whitespace-pre-wrap font-serif">
+                {lead.mail_content || 'Brak treści do wyświetlenia.'}
+              </p>
+            </div>
           )}
         </div>
 
-        <div className="px-8 py-5 border-t border-white/[0.06]">
-          <button className="flex items-center gap-2 text-[13px] font-medium text-[#827E78] hover:text-[#EAE8E1] transition-colors">
-            <Download className="size-4" /> Eksportuj jako .txt
-          </button>
+        <div className="col-span-5 p-8 border-l border-white/[0.08] bg-[#1A1A1A] overflow-y-auto">
+          <div className="space-y-6">
+            <div>
+              <p className="text-[11px] font-medium text-[#3a3a3a] uppercase tracking-wider mb-3">Lead</p>
+              <h3 className="text-[22px] font-serif text-[#EAE8E1] leading-tight">{lead.company_name}</h3>
+              <p className="text-[13px] text-[#827E78] mt-2">{lead.email}</p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              {lead.person && (
+                <div className="p-4 rounded-xl border border-white/[0.08] bg-white/[0.03]">
+                  <p className="flex items-center gap-2 text-[11px] text-[#827E78] mb-2"><Building2 className="size-3.5" /> Osoba</p>
+                  <p className="text-[13px] text-[#EAE8E1]">{lead.person}</p>
+                </div>
+              )}
+              {lead.industry && (
+                <div className="p-4 rounded-xl border border-white/[0.08] bg-white/[0.03]">
+                  <p className="flex items-center gap-2 text-[11px] text-[#827E78] mb-2"><Hash className="size-3.5" /> Branża</p>
+                  <p className="text-[13px] text-[#EAE8E1]">{lead.industry}</p>
+                </div>
+              )}
+              {lead.website && (
+                <div className="p-4 rounded-xl border border-white/[0.08] bg-white/[0.03] col-span-2">
+                  <p className="flex items-center gap-2 text-[11px] text-[#827E78] mb-2"><Globe className="size-3.5" /> WWW</p>
+                  <p className="text-[13px] text-[#EAE8E1] break-all">{lead.website}</p>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <p className="text-[11px] font-medium text-[#3a3a3a] uppercase tracking-wider mb-2">Status maila</p>
+                <div className={`inline-flex items-center gap-2 text-[13px] font-medium ${ls.cls}`}>
+                  {ls.icon}
+                  {lead.isGenerating ? 'Generuje się w tle' : ls.label}
+                </div>
+              </div>
+
+              <div>
+                <p className="text-[11px] font-medium text-[#3a3a3a] uppercase tracking-wider mb-2">Wysłano</p>
+                <p className="text-[13px] text-[#A3A09A]">{formatDate(lead.sent_at)}</p>
+              </div>
+            </div>
+
+            {lead.summary && (
+              <div>
+                <p className="text-[11px] font-medium text-[#3a3a3a] uppercase tracking-wider mb-2">Informacje o firmie</p>
+                <p className="text-[13px] text-[#A3A09A] leading-relaxed whitespace-pre-wrap">{lead.summary}</p>
+              </div>
+            )}
+
+            {socialNotes && (
+              <div>
+                <p className="text-[11px] font-medium text-[#3a3a3a] uppercase tracking-wider mb-2">Sygnały z sociali</p>
+                <p className="text-[12px] text-[#827E78] leading-relaxed whitespace-pre-wrap max-h-48 overflow-y-auto">{socialNotes}</p>
+              </div>
+            )}
+          </div>
         </div>
-      </motion.div>
-    </>
+      </div>
+    </div>
   );
 }
 
@@ -241,57 +427,74 @@ function CampaignDetail({ campaign: initialCampaign, onBack }: { campaign: Campa
   const [campaign, setCampaign] = useState<Campaign>(initialCampaign);
   const [leads, setLeads] = useState<CampaignLead[]>([]);
   const [loadingLeads, setLoadingLeads] = useState(true);
-  const [previewLead, setPreviewLead] = useState<CampaignLead | null>(null);
+  const [reviewIndex, setReviewIndex] = useState<number | null>(null);
+
+  const fetchLeads = useCallback(async (showLoader = false) => {
+    if (showLoader) setLoadingLeads(true);
+    try {
+      const { data: emails } = await supabase
+        .from('campaign_emails')
+        .select('id, lead_id, subject, body, status, scheduled_at')
+        .eq('campaign_id', campaign.id)
+        .order('created_at', { ascending: true });
+
+      if (!emails || emails.length === 0) {
+        setLeads([]);
+        return;
+      }
+
+      const leadIds = emails.map((e: any) => e.lead_id).filter(Boolean);
+      let leadsData: any[] = [];
+      if (leadIds.length > 0) {
+        const { data } = await supabase
+          .from('user_leads')
+          .select('id, name, summary, instagram_data, linkedin_data, global_leads(company_name, email, website, city, industry)')
+          .in('id', leadIds);
+        leadsData = data || [];
+      }
+
+      const leadMap = new Map((leadsData || []).map((l: any) => [l.id, l]));
+
+      const mapped: CampaignLead[] = emails.map((email: any) => {
+        const leadRow = leadMap.get(email.lead_id) as any;
+        const gl = leadRow?.global_leads;
+        const isGenerating = email.status === 'pending_review' && !email.subject && !email.body;
+        return {
+          id: email.id,
+          lead_id: email.lead_id || null,
+          company_name: gl?.company_name || 'Nieznana firma',
+          email: gl?.email || '—',
+          status: mapDbEmailStatus(email.status),
+          raw_status: email.status || null,
+          sent_at: email.scheduled_at || null,
+          sent_from: null,
+          subject: email.subject || null,
+          mail_content: email.body || null,
+          website: gl?.website || null,
+          city: gl?.city || null,
+          industry: gl?.industry || null,
+          person: leadRow?.name || null,
+          summary: leadRow?.summary || null,
+          instagramData: leadRow?.instagram_data || null,
+          linkedinData: leadRow?.linkedin_data || null,
+          isGenerating,
+          priority: false,
+        };
+      });
+
+      setLeads(mapped);
+    } catch (err) {
+      console.error('Błąd pobierania leadów kampanii:', err);
+    } finally {
+      setLoadingLeads(false);
+    }
+  }, [campaign.id]);
 
   useEffect(() => {
-    const fetchLeads = async () => {
-      setLoadingLeads(true); 
-      try {
-        const { data: emails } = await supabase
-          .from('campaign_emails')
-          .select('id, lead_id, subject, body, status, scheduled_at')
-          .eq('campaign_id', campaign.id)
-          .order('created_at', { ascending: true });
-
-        if (!emails || emails.length === 0) {
-          setLeads([]);
-          setLoadingLeads(false);
-          return;
-        }
-
-        const leadIds = emails.map((e: any) => e.lead_id).filter(Boolean);
-        const { data: leadsData } = await supabase
-          .from('user_leads')
-          .select('id, global_leads(company_name, email)')
-          .in('id', leadIds);
-
-        const leadMap = new Map((leadsData || []).map((l: any) => [l.id, l]));
-
-        const mapped: CampaignLead[] = emails.map((email: any) => {
-          const leadRow = leadMap.get(email.lead_id) as any;
-          const gl = leadRow?.global_leads;
-          return {
-            id: email.id,
-            company_name: gl?.company_name || 'Nieznana firma',
-            email: gl?.email || '—',
-            status: mapDbEmailStatus(email.status),
-            sent_at: email.scheduled_at || null,
-            sent_from: null,
-            mail_content: email.body || null,
-            priority: false,
-          };
-        });
-
-        setLeads(mapped);
-      } catch (err) {
-        console.error('Błąd pobierania leadów kampanii:', err);
-      } finally {
-        setLoadingLeads(false);
-      }
-    };
-
-    fetchLeads();
-  }, [campaign.id]);
+    fetchLeads(true);
+    const interval = window.setInterval(() => fetchLeads(false), 5000);
+    return () => window.clearInterval(interval);
+  }, [fetchLeads]);
 
   const togglePriority = (id: string) => {
     setLeads(prev => prev.map(l => l.id === id ? { ...l, priority: !l.priority } : l));
@@ -308,8 +511,30 @@ function CampaignDetail({ campaign: initialCampaign, onBack }: { campaign: Campa
     setCampaign(prev => ({ ...prev, status: newStatus as CampaignStatus }));
   };
 
+  const startSending = async () => {
+    await supabase.from('campaigns').update({ status: 'active' }).eq('id', campaign.id);
+    setCampaign(prev => ({ ...prev, status: 'active' }));
+  };
+
+  const updateLead = (updated: CampaignLead) => {
+    setLeads(prev => prev.map(lead => lead.id === updated.id ? updated : lead));
+  };
+
   const pct = campaign.total > 0 ? (campaign.sent / campaign.total) * 100 : 0;
   const st = statusLabel(campaign.status);
+  const generatingIndex = leads.findIndex(lead => lead.isGenerating);
+
+  if (reviewIndex !== null && leads[reviewIndex]) {
+    return (
+      <CampaignMailReview
+        campaign={campaign}
+        leads={leads}
+        initialIndex={reviewIndex}
+        onBack={() => setReviewIndex(null)}
+        onUpdateLead={updateLead}
+      />
+    );
+  }
 
   return (
     <div className="max-w-5xl mx-auto space-y-8 pb-12">
@@ -333,6 +558,16 @@ function CampaignDetail({ campaign: initialCampaign, onBack }: { campaign: Campa
           </div>
 
           <div className="flex items-center gap-3">
+            {generatingIndex >= 0 && (
+              <button onClick={() => setReviewIndex(generatingIndex)} className="flex items-center gap-2 px-4 py-2.5 bg-[#EAE8E1] hover:bg-white text-[#1A1A1A] text-[13px] font-medium rounded-xl transition-all">
+                <Loader2 className="size-3.5 animate-spin" /> Powróć do generowania
+              </button>
+            )}
+            {generatingIndex < 0 && campaign.status === 'draft' && (
+              <button onClick={startSending} className="flex items-center gap-2 px-4 py-2.5 bg-[#EAE8E1] hover:bg-white text-[#1A1A1A] text-[13px] font-medium rounded-xl transition-all">
+                <Play className="size-3.5" /> Rozpocznij wysyłkę
+              </button>
+            )}
             {campaign.status === 'active' && (
               <button onClick={togglePause} className="flex items-center gap-2 px-4 py-2.5 border border-white/[0.1] hover:border-white/[0.2] text-[#A3A09A] hover:text-[#EAE8E1] text-[13px] font-medium rounded-xl transition-all">
                 <Pause className="size-3.5" /> Wstrzymaj
@@ -411,10 +646,14 @@ function CampaignDetail({ campaign: initialCampaign, onBack }: { campaign: Campa
           </div>
         ) : (
           <div className="divide-y divide-white/[0.04]">
-            {leads.map(lead => {
+            {leads.map((lead, index) => {
               const ls = leadStatusLabel(lead.status);
               return (
-                <div key={lead.id} className="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-white/[0.02] transition-all">
+                <div
+                  key={lead.id}
+                  onClick={() => setReviewIndex(index)}
+                  className="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-white/[0.02] transition-all cursor-pointer"
+                >
 
                   <div className="col-span-4 flex items-center gap-2.5">
                     {lead.priority && (
@@ -429,8 +668,8 @@ function CampaignDetail({ campaign: initialCampaign, onBack }: { campaign: Campa
 
                   <div className="col-span-2">
                     <div className={`flex items-center gap-1.5 text-[12px] font-medium ${ls.cls}`}>
-                      {ls.icon}
-                      {ls.label}
+                      {lead.isGenerating ? <Loader2 className="size-3.5 animate-spin" /> : ls.icon}
+                      {lead.isGenerating ? 'Generuje się' : ls.label}
                       {lead.status === 'bounced' && (
                         <span className="ml-1 text-[10px] text-[#5d9970]" title="Kredyty zostają zwrócone">+kredyty</span>
                       )}
@@ -441,9 +680,9 @@ function CampaignDetail({ campaign: initialCampaign, onBack }: { campaign: Campa
                     <p className="text-[12px] text-[#3a3a3a]">{lead.sent_at ? formatDate(lead.sent_at) : '—'}</p>
                   </div>
 
-                  <div className="col-span-1 flex items-center justify-end gap-1">
+                  <div className="col-span-1 flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
                     {(lead.status === 'sent' || lead.status === 'replied') && (
-                      <button onClick={() => setPreviewLead(lead)} className="p-1.5 text-[#3a3a3a] hover:text-[#A3A09A] hover:bg-white/[0.06] rounded-lg transition-all" title="Podgląd maila">
+                      <button onClick={() => setReviewIndex(index)} className="p-1.5 text-[#3a3a3a] hover:text-[#A3A09A] hover:bg-white/[0.06] rounded-lg transition-all" title="Podgląd maila">
                         <Eye className="size-3.5" />
                       </button>
                     )}
@@ -458,7 +697,7 @@ function CampaignDetail({ campaign: initialCampaign, onBack }: { campaign: Campa
                       </button>
                     )}
                     {lead.mail_content && lead.status !== 'sent' && lead.status !== 'replied' && (
-                      <button onClick={() => setPreviewLead(lead)} className="p-1.5 text-[#3a3a3a] hover:text-[#A3A09A] hover:bg-white/[0.06] rounded-lg transition-all" title="Podgląd maila">
+                      <button onClick={() => setReviewIndex(index)} className="p-1.5 text-[#3a3a3a] hover:text-[#A3A09A] hover:bg-white/[0.06] rounded-lg transition-all" title="Podgląd maila">
                         <Eye className="size-3.5" />
                       </button>
                     )}
@@ -470,11 +709,6 @@ function CampaignDetail({ campaign: initialCampaign, onBack }: { campaign: Campa
         )}
       </div>
 
-      <AnimatePresence>
-        {previewLead && (
-          <MailPreview lead={previewLead} onClose={() => setPreviewLead(null)} />
-        )}
-      </AnimatePresence>
     </div>
   );
 }
