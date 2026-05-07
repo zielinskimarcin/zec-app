@@ -114,7 +114,7 @@ interface EmailGenerationResponse {
 
 interface CampaignCreatorProps {
   isOpen: boolean;
-  onClose: () => void;
+  onClose: (campaignId?: string) => void;
   preselectedLeadIds?: string[];
 }
 
@@ -375,7 +375,12 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
   const remainingGenerationCount = step === 4 && generatedLeads.length > 0
     ? generatingCount
     : totalSelected;
-  const estimatedMinutes = Math.ceil((remainingGenerationCount * 8) / 60) || 1;
+  const estimatedGenerationText = (() => {
+    if (remainingGenerationCount <= 0) return 'kończymy';
+    const seconds = Math.max(8, remainingGenerationCount * 8);
+    if (seconds < 60) return `ok. ${seconds} sek`;
+    return `ok. ${Math.ceil(seconds / 60)} min`;
+  })();
 
   // Reset on open + fetch data
   useEffect(() => {
@@ -496,7 +501,7 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
     if (dbCampaignId) {
       clearDraftFromStorage();
       setDraftExists(false);
-      onClose();
+      onClose(dbCampaignId);
       return;
     }
 
@@ -943,7 +948,7 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
     setLaunching(false);
     setLaunched(true);
     setCompletedAction('launched');
-    setTimeout(() => onClose(), 2000);
+    setTimeout(() => onClose(dbCampaignId ?? undefined), 2000);
   };
 
   const handleSaveCampaign = async () => {
@@ -955,7 +960,7 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
     setLaunching(false);
     setLaunched(true);
     setCompletedAction('saved');
-    setTimeout(() => onClose(), 1600);
+    setTimeout(() => onClose(dbCampaignId ?? undefined), 1600);
   };
 
   const canGoNext = () => {
@@ -1013,17 +1018,18 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
 
               <div className="flex items-center gap-4">
                 {step === 4 && (
-                  <div className="flex items-center gap-2 text-[12px] text-[#827E78]">
+                  <div className="hidden xl:flex flex-wrap items-center justify-end gap-x-3 gap-y-1 max-w-[560px] text-[12px] text-[#827E78]">
                     <Clock className="size-3.5" />
                     <span>
                       Wygenerowano <span className="text-[#A3A09A] font-mono">{generatedCount}</span>
                       <span className="text-[#3a3a3a]"> / </span>
                       <span className="text-[#A3A09A] font-mono">{generatedLeads.length}</span>
                     </span>
-                    <span className="text-[#3a3a3a] mx-1">·</span>
-                    <span>Pozostało ok. <span className="text-[#A3A09A]">{estimatedMinutes} min</span></span>
-                    <span className="text-[#3a3a3a] mx-1">·</span>
-                    <span className="text-[#A3A09A]">Możesz zamknąć i wrócić później</span>
+                    <span className="text-[#3a3a3a]">·</span>
+                    <span>Pozostało <span className="text-[#A3A09A]">{estimatedGenerationText}</span></span>
+                    <span className="px-2 py-1 rounded-full bg-white/[0.04] border border-white/[0.06] text-[#A3A09A]">
+                      Możesz wrócić później
+                    </span>
                   </div>
                 )}
                 <button onClick={handleClose} className="p-2 text-[#827E78] hover:text-[#EAE8E1] hover:bg-white/[0.06] rounded-lg transition-all">

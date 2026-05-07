@@ -3,8 +3,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   Plus, ArrowLeft, Loader2, Mail, Check, Clock,
   AlertCircle, ChevronUp, Trash2, Pause, Play,
-  Eye, X, Download, ArrowRight, Info, Archive, SlidersHorizontal, Search, ChevronDown,
-  ChevronLeft, ChevronRight, Edit3, Building2, Globe, Hash, Save
+  X, Download, ArrowRight, Info, Archive, SlidersHorizontal, Search, ChevronDown,
+  ChevronLeft, ChevronRight, Edit3, Building2, Globe, Hash, Save, RotateCcw
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { CampaignCreator } from "../components/CampaignCreator";
@@ -12,7 +12,7 @@ import { CampaignCreator } from "../components/CampaignCreator";
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type CampaignStatus = 'active' | 'paused' | 'completed' | 'draft' | 'canceled';
-type LeadStatus = 'queued' | 'processing' | 'sent' | 'replied' | 'bounced' | 'skipped';
+type LeadStatus = 'pending_review' | 'queued' | 'processing' | 'sent' | 'replied' | 'bounced' | 'skipped';
 
 interface Campaign {
   id: string;
@@ -67,6 +67,7 @@ function statusLabel(s: CampaignStatus) {
 
 function leadStatusLabel(s: LeadStatus) {
   const map: Record<LeadStatus, { label: string; cls: string; icon: React.ReactNode }> = {
+    pending_review: { label: 'Do akceptacji', cls: 'text-[#a3956a]',  icon: <Edit3 className="size-3.5" /> },
     queued:  { label: 'W kolejce',    cls: 'text-[#827E78]',  icon: <Clock className="size-3.5" /> },
     processing: { label: 'Wysyłanie', cls: 'text-[#a3956a]',  icon: <Loader2 className="size-3.5" /> },
     sent:    { label: 'Wysłany',      cls: 'text-[#A3A09A]',  icon: <Mail className="size-3.5" /> },
@@ -85,26 +86,44 @@ function mapDbEmailStatus(dbStatus: string | null): LeadStatus {
     case 'replied': return 'replied';
     case 'bounced': return 'bounced';
     case 'failed': return 'skipped';
-    case 'pending_review': return 'queued';
+    case 'pending_review': return 'pending_review';
     default: return 'queued';
   }
+}
+
+function deriveCampaignStatsFromStatuses(statuses: Array<string | null>) {
+  const sent = statuses.filter(s => s === 'sent' || s === 'replied').length;
+  const replies = statuses.filter(s => s === 'replied').length;
+  const bounced = statuses.filter(s => s === 'bounced').length;
+  const queued = statuses.filter(s => s === 'queued' || s === 'processing').length;
+  return { sent, replies, bounced, queued, total: statuses.length };
 }
 
 function mapDbCampaign(c: any): Campaign {
   const isArchived = c.status === 'archived';
   let status: CampaignStatus = isArchived ? 'canceled' : (c.status as CampaignStatus) ?? 'draft';
-  const sent = c.sent_count ?? 0;
-  const total = c.total_count ?? 0;
+  const emailStatuses = Array.isArray(c.campaign_emails)
+    ? c.campaign_emails.map((email: any) => email.status ?? null)
+    : [];
+  const stats = emailStatuses.length > 0
+    ? deriveCampaignStatsFromStatuses(emailStatuses)
+    : {
+        sent: c.sent_count ?? 0,
+        replies: c.replies_count ?? 0,
+        bounced: 0,
+        queued: Math.max(0, (c.total_count ?? 0) - (c.sent_count ?? 0)),
+        total: c.total_count ?? 0,
+      };
   return {
     id: c.id,
     name: c.name,
     status,
     created_at: c.created_at,
-    sent,
-    total,
-    replies: c.replies_count ?? 0,
-    bounced: 0,
-    queued: Math.max(0, total - sent),
+    sent: stats.sent,
+    total: stats.total,
+    replies: stats.replies,
+    bounced: stats.bounced,
+    queued: stats.queued,
     estimated_end: null,
     isArchived,
   };
@@ -200,18 +219,29 @@ function CampaignMailReview({
   campaign,
   leads,
   initialIndex,
-  onBack,
+  onClose,
   onUpdateLead,
+  onAcceptLead,
+  onSkipLead,
+  onRestoreLead,
+  onTogglePriority,
+  onToggleReplied,
 }: {
   campaign: Campaign;
   leads: CampaignLead[];
   initialIndex: number;
-  onBack: () => void;
+  onClose: () => void;
   onUpdateLead: (lead: CampaignLead) => void;
+  onAcceptLead: (lead: CampaignLead) => Promise<void>;
+  onSkipLead: (lead: CampaignLead) => Promise<void>;
+  onRestoreLead: (lead: CampaignLead) => Promise<void>;
+  onTogglePriority: (lead: CampaignLead) => Promise<void>;
+  onToggleReplied: (lead: CampaignLead) => Promise<void>;
 }) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [acting, setActing] = useState(false);
   const [editSubject, setEditSubject] = useState('');
   const [editBody, setEditBody] = useState('');
 
@@ -232,6 +262,20 @@ function CampaignMailReview({
 
   const ls = leadStatusLabel(lead.status);
   const canEdit = lead.status !== 'sent' && lead.status !== 'replied' && lead.status !== 'processing' && !lead.isGenerating;
+  const canAccept = lead.raw_status === 'pending_review' && !lead.isGenerating && !!lead.mail_content;
+  const canSkip = (lead.status === 'pending_review' || lead.status === 'queued') && !lead.isGenerating;
+  const canRestore = lead.status === 'skipped';
+  const canPrioritize = lead.status === 'queued';
+  const canToggleReply = lead.status === 'sent' || lead.status === 'replied';
+  const timingLabel = lead.sent_at
+    ? `Wysłany: ${formatDate(lead.sent_at)}`
+    : lead.scheduled_at
+      ? `Zaplanowany: ${formatDate(lead.scheduled_at)}`
+      : lead.isGenerating
+        ? 'Generowanie w toku'
+        : lead.status === 'pending_review'
+          ? 'Czeka na akceptację'
+          : 'Bez terminu wysyłki';
   const socialNotes = [lead.instagramData, lead.linkedinData]
     .filter(Boolean)
     .map(item => typeof item === 'string' ? item : JSON.stringify(item))
@@ -260,167 +304,217 @@ function CampaignMailReview({
     setSaving(false);
   };
 
+  const findNextReviewIndex = () => {
+    const isReviewTarget = (item: CampaignLead) => item.isGenerating || item.status === 'pending_review';
+    const after = leads.findIndex((item, index) => index > currentIndex && isReviewTarget(item));
+    if (after >= 0) return after;
+    return leads.findIndex((item, index) => index < currentIndex && isReviewTarget(item));
+  };
+
+  const runAction = async (action: () => Promise<void>, advance = false) => {
+    setActing(true);
+    try {
+      await action();
+      if (advance) {
+        const nextIndex = findNextReviewIndex();
+        if (nextIndex >= 0) setCurrentIndex(nextIndex);
+      }
+    } finally {
+      setActing(false);
+    }
+  };
+
   return (
-    <div className="max-w-5xl mx-auto space-y-6 pb-12">
-      <div className="flex items-start justify-between">
-        <div>
-          <button onClick={onBack} className="flex items-center gap-2 text-[13px] text-[#827E78] hover:text-[#EAE8E1] transition-colors mb-6">
-            <ArrowLeft className="size-4" /> Szczegóły kampanii
-          </button>
-          <div className="flex items-center gap-3">
-            <h1 className="text-[28px] font-serif text-[#EAE8E1] tracking-tight">{campaign.name}</h1>
-            <span className={`flex items-center gap-1.5 text-[12px] font-medium px-3 py-1.5 rounded-full ${ls.cls}`}>
-              {ls.icon}
-              {lead.isGenerating ? 'Generuje się' : ls.label}
-            </span>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-10">
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="absolute inset-0 bg-black/80 backdrop-blur-md" />
+
+      <motion.div
+        initial={{ opacity: 0, scale: 0.98, y: 12 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.98, y: 12 }}
+        transition={{ duration: 0.18 }}
+        className="relative w-full max-w-[1280px] h-[88vh] min-h-[600px] bg-[#0f0f0f] border border-white/[0.08] rounded-3xl shadow-2xl flex flex-col overflow-hidden"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-8 py-5 border-b border-white/[0.06] bg-[#1A1A1A] shrink-0">
+          <div className="min-w-0">
+            <div className="flex items-center gap-3 min-w-0">
+              <h2 className="text-[17px] font-serif text-[#EAE8E1] tracking-tight truncate">{campaign.name}</h2>
+              <span className={`flex items-center gap-1.5 text-[12px] font-medium px-3 py-1.5 rounded-full shrink-0 ${ls.cls}`}>
+                {lead.isGenerating ? <Loader2 className="size-3.5 animate-spin" /> : ls.icon}
+                {lead.isGenerating ? 'Generuje się' : ls.label}
+              </span>
+            </div>
+            <p className="text-[12px] text-[#827E78] mt-1 truncate">
+              {lead.company_name} · {currentIndex + 1} z {leads.length} · {timingLabel}
+            </p>
           </div>
-          <p className="text-[14px] text-[#827E78] mt-1">
-            {lead.company_name} · {currentIndex + 1} z {leads.length}
-          </p>
+
+          <div className="flex items-center gap-2 shrink-0">
+            {canPrioritize && (
+              <button
+                onClick={() => runAction(() => onTogglePriority(lead))}
+                disabled={acting}
+                className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-[12px] font-medium transition-all ${lead.priority ? 'border-[#a3956a]/30 text-[#a3956a] bg-[#a3956a]/10' : 'border-white/[0.1] text-[#A3A09A] hover:text-[#EAE8E1] hover:border-white/[0.2]'}`}
+              >
+                <SlidersHorizontal className="size-3.5" /> {lead.priority ? 'Priorytet' : 'Priorytetyzuj'}
+              </button>
+            )}
+            <button onClick={() => setCurrentIndex(prev => Math.max(0, prev - 1))} disabled={currentIndex === 0} className="p-2.5 rounded-xl border border-white/[0.1] text-[#A3A09A] hover:text-[#EAE8E1] hover:border-white/[0.2] disabled:opacity-30 transition-all" title="Poprzedni mail">
+              <ChevronLeft className="size-4" />
+            </button>
+            <button onClick={() => setCurrentIndex(prev => Math.min(leads.length - 1, prev + 1))} disabled={currentIndex === leads.length - 1} className="p-2.5 rounded-xl border border-white/[0.1] text-[#A3A09A] hover:text-[#EAE8E1] hover:border-white/[0.2] disabled:opacity-30 transition-all" title="Następny mail">
+              <ChevronRight className="size-4" />
+            </button>
+            <button onClick={onClose} className="p-2 text-[#827E78] hover:text-[#EAE8E1] hover:bg-white/[0.06] rounded-lg transition-all">
+              <X className="size-5" />
+            </button>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setCurrentIndex(prev => Math.max(0, prev - 1))}
-            disabled={currentIndex === 0}
-            className="p-2.5 rounded-xl border border-white/[0.1] text-[#A3A09A] hover:text-[#EAE8E1] hover:border-white/[0.2] disabled:opacity-30 disabled:hover:border-white/[0.1] transition-all"
-            title="Poprzedni mail"
-          >
-            <ChevronLeft className="size-4" />
-          </button>
-          <button
-            onClick={() => setCurrentIndex(prev => Math.min(leads.length - 1, prev + 1))}
-            disabled={currentIndex === leads.length - 1}
-            className="p-2.5 rounded-xl border border-white/[0.1] text-[#A3A09A] hover:text-[#EAE8E1] hover:border-white/[0.2] disabled:opacity-30 disabled:hover:border-white/[0.1] transition-all"
-            title="Następny mail"
-          >
-            <ChevronRight className="size-4" />
-          </button>
-        </div>
-      </div>
+        <div className="flex-1 overflow-hidden">
+          <div className="grid grid-cols-12 h-full overflow-hidden">
+            <div className="col-span-12 lg:col-span-7 bg-[#F7F5EF] text-[#1A1A1A] p-8 overflow-hidden">
+              {lead.isGenerating ? (
+                <div className="h-full flex items-center justify-center">
+                  <div className="w-full max-w-md bg-white border border-black/[0.06] shadow-sm rounded-sm p-8 animate-pulse">
+                    <div className="h-3 bg-black/[0.08] rounded w-2/3 mb-8" />
+                    <div className="space-y-3">
+                      <div className="h-3 bg-black/[0.08] rounded w-full" />
+                      <div className="h-3 bg-black/[0.08] rounded w-11/12" />
+                      <div className="h-3 bg-black/[0.08] rounded w-10/12" />
+                      <div className="h-3 bg-black/[0.08] rounded w-9/12" />
+                    </div>
+                    <div className="space-y-3 mt-8">
+                      <div className="h-3 bg-black/[0.08] rounded w-11/12" />
+                      <div className="h-3 bg-black/[0.08] rounded w-8/12" />
+                    </div>
+                  </div>
+                </div>
+              ) : editing ? (
+                <div className="h-full flex flex-col gap-5">
+                  <input value={editSubject} onChange={(e) => setEditSubject(e.target.value)} className="w-full px-4 py-3 rounded-xl bg-white border border-black/[0.08] text-[18px] font-medium outline-none focus:border-black/[0.18]" placeholder="Temat maila" />
+                  <textarea value={editBody} onChange={(e) => setEditBody(e.target.value)} className="flex-1 w-full px-4 py-4 rounded-xl bg-white border border-black/[0.08] text-[15px] leading-[1.8] font-serif outline-none resize-none focus:border-black/[0.18]" placeholder="Treść maila" />
+                  <div className="flex justify-end gap-3">
+                    <button onClick={() => setEditing(false)} className="px-4 py-2.5 text-[13px] font-medium text-[#5f5b55] hover:text-[#1A1A1A] transition-colors">Anuluj</button>
+                    <button onClick={saveEdit} disabled={saving} className="flex items-center gap-2 px-4 py-2.5 bg-[#1A1A1A] hover:bg-[#2a2a2a] text-white text-[13px] font-medium rounded-xl transition-all disabled:opacity-50">
+                      {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+                      Zapisz zmiany
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="h-full bg-white border border-black/[0.06] shadow-sm p-8 overflow-y-auto">
+                  <div className="flex items-start justify-between gap-4 mb-8">
+                    <div>
+                      <p className="text-[11px] font-medium text-[#8a8680] uppercase tracking-wider mb-2">Temat</p>
+                      <h2 className="text-[22px] font-serif text-[#1A1A1A] leading-snug">{lead.subject || 'Bez tematu'}</h2>
+                    </div>
+                    {canEdit && (
+                      <button onClick={startEditing} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-black/[0.08] text-[12px] font-medium text-[#5f5b55] hover:text-[#1A1A1A] hover:border-black/[0.16] transition-all">
+                        <Edit3 className="size-3.5" /> Edytuj
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-[15px] text-[#2a2a2a] leading-[1.9] whitespace-pre-wrap font-serif">
+                    {lead.mail_content || 'Brak treści do wyświetlenia.'}
+                  </p>
+                </div>
+              )}
+            </div>
 
-      <div className="grid grid-cols-12 rounded-2xl border border-white/[0.08] bg-white/[0.04] overflow-hidden min-h-[640px]">
-        <div className="col-span-7 bg-[#F7F5EF] text-[#1A1A1A] p-8">
-          {lead.isGenerating ? (
-            <div className="h-full flex items-center justify-center">
-              <div className="w-full max-w-md bg-white border border-black/[0.06] shadow-sm rounded-sm p-8 animate-pulse">
-                <div className="h-3 bg-black/[0.08] rounded w-2/3 mb-8" />
-                <div className="space-y-3">
-                  <div className="h-3 bg-black/[0.08] rounded w-full" />
-                  <div className="h-3 bg-black/[0.08] rounded w-11/12" />
-                  <div className="h-3 bg-black/[0.08] rounded w-10/12" />
-                  <div className="h-3 bg-black/[0.08] rounded w-9/12" />
-                </div>
-                <div className="space-y-3 mt-8">
-                  <div className="h-3 bg-black/[0.08] rounded w-11/12" />
-                  <div className="h-3 bg-black/[0.08] rounded w-8/12" />
-                </div>
-              </div>
-            </div>
-          ) : editing ? (
-            <div className="h-full flex flex-col gap-5">
-              <input
-                value={editSubject}
-                onChange={(e) => setEditSubject(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl bg-white border border-black/[0.08] text-[18px] font-medium outline-none focus:border-black/[0.18]"
-                placeholder="Temat maila"
-              />
-              <textarea
-                value={editBody}
-                onChange={(e) => setEditBody(e.target.value)}
-                className="flex-1 w-full px-4 py-4 rounded-xl bg-white border border-black/[0.08] text-[15px] leading-[1.8] font-serif outline-none resize-none focus:border-black/[0.18]"
-                placeholder="Treść maila"
-              />
-              <div className="flex justify-end gap-3">
-                <button onClick={() => setEditing(false)} className="px-4 py-2.5 text-[13px] font-medium text-[#5f5b55] hover:text-[#1A1A1A] transition-colors">
-                  Anuluj
-                </button>
-                <button onClick={saveEdit} disabled={saving} className="flex items-center gap-2 px-4 py-2.5 bg-[#1A1A1A] hover:bg-[#2a2a2a] text-white text-[13px] font-medium rounded-xl transition-all disabled:opacity-50">
-                  {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
-                  Zapisz zmiany
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="h-full bg-white border border-black/[0.06] shadow-sm p-8 overflow-y-auto">
-              <div className="flex items-start justify-between gap-4 mb-8">
+            <div className="col-span-12 lg:col-span-5 p-8 border-l border-white/[0.08] bg-[#1A1A1A] overflow-y-auto">
+              <div className="space-y-6">
                 <div>
-                  <p className="text-[11px] font-medium text-[#8a8680] uppercase tracking-wider mb-2">Temat</p>
-                  <h2 className="text-[22px] font-serif text-[#1A1A1A] leading-snug">{lead.subject || 'Bez tematu'}</h2>
+                  <p className="text-[11px] font-medium text-[#3a3a3a] uppercase tracking-wider mb-3">Lead</p>
+                  <h3 className="text-[22px] font-serif text-[#EAE8E1] leading-tight">{lead.company_name}</h3>
+                  <p className="text-[13px] text-[#827E78] mt-2">{lead.email}</p>
                 </div>
-                {canEdit && (
-                  <button onClick={startEditing} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-black/[0.08] text-[12px] font-medium text-[#5f5b55] hover:text-[#1A1A1A] hover:border-black/[0.16] transition-all">
-                    <Edit3 className="size-3.5" /> Edytuj
-                  </button>
+
+                <div className="grid grid-cols-2 gap-3">
+                  {lead.person && (
+                    <div className="p-4 rounded-xl border border-white/[0.08] bg-white/[0.03]">
+                      <p className="flex items-center gap-2 text-[11px] text-[#827E78] mb-2"><Building2 className="size-3.5" /> Osoba</p>
+                      <p className="text-[13px] text-[#EAE8E1]">{lead.person}</p>
+                    </div>
+                  )}
+                  {lead.industry && (
+                    <div className="p-4 rounded-xl border border-white/[0.08] bg-white/[0.03]">
+                      <p className="flex items-center gap-2 text-[11px] text-[#827E78] mb-2"><Hash className="size-3.5" /> Branża</p>
+                      <p className="text-[13px] text-[#EAE8E1]">{lead.industry}</p>
+                    </div>
+                  )}
+                  {lead.website && (
+                    <div className="p-4 rounded-xl border border-white/[0.08] bg-white/[0.03] col-span-2">
+                      <p className="flex items-center gap-2 text-[11px] text-[#827E78] mb-2"><Globe className="size-3.5" /> WWW</p>
+                      <p className="text-[13px] text-[#EAE8E1] break-all">{lead.website}</p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-[11px] font-medium text-[#3a3a3a] uppercase tracking-wider mb-2">Status maila</p>
+                    <div className={`inline-flex items-center gap-2 text-[13px] font-medium ${ls.cls}`}>
+                      {lead.isGenerating ? <Loader2 className="size-3.5 animate-spin" /> : ls.icon}
+                      {lead.isGenerating ? 'Generuje się w tle' : ls.label}
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="text-[11px] font-medium text-[#3a3a3a] uppercase tracking-wider mb-2">Termin</p>
+                    <p className="text-[13px] text-[#A3A09A]">{timingLabel}</p>
+                  </div>
+
+                  {lead.sent_from && (
+                    <div>
+                      <p className="text-[11px] font-medium text-[#3a3a3a] uppercase tracking-wider mb-2">Skrzynka</p>
+                      <p className="text-[13px] text-[#A3A09A]">{lead.sent_from}</p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  {canAccept && (
+                    <button onClick={() => runAction(() => onAcceptLead(lead), true)} disabled={acting} className="flex items-center gap-2 px-4 py-2.5 bg-[#EAE8E1] hover:bg-white text-[#1A1A1A] text-[13px] font-medium rounded-xl transition-all disabled:opacity-50">
+                      {acting ? <Loader2 className="size-3.5 animate-spin" /> : <Check className="size-3.5" />} Akceptuj
+                    </button>
+                  )}
+                  {canSkip && (
+                    <button onClick={() => runAction(() => onSkipLead(lead), true)} disabled={acting} className="flex items-center gap-2 px-4 py-2.5 border border-white/[0.1] hover:border-[#b56060]/30 text-[#827E78] hover:text-[#b56060] text-[13px] font-medium rounded-xl transition-all disabled:opacity-50">
+                      <X className="size-3.5" /> Pomiń
+                    </button>
+                  )}
+                  {canRestore && (
+                    <button onClick={() => runAction(() => onRestoreLead(lead))} disabled={acting} className="flex items-center gap-2 px-4 py-2.5 border border-white/[0.1] hover:border-white/[0.2] text-[#A3A09A] hover:text-[#EAE8E1] text-[13px] font-medium rounded-xl transition-all disabled:opacity-50">
+                      <RotateCcw className="size-3.5" /> Przywróć
+                    </button>
+                  )}
+                  {canToggleReply && (
+                    <button onClick={() => runAction(() => onToggleReplied(lead))} disabled={acting} className={`flex items-center gap-2 px-4 py-2.5 border text-[13px] font-medium rounded-xl transition-all disabled:opacity-50 ${lead.status === 'replied' ? 'border-[#5d9970]/30 text-[#5d9970] bg-[#5d9970]/10' : 'border-white/[0.1] text-[#827E78] hover:text-[#5d9970] hover:border-[#5d9970]/30'}`}>
+                      <Check className="size-3.5" /> {lead.status === 'replied' ? 'Cofnij odpowiedź' : 'Odpowiedział'}
+                    </button>
+                  )}
+                </div>
+
+                {lead.summary && (
+                  <div>
+                    <p className="text-[11px] font-medium text-[#3a3a3a] uppercase tracking-wider mb-2">Informacje o firmie</p>
+                    <p className="text-[13px] text-[#A3A09A] leading-relaxed whitespace-pre-wrap">{lead.summary}</p>
+                  </div>
+                )}
+
+                {socialNotes && (
+                  <div>
+                    <p className="text-[11px] font-medium text-[#3a3a3a] uppercase tracking-wider mb-2">Sygnały z sociali</p>
+                    <p className="text-[12px] text-[#827E78] leading-relaxed whitespace-pre-wrap max-h-48 overflow-y-auto">{socialNotes}</p>
+                  </div>
                 )}
               </div>
-              <p className="text-[15px] text-[#2a2a2a] leading-[1.9] whitespace-pre-wrap font-serif">
-                {lead.mail_content || 'Brak treści do wyświetlenia.'}
-              </p>
             </div>
-          )}
-        </div>
-
-        <div className="col-span-5 p-8 border-l border-white/[0.08] bg-[#1A1A1A] overflow-y-auto">
-          <div className="space-y-6">
-            <div>
-              <p className="text-[11px] font-medium text-[#3a3a3a] uppercase tracking-wider mb-3">Lead</p>
-              <h3 className="text-[22px] font-serif text-[#EAE8E1] leading-tight">{lead.company_name}</h3>
-              <p className="text-[13px] text-[#827E78] mt-2">{lead.email}</p>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              {lead.person && (
-                <div className="p-4 rounded-xl border border-white/[0.08] bg-white/[0.03]">
-                  <p className="flex items-center gap-2 text-[11px] text-[#827E78] mb-2"><Building2 className="size-3.5" /> Osoba</p>
-                  <p className="text-[13px] text-[#EAE8E1]">{lead.person}</p>
-                </div>
-              )}
-              {lead.industry && (
-                <div className="p-4 rounded-xl border border-white/[0.08] bg-white/[0.03]">
-                  <p className="flex items-center gap-2 text-[11px] text-[#827E78] mb-2"><Hash className="size-3.5" /> Branża</p>
-                  <p className="text-[13px] text-[#EAE8E1]">{lead.industry}</p>
-                </div>
-              )}
-              {lead.website && (
-                <div className="p-4 rounded-xl border border-white/[0.08] bg-white/[0.03] col-span-2">
-                  <p className="flex items-center gap-2 text-[11px] text-[#827E78] mb-2"><Globe className="size-3.5" /> WWW</p>
-                  <p className="text-[13px] text-[#EAE8E1] break-all">{lead.website}</p>
-                </div>
-              )}
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <p className="text-[11px] font-medium text-[#3a3a3a] uppercase tracking-wider mb-2">Status maila</p>
-                <div className={`inline-flex items-center gap-2 text-[13px] font-medium ${ls.cls}`}>
-                  {ls.icon}
-                  {lead.isGenerating ? 'Generuje się w tle' : ls.label}
-                </div>
-              </div>
-
-              <div>
-                <p className="text-[11px] font-medium text-[#3a3a3a] uppercase tracking-wider mb-2">Wysłano</p>
-                <p className="text-[13px] text-[#A3A09A]">{formatDate(lead.sent_at)}</p>
-              </div>
-            </div>
-
-            {lead.summary && (
-              <div>
-                <p className="text-[11px] font-medium text-[#3a3a3a] uppercase tracking-wider mb-2">Informacje o firmie</p>
-                <p className="text-[13px] text-[#A3A09A] leading-relaxed whitespace-pre-wrap">{lead.summary}</p>
-              </div>
-            )}
-
-            {socialNotes && (
-              <div>
-                <p className="text-[11px] font-medium text-[#3a3a3a] uppercase tracking-wider mb-2">Sygnały z sociali</p>
-                <p className="text-[12px] text-[#827E78] leading-relaxed whitespace-pre-wrap max-h-48 overflow-y-auto">{socialNotes}</p>
-              </div>
-            )}
           </div>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }
@@ -445,6 +539,7 @@ function CampaignDetail({ campaign: initialCampaign, onBack }: { campaign: Campa
 
       if (!emails || emails.length === 0) {
         setLeads([]);
+        setCampaign(prev => ({ ...prev, sent: 0, replies: 0, bounced: 0, queued: 0, total: 0 }));
         return;
       }
 
@@ -490,6 +585,8 @@ function CampaignDetail({ campaign: initialCampaign, onBack }: { campaign: Campa
       });
 
       setLeads(mapped);
+      const stats = deriveCampaignStatsFromStatuses(mapped.map(lead => lead.raw_status));
+      setCampaign(prev => ({ ...prev, ...stats }));
     } catch (err) {
       console.error('Błąd pobierania leadów kampanii:', err);
     } finally {
@@ -527,9 +624,82 @@ function CampaignDetail({ campaign: initialCampaign, onBack }: { campaign: Campa
     await fetchLeads(false);
   };
 
-  const markReplied = async (id: string) => {
-    await supabase.from('campaign_emails').update({ status: 'replied' }).eq('id', id);
-    setLeads(prev => prev.map(l => l.id === id ? { ...l, status: 'replied' as LeadStatus } : l));
+  const maxQueuePosition = () => Math.max(0, ...leads.map(lead => lead.queue_position || 0));
+
+  const rescheduleCampaign = async () => {
+    const { error } = await supabase.rpc('zec_reschedule_campaign', { p_campaign_id: campaign.id });
+    if (error) console.error('Nie udało się przeliczyć terminów wysyłki:', error);
+  };
+
+  const acceptLead = async (lead: CampaignLead) => {
+    const nextPosition = maxQueuePosition() + 1;
+    const { error } = await supabase
+      .from('campaign_emails')
+      .update({
+        status: 'queued',
+        queue_position: nextPosition,
+        subject: lead.subject || '',
+        body: lead.mail_content || '',
+        last_error: null,
+      })
+      .eq('id', lead.id);
+    if (error) {
+      console.error('Nie udało się zaakceptować maila:', error);
+      return;
+    }
+    await rescheduleCampaign();
+    await fetchLeads(false);
+  };
+
+  const skipLead = async (lead: CampaignLead) => {
+    const { error } = await supabase
+      .from('campaign_emails')
+      .update({
+        status: 'failed',
+        scheduled_at: null,
+        claimed_at: null,
+        claim_token: null,
+        priority_score: 0,
+      })
+      .eq('id', lead.id);
+    if (error) {
+      console.error('Nie udało się pominąć maila:', error);
+      return;
+    }
+    await rescheduleCampaign();
+    await fetchLeads(false);
+  };
+
+  const restoreLead = async (lead: CampaignLead) => {
+    const nextPosition = maxQueuePosition() + 1;
+    const { error } = await supabase
+      .from('campaign_emails')
+      .update({
+        status: 'queued',
+        queue_position: nextPosition,
+        last_error: null,
+        priority_score: 0,
+        claimed_at: null,
+        claim_token: null,
+      })
+      .eq('id', lead.id);
+    if (error) {
+      console.error('Nie udało się przywrócić maila:', error);
+      return;
+    }
+    await rescheduleCampaign();
+    await fetchLeads(false);
+  };
+
+  const toggleReplied = async (lead: CampaignLead) => {
+    if (lead.status !== 'sent' && lead.status !== 'replied') return;
+    const nextStatus = lead.status === 'replied' ? 'sent' : 'replied';
+    const { error } = await supabase.from('campaign_emails').update({ status: nextStatus }).eq('id', lead.id);
+    if (error) {
+      console.error('Nie udało się zmienić statusu odpowiedzi:', error);
+      return;
+    }
+    await fetchLeads(false);
   };
 
   const togglePause = async () => {
@@ -539,6 +709,17 @@ function CampaignDetail({ campaign: initialCampaign, onBack }: { campaign: Campa
   };
 
   const startSending = async () => {
+    const pendingReviewIndex = leads.findIndex(lead => lead.status === 'pending_review' && !lead.isGenerating && !!lead.mail_content);
+    if (pendingReviewIndex >= 0) {
+      setReviewIndex(pendingReviewIndex);
+      return;
+    }
+    const generatingReviewIndex = leads.findIndex(lead => lead.isGenerating || lead.status === 'pending_review');
+    if (generatingReviewIndex >= 0) {
+      setReviewIndex(generatingReviewIndex);
+      return;
+    }
+
     const { error } = await supabase.rpc('zec_start_campaign_sending', { p_campaign_id: campaign.id });
     if (error) {
       console.error('Nie udało się rozpocząć wysyłki:', error);
@@ -556,18 +737,7 @@ function CampaignDetail({ campaign: initialCampaign, onBack }: { campaign: Campa
   const pct = campaign.total > 0 ? (campaign.sent / campaign.total) * 100 : 0;
   const st = statusLabel(campaign.status);
   const generatingIndex = leads.findIndex(lead => lead.isGenerating);
-
-  if (reviewIndex !== null && leads[reviewIndex]) {
-    return (
-      <CampaignMailReview
-        campaign={campaign}
-        leads={leads}
-        initialIndex={reviewIndex}
-        onBack={() => setReviewIndex(null)}
-        onUpdateLead={updateLead}
-      />
-    );
-  }
+  const reviewableIndex = leads.findIndex(lead => lead.status === 'pending_review' && !lead.isGenerating && !!lead.mail_content);
 
   return (
     <div className="max-w-5xl mx-auto space-y-8 pb-12">
@@ -598,7 +768,8 @@ function CampaignDetail({ campaign: initialCampaign, onBack }: { campaign: Campa
             )}
             {generatingIndex < 0 && campaign.status === 'draft' && (
               <button onClick={startSending} className="flex items-center gap-2 px-4 py-2.5 bg-[#EAE8E1] hover:bg-white text-[#1A1A1A] text-[13px] font-medium rounded-xl transition-all">
-                <Play className="size-3.5" /> Rozpocznij wysyłkę
+                {reviewableIndex >= 0 ? <Check className="size-3.5" /> : <Play className="size-3.5" />}
+                {reviewableIndex >= 0 ? 'Powróć do akceptacji' : 'Rozpocznij wysyłkę'}
               </button>
             )}
             {campaign.status === 'active' && (
@@ -720,12 +891,7 @@ function CampaignDetail({ campaign: initialCampaign, onBack }: { campaign: Campa
 
                   <div className="col-span-1 flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
                     {(lead.status === 'sent' || lead.status === 'replied') && (
-                      <button onClick={() => setReviewIndex(index)} className="p-1.5 text-[#3a3a3a] hover:text-[#A3A09A] hover:bg-white/[0.06] rounded-lg transition-all" title="Podgląd maila">
-                        <Eye className="size-3.5" />
-                      </button>
-                    )}
-                    {lead.status === 'sent' && (
-                      <button onClick={() => markReplied(lead.id)} className="p-1.5 text-[#3a3a3a] hover:text-[#5d9970] hover:bg-[#5d9970]/5 rounded-lg transition-all" title="Oznacz jako odpowiedział">
+                      <button onClick={() => toggleReplied(lead)} className={`p-1.5 rounded-lg transition-all ${lead.status === 'replied' ? 'text-[#5d9970] bg-[#5d9970]/10 hover:bg-[#5d9970]/15' : 'text-[#3a3a3a] hover:text-[#5d9970] hover:bg-[#5d9970]/5'}`} title={lead.status === 'replied' ? 'Cofnij oznaczenie odpowiedzi' : 'Oznacz jako odpowiedział'}>
                         <Check className="size-3.5" />
                       </button>
                     )}
@@ -744,9 +910,14 @@ function CampaignDetail({ campaign: initialCampaign, onBack }: { campaign: Campa
                         <SlidersHorizontal className="size-3.5" />
                       </button>
                     )}
-                    {lead.mail_content && lead.status !== 'sent' && lead.status !== 'replied' && (
-                      <button onClick={() => setReviewIndex(index)} className="p-1.5 text-[#3a3a3a] hover:text-[#A3A09A] hover:bg-white/[0.06] rounded-lg transition-all" title="Podgląd maila">
-                        <Eye className="size-3.5" />
+                    {(lead.status === 'queued' || lead.status === 'pending_review') && !lead.isGenerating && (
+                      <button onClick={() => skipLead(lead)} className="p-1.5 text-[#3a3a3a] hover:text-[#b56060] hover:bg-[#b56060]/10 rounded-lg transition-all" title="Pomiń leada">
+                        <X className="size-3.5" />
+                      </button>
+                    )}
+                    {lead.status === 'skipped' && (
+                      <button onClick={() => restoreLead(lead)} className="p-1.5 text-[#3a3a3a] hover:text-[#A3A09A] hover:bg-white/[0.06] rounded-lg transition-all" title="Przywróć na koniec kolejki">
+                        <RotateCcw className="size-3.5" />
                       </button>
                     )}
                   </div>
@@ -756,6 +927,23 @@ function CampaignDetail({ campaign: initialCampaign, onBack }: { campaign: Campa
           </div>
         )}
       </div>
+
+      <AnimatePresence>
+        {reviewIndex !== null && leads[reviewIndex] && (
+          <CampaignMailReview
+            campaign={campaign}
+            leads={leads}
+            initialIndex={reviewIndex}
+            onClose={() => setReviewIndex(null)}
+            onUpdateLead={updateLead}
+            onAcceptLead={acceptLead}
+            onSkipLead={skipLead}
+            onRestoreLead={restoreLead}
+            onTogglePriority={togglePriority}
+            onToggleReplied={toggleReplied}
+          />
+        )}
+      </AnimatePresence>
 
     </div>
   );
@@ -778,27 +966,34 @@ function CampaignsList({ onSelect }: { onSelect: (c: Campaign) => void }) {
 
   const [isCreatorOpen, setIsCreatorOpen] = useState(false);
 
-  const fetchCampaigns = useCallback(async () => {
-    setLoading(true);
+  const fetchCampaigns = useCallback(async (showLoader = true) => {
+    if (showLoader) setLoading(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) { setLoading(false); return; }
+      if (!session) { setLoading(false); return []; }
       const { data, error } = await supabase
         .from('campaigns')
-        .select('id, name, status, created_at, sent_count, total_count, replies_count')
+        .select('id, name, status, created_at, sent_count, total_count, replies_count, campaign_emails!campaign_emails_campaign_id_fkey(status)')
         .eq('user_id', session.user.id)
         .order('created_at', { ascending: false });
         
       if (error) console.error("Error fetching campaigns:", error);
-      if (data) setCampaigns(data.map(mapDbCampaign));
+      const mapped = data ? data.map(mapDbCampaign) : [];
+      setCampaigns(mapped);
+      return mapped;
     } catch (err) {
       console.error('Błąd pobierania kampanii:', err);
+      return [];
     } finally {
-      setLoading(false);
+      if (showLoader) setLoading(false);
     }
   }, []);
 
-  useEffect(() => { fetchCampaigns(); }, [fetchCampaigns]);
+  useEffect(() => {
+    fetchCampaigns(true);
+    const interval = window.setInterval(() => fetchCampaigns(false), 10000);
+    return () => window.clearInterval(interval);
+  }, [fetchCampaigns]);
 
   const filteredCampaigns = campaigns.filter(c =>
     c.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -876,6 +1071,14 @@ function CampaignsList({ onSelect }: { onSelect: (c: Campaign) => void }) {
     setCampaigns(prev => prev.filter(x => x.id !== c.id));
     setDeleteTarget(null);
     showToast(Trash2, 'Kampania została trwale usunięta');
+  };
+
+  const closeCreator = async (campaignId?: string) => {
+    setIsCreatorOpen(false);
+    const refreshed = await fetchCampaigns();
+    if (!campaignId) return;
+    const campaign = refreshed.find(item => item.id === campaignId);
+    if (campaign) onSelect(campaign);
   };
 
   return (
@@ -1106,7 +1309,7 @@ function CampaignsList({ onSelect }: { onSelect: (c: Campaign) => void }) {
 
       <CampaignCreator
         isOpen={isCreatorOpen}
-        onClose={() => { setIsCreatorOpen(false); fetchCampaigns(); }}
+        onClose={closeCreator}
       />
     </div>
   );
