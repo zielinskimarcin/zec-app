@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Plus, ArrowLeft, Loader2, Mail, Check, Clock,
@@ -36,6 +36,7 @@ interface CampaignLead {
   email: string;
   status: LeadStatus;
   raw_status: string | null;
+  paused_from_status: string | null;
   sent_at: string | null;
   scheduled_at: string | null;
   sent_from: string | null;
@@ -94,23 +95,35 @@ function mapDbEmailStatus(dbStatus: string | null): LeadStatus {
   }
 }
 
-function deriveCampaignStatsFromStatuses(statuses: Array<string | null>) {
+function deriveCampaignStatsFromEmailRows(rows: Array<{ status: string | null; paused_from_status?: string | null }>) {
+  const statuses = rows.map(row => row.status);
   const sent = statuses.filter(s => s === 'sent' || s === 'replied').length;
   const replies = statuses.filter(s => s === 'replied').length;
   const bounced = statuses.filter(s => s === 'bounced').length;
-  const queued = statuses.filter(s => s === 'queued' || s === 'processing').length;
+  const queued = rows.filter(row =>
+    row.status === 'queued' ||
+    row.status === 'processing' ||
+    (row.status === 'paused' && row.paused_from_status !== 'pending_review')
+  ).length;
   const total = statuses.filter(s => s !== 'failed').length;
   return { sent, replies, bounced, queued, total };
+}
+
+function deriveCampaignStatsFromStatuses(statuses: Array<string | null>) {
+  return deriveCampaignStatsFromEmailRows(statuses.map(status => ({ status })));
 }
 
 function mapDbCampaign(c: any): Campaign {
   const isArchived = c.status === 'archived';
   let status: CampaignStatus = isArchived ? 'canceled' : (c.status as CampaignStatus) ?? 'draft';
   const emailStatuses = Array.isArray(c.campaign_emails)
-    ? c.campaign_emails.map((email: any) => email.status ?? null)
+    ? c.campaign_emails.map((email: any) => ({
+        status: email.status ?? null,
+        paused_from_status: email.paused_from_status ?? null,
+      }))
     : [];
   const stats = emailStatuses.length > 0
-    ? deriveCampaignStatsFromStatuses(emailStatuses)
+    ? deriveCampaignStatsFromEmailRows(emailStatuses)
     : {
         sent: c.sent_count ?? 0,
         replies: c.replies_count ?? 0,
@@ -266,10 +279,12 @@ function CampaignMailReview({
 
   const ls = leadStatusLabel(lead.status);
   const canEdit = lead.status !== 'sent' && lead.status !== 'replied' && lead.status !== 'processing' && !lead.isGenerating;
-  const canAccept = lead.raw_status === 'pending_review' && !lead.isGenerating && !!lead.mail_content;
+  const waitsForReview = lead.raw_status === 'pending_review' || (lead.status === 'paused' && lead.paused_from_status === 'pending_review');
+  const waitsInQueue = lead.status === 'queued' || (lead.status === 'paused' && lead.paused_from_status === 'queued');
+  const canAccept = waitsForReview && !lead.isGenerating && !!lead.mail_content;
   const canSkip = (lead.status === 'pending_review' || lead.status === 'queued' || lead.status === 'paused') && !lead.isGenerating;
   const canRestore = lead.status === 'skipped';
-  const canPrioritize = lead.status === 'queued';
+  const canPrioritize = waitsInQueue;
   const canToggleReply = lead.status === 'sent' || lead.status === 'replied';
   const timingLabel = lead.sent_at
     ? `Wysłany: ${formatDate(lead.sent_at)}`
@@ -311,7 +326,10 @@ function CampaignMailReview({
   };
 
   const findNextReviewIndex = () => {
-    const isReviewTarget = (item: CampaignLead) => item.isGenerating || item.status === 'pending_review';
+    const isReviewTarget = (item: CampaignLead) =>
+      item.isGenerating ||
+      item.status === 'pending_review' ||
+      (item.status === 'paused' && item.paused_from_status === 'pending_review');
     const after = leads.findIndex((item, index) => index > currentIndex && isReviewTarget(item));
     if (after >= 0) return after;
     return leads.findIndex((item, index) => index < currentIndex && isReviewTarget(item));
@@ -534,13 +552,18 @@ function CampaignDetail({ campaign: initialCampaign, onBack }: { campaign: Campa
   const [reviewIndex, setReviewIndex] = useState<number | null>(null);
   const [reorderMode, setReorderMode] = useState(false);
   const [draggingLeadId, setDraggingLeadId] = useState<string | null>(null);
+  const leadsRef = useRef<CampaignLead[]>([]);
+
+  useEffect(() => {
+    leadsRef.current = leads;
+  }, [leads]);
 
   const fetchLeads = useCallback(async (showLoader = false) => {
     if (showLoader) setLoadingLeads(true);
     try {
       const { data: emails } = await supabase
         .from('campaign_emails')
-        .select('id, lead_id, subject, body, status, scheduled_at, sent_at, sent_from_email, email_account_id, priority_score, queue_position, email_accounts(email_address)')
+        .select('id, lead_id, subject, body, status, paused_from_status, scheduled_at, sent_at, sent_from_email, email_account_id, priority_score, queue_position, email_accounts(email_address)')
         .eq('campaign_id', campaign.id)
         .order('queue_position', { ascending: true })
         .order('created_at', { ascending: true });
@@ -574,6 +597,7 @@ function CampaignDetail({ campaign: initialCampaign, onBack }: { campaign: Campa
           email: gl?.email || '—',
           status: mapDbEmailStatus(email.status),
           raw_status: email.status || null,
+          paused_from_status: email.paused_from_status || null,
           sent_at: email.sent_at || null,
           scheduled_at: email.scheduled_at || null,
           sent_from: email.sent_from_email || email.email_accounts?.email_address || null,
@@ -593,7 +617,10 @@ function CampaignDetail({ campaign: initialCampaign, onBack }: { campaign: Campa
       });
 
       setLeads(mapped);
-      const stats = deriveCampaignStatsFromStatuses(mapped.map(lead => lead.raw_status));
+      const stats = deriveCampaignStatsFromEmailRows(mapped.map(lead => ({
+        status: lead.raw_status,
+        paused_from_status: lead.paused_from_status,
+      })));
       setCampaign(prev => ({ ...prev, ...stats }));
     } catch (err) {
       console.error('Błąd pobierania leadów kampanii:', err);
@@ -620,7 +647,11 @@ function CampaignDetail({ campaign: initialCampaign, onBack }: { campaign: Campa
     await fetchLeads(false);
   };
 
-  const isReorderableLead = (lead: CampaignLead) => lead.status === 'queued' || lead.status === 'paused';
+  const isQueuedLikeLead = (lead: CampaignLead) =>
+    lead.status === 'queued' || (lead.status === 'paused' && lead.paused_from_status === 'queued');
+  const isReviewLikeLead = (lead: CampaignLead) =>
+    lead.status === 'pending_review' || (lead.status === 'paused' && lead.paused_from_status === 'pending_review');
+  const isReorderableLead = (lead: CampaignLead) => isQueuedLikeLead(lead);
 
   const persistQueueOrder = async (orderedLeads: CampaignLead[]) => {
     await Promise.all(orderedLeads.map((lead, index) =>
@@ -645,6 +676,7 @@ function CampaignDetail({ campaign: initialCampaign, onBack }: { campaign: Campa
       const next = [...prev];
       next.splice(from, 1);
       next.splice(to, 0, dragging);
+      leadsRef.current = next;
       return next;
     });
   };
@@ -653,7 +685,7 @@ function CampaignDetail({ campaign: initialCampaign, onBack }: { campaign: Campa
     if (!reorderMode || !draggingLeadId) return;
     event.preventDefault();
     setDraggingLeadId(null);
-    await persistQueueOrder(leads);
+    await persistQueueOrder(leadsRef.current);
   };
 
   const maxQueuePosition = () => Math.max(0, ...leads.map(lead => lead.queue_position || 0));
@@ -665,22 +697,26 @@ function CampaignDetail({ campaign: initialCampaign, onBack }: { campaign: Campa
 
   const acceptLead = async (lead: CampaignLead) => {
     const nextPosition = maxQueuePosition() + 1;
+    const shouldStayPaused = campaign.status === 'paused' || lead.status === 'paused';
     const { error } = await supabase
       .from('campaign_emails')
       .update({
-        status: 'queued',
+        status: shouldStayPaused ? 'paused' : 'queued',
         queue_position: nextPosition,
         subject: lead.subject || '',
         body: lead.mail_content || '',
         last_error: null,
-        paused_from_status: null,
+        scheduled_at: shouldStayPaused ? null : lead.scheduled_at,
+        claimed_at: null,
+        claim_token: null,
+        paused_from_status: shouldStayPaused ? 'queued' : null,
       })
       .eq('id', lead.id);
     if (error) {
       console.error('Nie udało się zaakceptować maila:', error);
       return;
     }
-    await rescheduleCampaign();
+    if (!shouldStayPaused) await rescheduleCampaign();
     await fetchLeads(false);
   };
 
@@ -700,29 +736,31 @@ function CampaignDetail({ campaign: initialCampaign, onBack }: { campaign: Campa
       console.error('Nie udało się pominąć maila:', error);
       return;
     }
-    await rescheduleCampaign();
+    if (campaign.status === 'active') await rescheduleCampaign();
     await fetchLeads(false);
   };
 
   const restoreLead = async (lead: CampaignLead) => {
     const nextPosition = maxQueuePosition() + 1;
+    const shouldStayPaused = campaign.status === 'paused';
     const { error } = await supabase
       .from('campaign_emails')
       .update({
-        status: 'queued',
+        status: shouldStayPaused ? 'paused' : 'queued',
         queue_position: nextPosition,
         last_error: null,
         priority_score: 0,
+        scheduled_at: null,
         claimed_at: null,
         claim_token: null,
-        paused_from_status: null,
+        paused_from_status: shouldStayPaused ? 'queued' : null,
       })
       .eq('id', lead.id);
     if (error) {
       console.error('Nie udało się przywrócić maila:', error);
       return;
     }
-    await rescheduleCampaign();
+    if (!shouldStayPaused) await rescheduleCampaign();
     await fetchLeads(false);
   };
 
@@ -750,12 +788,12 @@ function CampaignDetail({ campaign: initialCampaign, onBack }: { campaign: Campa
   };
 
   const startSending = async () => {
-    const pendingReviewIndex = leads.findIndex(lead => lead.status === 'pending_review' && !lead.isGenerating && !!lead.mail_content);
+    const pendingReviewIndex = leads.findIndex(lead => isReviewLikeLead(lead) && !lead.isGenerating && !!lead.mail_content);
     if (pendingReviewIndex >= 0) {
       setReviewIndex(pendingReviewIndex);
       return;
     }
-    const generatingReviewIndex = leads.findIndex(lead => lead.isGenerating || lead.status === 'pending_review');
+    const generatingReviewIndex = leads.findIndex(lead => lead.isGenerating || isReviewLikeLead(lead));
     if (generatingReviewIndex >= 0) {
       setReviewIndex(generatingReviewIndex);
       return;
@@ -778,7 +816,7 @@ function CampaignDetail({ campaign: initialCampaign, onBack }: { campaign: Campa
   const pct = campaign.total > 0 ? (campaign.sent / campaign.total) * 100 : 0;
   const st = statusLabel(campaign.status);
   const generatingIndex = leads.findIndex(lead => lead.isGenerating);
-  const reviewableIndex = leads.findIndex(lead => lead.status === 'pending_review' && !lead.isGenerating && !!lead.mail_content);
+  const reviewableIndex = leads.findIndex(lead => isReviewLikeLead(lead) && !lead.isGenerating && !!lead.mail_content);
 
   return (
     <div className="max-w-5xl mx-auto space-y-8 pb-12">
@@ -903,13 +941,19 @@ function CampaignDetail({ campaign: initialCampaign, onBack }: { campaign: Campa
               const ls = leadStatusLabel(lead.status);
               const reorderable = isReorderableLead(lead);
               return (
-                <div
+                <motion.div
+                  layout
+                  transition={{ type: 'spring', stiffness: 520, damping: 42, mass: 0.55 }}
                   key={lead.id}
                   draggable={reorderMode && reorderable}
                   onDragStart={(event) => {
                     if (!reorderMode || !reorderable) return;
                     setDraggingLeadId(lead.id);
                     event.dataTransfer.effectAllowed = 'move';
+                    const canvas = document.createElement('canvas');
+                    canvas.width = 1;
+                    canvas.height = 1;
+                    event.dataTransfer.setDragImage(canvas, 0, 0);
                   }}
                   onDragOver={(event) => handleDragOverLead(lead, event)}
                   onDrop={handleDropLead}
@@ -917,7 +961,7 @@ function CampaignDetail({ campaign: initialCampaign, onBack }: { campaign: Campa
                   onClick={() => {
                     if (!reorderMode) setReviewIndex(index);
                   }}
-                  className={`grid grid-cols-12 gap-4 px-6 py-4 items-center transition-all ${reorderMode && reorderable ? 'cursor-grab active:cursor-grabbing hover:bg-white/[0.04]' : 'cursor-pointer hover:bg-white/[0.02]'} ${draggingLeadId === lead.id ? 'opacity-45' : ''}`}
+                  className={`grid grid-cols-12 gap-4 px-6 py-4 items-center transition-colors ${reorderMode && reorderable ? 'cursor-grab active:cursor-grabbing hover:bg-white/[0.04]' : 'cursor-pointer hover:bg-white/[0.02]'} ${draggingLeadId === lead.id ? 'bg-white/[0.06] shadow-[inset_3px_0_0_rgba(163,149,106,0.9)]' : ''}`}
                 >
 
                   <div className="col-span-4 flex items-center gap-2.5">
@@ -959,7 +1003,7 @@ function CampaignDetail({ campaign: initialCampaign, onBack }: { campaign: Campa
                         <Check className="size-3.5" />
                       </button>
                     )}
-                    {lead.status === 'queued' && !reorderMode && (
+                    {isQueuedLikeLead(lead) && !reorderMode && (
                       <button onClick={() => togglePriority(lead)} className={`p-1.5 rounded-lg transition-all ${lead.priority ? 'text-[#a3956a]' : 'text-[#2e2e2e] hover:text-[#a3956a]'} hover:bg-white/[0.04]`} title={lead.priority ? 'Usuń priorytet' : 'Wyślij wcześniej'}>
                         <Zap className="size-3.5" />
                       </button>
@@ -975,7 +1019,7 @@ function CampaignDetail({ campaign: initialCampaign, onBack }: { campaign: Campa
                       </button>
                     )}
                   </div>
-                </div>
+                </motion.div>
               );
             })}
           </div>
@@ -1027,7 +1071,7 @@ function CampaignsList({ onSelect }: { onSelect: (c: Campaign) => void }) {
       if (!session) { setLoading(false); return []; }
       const { data, error } = await supabase
         .from('campaigns')
-        .select('id, name, status, created_at, sent_count, total_count, replies_count, campaign_emails!campaign_emails_campaign_id_fkey(status)')
+        .select('id, name, status, created_at, sent_count, total_count, replies_count, campaign_emails!campaign_emails_campaign_id_fkey(status, paused_from_status)')
         .eq('user_id', session.user.id)
         .order('created_at', { ascending: false });
         
