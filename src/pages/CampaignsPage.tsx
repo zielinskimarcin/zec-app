@@ -2,9 +2,10 @@ import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Plus, ArrowLeft, Loader2, Mail, Check, Clock,
-  AlertCircle, ChevronUp, Trash2, Pause, Play,
+  AlertCircle, Trash2, Pause, Play,
   X, Download, ArrowRight, Info, Archive, SlidersHorizontal, Search, ChevronDown,
-  ChevronLeft, ChevronRight, Edit3, Building2, Globe, Hash, Save, RotateCcw
+  ChevronLeft, ChevronRight, Edit3, Building2, Globe, Hash, Save, RotateCcw,
+  GripVertical, Zap
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { CampaignCreator } from "../components/CampaignCreator";
@@ -12,7 +13,7 @@ import { CampaignCreator } from "../components/CampaignCreator";
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type CampaignStatus = 'active' | 'paused' | 'completed' | 'draft' | 'canceled';
-type LeadStatus = 'pending_review' | 'queued' | 'processing' | 'sent' | 'replied' | 'bounced' | 'skipped';
+type LeadStatus = 'pending_review' | 'queued' | 'paused' | 'processing' | 'sent' | 'replied' | 'bounced' | 'skipped';
 
 interface Campaign {
   id: string;
@@ -69,6 +70,7 @@ function leadStatusLabel(s: LeadStatus) {
   const map: Record<LeadStatus, { label: string; cls: string; icon: React.ReactNode }> = {
     pending_review: { label: 'Do akceptacji', cls: 'text-[#a3956a]',  icon: <Edit3 className="size-3.5" /> },
     queued:  { label: 'W kolejce',    cls: 'text-[#827E78]',  icon: <Clock className="size-3.5" /> },
+    paused:  { label: 'Wstrzymana',   cls: 'text-[#a3956a]',  icon: <Pause className="size-3.5" /> },
     processing: { label: 'Wysyłanie', cls: 'text-[#a3956a]',  icon: <Loader2 className="size-3.5" /> },
     sent:    { label: 'Wysłany',      cls: 'text-[#A3A09A]',  icon: <Mail className="size-3.5" /> },
     replied: { label: 'Odpowiedział', cls: 'text-[#5d9970]',  icon: <Check className="size-3.5" /> },
@@ -81,6 +83,7 @@ function leadStatusLabel(s: LeadStatus) {
 function mapDbEmailStatus(dbStatus: string | null): LeadStatus {
   switch (dbStatus) {
     case 'queued': return 'queued';
+    case 'paused': return 'paused';
     case 'processing': return 'processing';
     case 'sent': return 'sent';
     case 'replied': return 'replied';
@@ -96,7 +99,8 @@ function deriveCampaignStatsFromStatuses(statuses: Array<string | null>) {
   const replies = statuses.filter(s => s === 'replied').length;
   const bounced = statuses.filter(s => s === 'bounced').length;
   const queued = statuses.filter(s => s === 'queued' || s === 'processing').length;
-  return { sent, replies, bounced, queued, total: statuses.length };
+  const total = statuses.filter(s => s !== 'failed').length;
+  return { sent, replies, bounced, queued, total };
 }
 
 function mapDbCampaign(c: any): Campaign {
@@ -263,7 +267,7 @@ function CampaignMailReview({
   const ls = leadStatusLabel(lead.status);
   const canEdit = lead.status !== 'sent' && lead.status !== 'replied' && lead.status !== 'processing' && !lead.isGenerating;
   const canAccept = lead.raw_status === 'pending_review' && !lead.isGenerating && !!lead.mail_content;
-  const canSkip = (lead.status === 'pending_review' || lead.status === 'queued') && !lead.isGenerating;
+  const canSkip = (lead.status === 'pending_review' || lead.status === 'queued' || lead.status === 'paused') && !lead.isGenerating;
   const canRestore = lead.status === 'skipped';
   const canPrioritize = lead.status === 'queued';
   const canToggleReply = lead.status === 'sent' || lead.status === 'replied';
@@ -273,6 +277,8 @@ function CampaignMailReview({
       ? `Zaplanowany: ${formatDate(lead.scheduled_at)}`
       : lead.isGenerating
         ? 'Generowanie w toku'
+        : lead.status === 'paused'
+          ? 'Wstrzymana'
         : lead.status === 'pending_review'
           ? 'Czeka na akceptację'
           : 'Bez terminu wysyłki';
@@ -357,7 +363,7 @@ function CampaignMailReview({
                 disabled={acting}
                 className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-[12px] font-medium transition-all ${lead.priority ? 'border-[#a3956a]/30 text-[#a3956a] bg-[#a3956a]/10' : 'border-white/[0.1] text-[#A3A09A] hover:text-[#EAE8E1] hover:border-white/[0.2]'}`}
               >
-                <SlidersHorizontal className="size-3.5" /> {lead.priority ? 'Priorytet' : 'Priorytetyzuj'}
+                <Zap className="size-3.5" /> {lead.priority ? 'Priorytet' : 'Priorytetyzuj'}
               </button>
             )}
             <button onClick={() => setCurrentIndex(prev => Math.max(0, prev - 1))} disabled={currentIndex === 0} className="p-2.5 rounded-xl border border-white/[0.1] text-[#A3A09A] hover:text-[#EAE8E1] hover:border-white/[0.2] disabled:opacity-30 transition-all" title="Poprzedni mail">
@@ -526,6 +532,8 @@ function CampaignDetail({ campaign: initialCampaign, onBack }: { campaign: Campa
   const [leads, setLeads] = useState<CampaignLead[]>([]);
   const [loadingLeads, setLoadingLeads] = useState(true);
   const [reviewIndex, setReviewIndex] = useState<number | null>(null);
+  const [reorderMode, setReorderMode] = useState(false);
+  const [draggingLeadId, setDraggingLeadId] = useState<string | null>(null);
 
   const fetchLeads = useCallback(async (showLoader = false) => {
     if (showLoader) setLoadingLeads(true);
@@ -612,16 +620,40 @@ function CampaignDetail({ campaign: initialCampaign, onBack }: { campaign: Campa
     await fetchLeads(false);
   };
 
-  const moveQueuedLead = async (lead: CampaignLead, direction: 'up' | 'down') => {
-    const { error } = await supabase.rpc('zec_move_campaign_email', {
-      p_email_id: lead.id,
-      p_direction: direction,
-    });
-    if (error) {
-      console.error('Nie udało się przesunąć maila w kolejce:', error);
-      return;
-    }
+  const isReorderableLead = (lead: CampaignLead) => lead.status === 'queued' || lead.status === 'paused';
+
+  const persistQueueOrder = async (orderedLeads: CampaignLead[]) => {
+    await Promise.all(orderedLeads.map((lead, index) =>
+      supabase
+        .from('campaign_emails')
+        .update({ queue_position: index + 1 })
+        .eq('id', lead.id)
+    ));
+    if (campaign.status === 'active') await rescheduleCampaign();
     await fetchLeads(false);
+  };
+
+  const handleDragOverLead = (targetLead: CampaignLead, event: React.DragEvent<HTMLDivElement>) => {
+    if (!reorderMode || !draggingLeadId || draggingLeadId === targetLead.id || !isReorderableLead(targetLead)) return;
+    event.preventDefault();
+    setLeads(prev => {
+      const from = prev.findIndex(item => item.id === draggingLeadId);
+      const to = prev.findIndex(item => item.id === targetLead.id);
+      if (from < 0 || to < 0) return prev;
+      const dragging = prev[from];
+      if (!isReorderableLead(dragging)) return prev;
+      const next = [...prev];
+      next.splice(from, 1);
+      next.splice(to, 0, dragging);
+      return next;
+    });
+  };
+
+  const handleDropLead = async (event: React.DragEvent<HTMLDivElement>) => {
+    if (!reorderMode || !draggingLeadId) return;
+    event.preventDefault();
+    setDraggingLeadId(null);
+    await persistQueueOrder(leads);
   };
 
   const maxQueuePosition = () => Math.max(0, ...leads.map(lead => lead.queue_position || 0));
@@ -641,6 +673,7 @@ function CampaignDetail({ campaign: initialCampaign, onBack }: { campaign: Campa
         subject: lead.subject || '',
         body: lead.mail_content || '',
         last_error: null,
+        paused_from_status: null,
       })
       .eq('id', lead.id);
     if (error) {
@@ -660,6 +693,7 @@ function CampaignDetail({ campaign: initialCampaign, onBack }: { campaign: Campa
         claimed_at: null,
         claim_token: null,
         priority_score: 0,
+        paused_from_status: null,
       })
       .eq('id', lead.id);
     if (error) {
@@ -681,6 +715,7 @@ function CampaignDetail({ campaign: initialCampaign, onBack }: { campaign: Campa
         priority_score: 0,
         claimed_at: null,
         claim_token: null,
+        paused_from_status: null,
       })
       .eq('id', lead.id);
     if (error) {
@@ -704,8 +739,14 @@ function CampaignDetail({ campaign: initialCampaign, onBack }: { campaign: Campa
 
   const togglePause = async () => {
     const newStatus = campaign.status === 'active' ? 'paused' : 'active';
-    await supabase.from('campaigns').update({ status: newStatus }).eq('id', campaign.id);
+    const rpcName = campaign.status === 'active' ? 'zec_pause_campaign' : 'zec_resume_campaign';
+    const { error } = await supabase.rpc(rpcName, { p_campaign_id: campaign.id });
+    if (error) {
+      console.error('Nie udało się zmienić statusu kampanii:', error);
+      return;
+    }
     setCampaign(prev => ({ ...prev, status: newStatus as CampaignStatus }));
+    await fetchLeads(false);
   };
 
   const startSending = async () => {
@@ -782,6 +823,14 @@ function CampaignDetail({ campaign: initialCampaign, onBack }: { campaign: Campa
                 <Play className="size-3.5" /> Wznów
               </button>
             )}
+            {leads.some(isReorderableLead) && (
+              <button
+                onClick={() => setReorderMode(prev => !prev)}
+                className={`flex items-center gap-2 px-4 py-2.5 border text-[13px] font-medium rounded-xl transition-all ${reorderMode ? 'border-[#a3956a]/30 bg-[#a3956a]/10 text-[#a3956a]' : 'border-white/[0.1] hover:border-white/[0.2] text-[#A3A09A] hover:text-[#EAE8E1]'}`}
+              >
+                <GripVertical className="size-3.5" /> {reorderMode ? 'Zakończ układanie' : 'Układaj kolejkę'}
+              </button>
+            )}
             <button className="flex items-center gap-2 px-4 py-2.5 border border-white/[0.1] hover:border-white/[0.2] text-[#A3A09A] hover:text-[#EAE8E1] text-[13px] font-medium rounded-xl transition-all">
               <Download className="size-3.5" /> Eksport CSV
             </button>
@@ -852,14 +901,29 @@ function CampaignDetail({ campaign: initialCampaign, onBack }: { campaign: Campa
           <div className="divide-y divide-white/[0.04]">
             {leads.map((lead, index) => {
               const ls = leadStatusLabel(lead.status);
+              const reorderable = isReorderableLead(lead);
               return (
                 <div
                   key={lead.id}
-                  onClick={() => setReviewIndex(index)}
-                  className="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-white/[0.02] transition-all cursor-pointer"
+                  draggable={reorderMode && reorderable}
+                  onDragStart={(event) => {
+                    if (!reorderMode || !reorderable) return;
+                    setDraggingLeadId(lead.id);
+                    event.dataTransfer.effectAllowed = 'move';
+                  }}
+                  onDragOver={(event) => handleDragOverLead(lead, event)}
+                  onDrop={handleDropLead}
+                  onDragEnd={() => setDraggingLeadId(null)}
+                  onClick={() => {
+                    if (!reorderMode) setReviewIndex(index);
+                  }}
+                  className={`grid grid-cols-12 gap-4 px-6 py-4 items-center transition-all ${reorderMode && reorderable ? 'cursor-grab active:cursor-grabbing hover:bg-white/[0.04]' : 'cursor-pointer hover:bg-white/[0.02]'} ${draggingLeadId === lead.id ? 'opacity-45' : ''}`}
                 >
 
                   <div className="col-span-4 flex items-center gap-2.5">
+                    {reorderMode && reorderable && (
+                      <GripVertical className="size-4 text-[#3a3a3a] shrink-0" />
+                    )}
                     {lead.priority && (
                       <span className="size-1.5 bg-[#a3956a] rounded-full shrink-0" title="Priorytet" />
                     )}
@@ -885,7 +949,7 @@ function CampaignDetail({ campaign: initialCampaign, onBack }: { campaign: Campa
 
                   <div className="col-span-2">
                     <p className="text-[12px] text-[#3a3a3a]">
-                      {lead.sent_at ? formatDate(lead.sent_at) : lead.scheduled_at ? formatDate(lead.scheduled_at) : '—'}
+                      {lead.sent_at ? formatDate(lead.sent_at) : lead.scheduled_at ? formatDate(lead.scheduled_at) : lead.status === 'paused' ? 'Wstrzymana' : '—'}
                     </p>
                   </div>
 
@@ -895,22 +959,12 @@ function CampaignDetail({ campaign: initialCampaign, onBack }: { campaign: Campa
                         <Check className="size-3.5" />
                       </button>
                     )}
-                    {lead.status === 'queued' && (
-                      <button onClick={() => moveQueuedLead(lead, 'up')} className="p-1.5 text-[#2e2e2e] hover:text-[#A3A09A] hover:bg-white/[0.04] rounded-lg transition-all" title="Przesuń wyżej">
-                        <ChevronUp className="size-3.5" />
-                      </button>
-                    )}
-                    {lead.status === 'queued' && (
-                      <button onClick={() => moveQueuedLead(lead, 'down')} className="p-1.5 text-[#2e2e2e] hover:text-[#A3A09A] hover:bg-white/[0.04] rounded-lg transition-all" title="Przesuń niżej">
-                        <ChevronDown className="size-3.5" />
-                      </button>
-                    )}
-                    {lead.status === 'queued' && (
+                    {lead.status === 'queued' && !reorderMode && (
                       <button onClick={() => togglePriority(lead)} className={`p-1.5 rounded-lg transition-all ${lead.priority ? 'text-[#a3956a]' : 'text-[#2e2e2e] hover:text-[#a3956a]'} hover:bg-white/[0.04]`} title={lead.priority ? 'Usuń priorytet' : 'Wyślij wcześniej'}>
-                        <SlidersHorizontal className="size-3.5" />
+                        <Zap className="size-3.5" />
                       </button>
                     )}
-                    {(lead.status === 'queued' || lead.status === 'pending_review') && !lead.isGenerating && (
+                    {(lead.status === 'queued' || lead.status === 'pending_review' || lead.status === 'paused') && !lead.isGenerating && !reorderMode && (
                       <button onClick={() => skipLead(lead)} className="p-1.5 text-[#3a3a3a] hover:text-[#b56060] hover:bg-[#b56060]/10 rounded-lg transition-all" title="Pomiń leada">
                         <X className="size-3.5" />
                       </button>
@@ -1017,8 +1071,8 @@ function CampaignsList({ onSelect }: { onSelect: (c: Campaign) => void }) {
     const c = campaigns.find(x => x.id === id);
     if (!c) return;
     const newStatus = c.status === 'active' ? 'paused' : 'active';
-    
-    const { error } = await supabase.from('campaigns').update({ status: newStatus }).eq('id', id);
+    const rpcName = c.status === 'active' ? 'zec_pause_campaign' : 'zec_resume_campaign';
+    const { error } = await supabase.rpc(rpcName, { p_campaign_id: id });
     
     if (error) {
       showToast(AlertCircle, 'Nie udało się zmienić statusu: ' + error.message, 'error');
@@ -1032,6 +1086,7 @@ function CampaignsList({ onSelect }: { onSelect: (c: Campaign) => void }) {
       }
       return x;
     }));
+    await fetchCampaigns(false);
   };
 
   const handleArchiveClick = (c: Campaign, e: React.MouseEvent) => {
