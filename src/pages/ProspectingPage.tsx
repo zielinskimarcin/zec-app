@@ -81,18 +81,14 @@ const GLOBAL_LEAD_SELECT = `
   ai_icebreaker, email_source, enrichment_status, enriched_at
 `;
 
-const DEPTH_CONFIG: Record<SearchDepth, { label: string; tokenCost: number; icon: ElementType; description: string }> = {
+const DEPTH_CONFIG: Record<SearchDepth, { label: string; tokenCost: number }> = {
   basic: {
-    label: 'Basic',
+    label: 'Podstawowe',
     tokenCost: 1,
-    icon: Database,
-    description: 'Firma, WWW, lokalizacja i dostępny kontakt.',
   },
   enriched: {
-    label: 'Enriched',
+    label: 'Rozszerzone',
     tokenCost: 3,
-    icon: Sparkles,
-    description: 'Kontakt plus social signals, icebreaker i kontekst pod cold mail.',
   },
 };
 
@@ -181,7 +177,7 @@ function buildSummary(lead: ProspectLead, source: ResultSource) {
   return lead.aiIcebreaker
     || lead.instagramLastPost
     || lead.linkedinBio
-    || `Lead z globalnej bazy ZEC z dostępem do rozszerzonych sygnałów. ${lead.industry ? `Branża: ${lead.industry}.` : ''}`;
+    || `Lead z globalnej bazy ZEC z dostępem do dodatkowych sygnałów. ${lead.industry ? `Branża: ${lead.industry}.` : ''}`;
 }
 
 function makeHistory(source: ResultSource) {
@@ -189,7 +185,7 @@ function makeHistory(source: ResultSource) {
     date: new Date().toISOString(),
     action: source === 'preview' ? 'Zapisano z darmowego preview' : 'Zapisano z prospectingu',
     details: source === 'enriched'
-      ? 'Lead odblokowany w trybie Enriched z globalnej bazy ZEC.'
+      ? 'Lead zapisany z dodatkowymi danymi z globalnej bazy ZEC.'
       : 'Lead dodany z globalnej bazy ZEC.',
   }];
 }
@@ -253,7 +249,7 @@ function Autocomplete({
         value={query}
         onChange={event => {
           setQuery(event.target.value);
-          onChange('');
+          onChange(event.target.value);
           setIsOpen(true);
         }}
         onFocus={() => setIsOpen(true)}
@@ -452,19 +448,10 @@ export function ProspectingPage() {
     setIsSearching(true);
 
     try {
-      let query = supabase
+      const query = supabase
         .from('global_leads')
         .select(GLOBAL_LEAD_SELECT)
-        .limit(500);
-
-      if (common.city) {
-        query = query.ilike('city', `%${getOptionLabel(CITIES, common.city)}%`);
-      }
-
-      if (common.keywords.trim()) {
-        const keyword = common.keywords.trim().replaceAll(',', ' ');
-        query = query.or(`company_name.ilike.%${keyword}%,industry.ilike.%${keyword}%,website.ilike.%${keyword}%`);
-      }
+        .range(0, 1999);
 
       const { data, error: searchError } = await query;
       if (searchError) throw searchError;
@@ -662,48 +649,32 @@ export function ProspectingPage() {
       )}
 
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="rounded-2xl border border-white/[0.08] bg-white/[0.03] overflow-hidden">
-        <div className="p-6 border-b border-white/[0.06]">
-          <div className="flex items-center justify-between gap-4 mb-5">
-            <div>
-              <p className="text-[11px] font-medium text-[#827E78] uppercase tracking-wider mb-1.5">Tryb wyszukiwania</p>
-              <p className="text-[13px] text-[#A3A09A]">Basic pokazuje kontakt. Enriched dorzuca kontekst i sygnały do personalizacji.</p>
-            </div>
-            <div className="text-right">
-              <p className="text-[11px] text-[#827E78] uppercase tracking-wider mb-1">Szacowany koszt</p>
-              <p className="text-[15px] text-[#EAE8E1] font-mono">{estimatedCost} tok.</p>
+        <div className="px-6 py-4 border-b border-white/[0.06] flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <p className="text-[11px] font-medium text-[#827E78] uppercase tracking-wider">Zakres danych</p>
+            <div className="inline-flex items-center rounded-xl border border-white/[0.08] bg-white/[0.03] p-1">
+              {Object.entries(DEPTH_CONFIG).map(([depth, config]) => {
+                const active = searchDepth === depth;
+
+                return (
+                  <button
+                    key={depth}
+                    type="button"
+                    onClick={() => setSearchDepth(depth as SearchDepth)}
+                    className={`px-4 py-2 rounded-lg text-[13px] font-medium transition-all ${active ? 'bg-[#EAE8E1] text-[#0a0a0a]' : 'text-[#A3A09A] hover:text-[#EAE8E1] hover:bg-white/[0.04]'}`}
+                  >
+                    {config.label}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {Object.entries(DEPTH_CONFIG).map(([depth, config]) => {
-              const Icon = config.icon;
-              const active = searchDepth === depth;
-
-              return (
-                <button
-                  key={depth}
-                  type="button"
-                  onClick={() => setSearchDepth(depth as SearchDepth)}
-                  className={`text-left p-4 rounded-xl border transition-all ${active ? 'bg-[#EAE8E1] text-[#0a0a0a] border-[#EAE8E1]' : 'bg-white/[0.03] text-[#A3A09A] border-white/[0.08] hover:bg-white/[0.05] hover:text-[#EAE8E1]'}`}
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex items-center gap-3">
-                      <div className={`size-9 rounded-lg flex items-center justify-center ${active ? 'bg-black/[0.08]' : 'bg-white/[0.06]'}`}>
-                        <Icon className="size-4" />
-                      </div>
-                      <div>
-                        <p className="text-[14px] font-semibold">{config.label}</p>
-                        <p className={`text-[12px] mt-0.5 ${active ? 'text-black/60' : 'text-[#827E78]'}`}>{config.description}</p>
-                      </div>
-                    </div>
-                    <span className={`text-[11px] font-mono px-2 py-1 rounded-lg ${active ? 'bg-black/[0.08]' : 'bg-white/[0.05] text-[#827E78]'}`}>
-                      {config.tokenCost} tok/lead
-                    </span>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
+          <p className="text-[12px] text-[#827E78]">
+            Koszt: <span className="text-[#EAE8E1] font-mono">{DEPTH_CONFIG[searchDepth].tokenCost} tok/lead</span>
+            <span className="mx-2 text-white/[0.14]">·</span>
+            razem <span className="text-[#EAE8E1] font-mono">{estimatedCost} tok.</span>
+          </p>
         </div>
 
         <div className="p-6 grid grid-cols-1 md:grid-cols-4 gap-5">
@@ -776,7 +747,7 @@ export function ProspectingPage() {
                     <CheckRow label="Tylko leady z e-mailem" checked={advanced.requireEmail} onChange={value => setAdvanced(prev => ({ ...prev, requireEmail: value }))} />
                     <CheckRow label="Wymagaj strony WWW" checked={advanced.requireWebsite} onChange={value => setAdvanced(prev => ({ ...prev, requireWebsite: value }))} />
                     <CheckRow label="Wymagaj przynajmniej jednego sociala" checked={advanced.requireSocial} onChange={value => setAdvanced(prev => ({ ...prev, requireSocial: value }))} />
-                    <CheckRow label="Tylko leady wzbogacone" checked={advanced.onlyEnriched} onChange={value => setAdvanced(prev => ({ ...prev, onlyEnriched: value }))} />
+                    <CheckRow label="Tylko z dodatkowymi danymi" checked={advanced.onlyEnriched} onChange={value => setAdvanced(prev => ({ ...prev, onlyEnriched: value }))} />
                   </div>
                   <div>
                     <div className="flex items-center justify-between mb-3">
@@ -803,19 +774,11 @@ export function ProspectingPage() {
         </div>
 
         <div className="border-t border-white/[0.06] px-6 py-5 flex flex-col md:flex-row items-center justify-between gap-5 bg-white/[0.01]">
-          <div className="grid grid-cols-3 gap-3 w-full md:w-auto">
-            <div className="px-4 py-3 rounded-xl border border-white/[0.06] bg-white/[0.02]">
-              <p className="text-[10px] uppercase tracking-wider text-[#827E78] mb-1">Preview</p>
-              <p className="text-[13px] text-[#EAE8E1] font-medium">10 za darmo</p>
-            </div>
-            <div className="px-4 py-3 rounded-xl border border-white/[0.06] bg-white/[0.02]">
-              <p className="text-[10px] uppercase tracking-wider text-[#827E78] mb-1">Koszt</p>
-              <p className="text-[13px] text-[#EAE8E1] font-medium">{DEPTH_CONFIG[searchDepth].tokenCost} tok/lead</p>
-            </div>
-            <div className="px-4 py-3 rounded-xl border border-white/[0.06] bg-white/[0.02]">
-              <p className="text-[10px] uppercase tracking-wider text-[#827E78] mb-1">Źródło</p>
-              <p className="text-[13px] text-[#EAE8E1] font-medium">Global DB</p>
-            </div>
+          <div className="w-full md:w-auto">
+            <p className="text-[12px] font-medium text-[#827E78] uppercase tracking-wider mb-1">Wyszukiwanie w bazie</p>
+            <p className="text-[13px] text-[#A3A09A]">
+              {common.maxLeads} wyników · {DEPTH_CONFIG[searchDepth].label.toLowerCase()} · {estimatedCost} tok.
+            </p>
           </div>
 
           <button
@@ -823,7 +786,7 @@ export function ProspectingPage() {
             disabled={isSearching}
             className="w-full md:w-auto shrink-0 flex items-center justify-center gap-2.5 px-9 py-4 bg-[#EAE8E1] hover:bg-white text-[#0a0a0a] text-[14px] font-bold rounded-2xl transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-black/20"
           >
-            {isSearching ? <><Loader2 className="size-5 animate-spin" /> Szukam w bazie...</> : <><Search className="size-5" /> Wyszukaj leady</>}
+            {isSearching ? <><Loader2 className="size-5 animate-spin" /> Szukam w bazie...</> : <><Search className="size-5" /> Szukaj w bazie</>}
           </button>
         </div>
       </motion.div>
@@ -833,7 +796,7 @@ export function ProspectingPage() {
           <div>
             <div className="flex items-center gap-2.5 mb-1">
               <p className="text-[15px] font-medium text-[#EAE8E1]">
-                {resultSource === 'preview' ? 'Darmowy preview bazy' : `Wyniki ${DEPTH_CONFIG[resultSource].label}`}
+                {resultSource === 'preview' ? 'Podgląd bazy' : `Wyniki: ${DEPTH_CONFIG[resultSource].label.toLowerCase()}`}
               </p>
               <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-white/[0.06] border border-white/[0.08] text-[#A3A09A]">
                 {leads.length} leadów
@@ -841,14 +804,14 @@ export function ProspectingPage() {
             </div>
             <p className="text-[12px] text-[#827E78]">
               {resultSource === 'preview'
-                ? 'Wybrane leady z najwyższą kompletnością danych. Zapis preview jest darmowy.'
+                ? '10 przykładowych leadów z najwyższą kompletnością danych.'
                 : `Odblokowano ${leads.length} wyników. Pobrano tokeny tylko za znalezione leady.`}
             </p>
           </div>
 
           <div className="hidden md:flex items-center gap-2 text-[12px] text-[#827E78]">
             <ShieldCheck className="size-4" />
-            <span>{leads.filter(isEnriched).length} enriched</span>
+            <span>{leads.filter(isEnriched).length} z dodatkowymi danymi</span>
           </div>
         </div>
 
@@ -861,7 +824,7 @@ export function ProspectingPage() {
           <div className="col-span-4">Firma</div>
           <div className="col-span-2">Kontakt</div>
           <div className="col-span-2">Jakość</div>
-          <div className="col-span-3">Intel</div>
+          <div className="col-span-3">Dodatkowe dane</div>
         </div>
 
         <div className="divide-y divide-white/[0.04]">
@@ -937,7 +900,7 @@ export function ProspectingPage() {
                   <div className="flex items-center gap-2 mb-2">
                     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium border ${leadEnriched ? 'text-[#5d9970] bg-[#5d9970]/10 border-[#5d9970]/20' : 'text-[#A3A09A] bg-white/[0.06] border-white/[0.08]'}`}>
                       {leadEnriched ? <Sparkles className="size-3" /> : <Database className="size-3" />}
-                      {leadEnriched ? 'Enriched' : 'Basic'}
+                      {leadEnriched ? 'Rozszerzony' : 'Podstawowy'}
                     </span>
                     <span className="text-[11px] font-mono text-[#827E78]">{score}%</span>
                   </div>
@@ -954,7 +917,7 @@ export function ProspectingPage() {
                     {lockedEnriched ? (
                       <div className="flex items-center gap-2 text-[12px] text-[#827E78]">
                         <Lock className="size-3.5 shrink-0" />
-                        <span>Rozszerzone informacje w trybie Enriched</span>
+                        <span>Dodatkowe informacje w trybie rozszerzonym</span>
                       </div>
                     ) : (
                       <>
@@ -987,7 +950,7 @@ export function ProspectingPage() {
                   <div className="flex items-center gap-2 mb-2">
                     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium border ${isEnriched(detailLead) ? 'text-[#5d9970] bg-[#5d9970]/10 border-[#5d9970]/20' : 'text-[#A3A09A] bg-white/[0.06] border-white/[0.08]'}`}>
                       {isEnriched(detailLead) ? <Sparkles className="size-3" /> : <Database className="size-3" />}
-                      {isEnriched(detailLead) ? 'Enriched' : 'Basic'}
+                      {isEnriched(detailLead) ? 'Rozszerzony' : 'Podstawowy'}
                     </span>
                     <span className="text-[11px] font-mono text-[#827E78]">{leadScore(detailLead)}% jakości</span>
                   </div>
@@ -1011,7 +974,7 @@ export function ProspectingPage() {
 
                 <div className="grid grid-cols-1 gap-3">
                   {[
-                    { icon: Mail, label: 'Email', value: resultSource === 'preview' ? 'Dostępny po zapisie preview' : detailLead.email || '-' },
+                    { icon: Mail, label: 'Email', value: resultSource === 'preview' ? 'Dostępny po zapisie' : detailLead.email || '-' },
                     { icon: Globe, label: 'WWW', value: detailLead.website || '-' },
                     { icon: MapPin, label: 'Lokalizacja', value: detailLead.city || '-' },
                     { icon: Building2, label: 'Branża', value: detailLead.industry || '-' },
@@ -1073,7 +1036,7 @@ export function ProspectingPage() {
                       <div className="text-center p-8 border border-dashed border-white/[0.1] rounded-2xl bg-white/[0.01]">
                         <Lock className="size-5 text-[#827E78] mx-auto mb-4" />
                         <h4 className="text-[14px] font-medium text-[#EAE8E1] mb-2">Brak rozszerzonych social danych</h4>
-                        <p className="text-[13px] text-[#827E78]">Ten rekord jest na razie użyteczny jako Basic lead.</p>
+                        <p className="text-[13px] text-[#827E78]">Ten rekord ma na razie tylko podstawowe dane.</p>
                       </div>
                     )}
                   </div>
