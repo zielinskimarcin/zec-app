@@ -836,6 +836,7 @@ export type Database = {
       zec_search_global_leads: {
         Args: {
           p_city?: string | null
+          p_country?: string | null
           p_industry_tokens?: string[]
           p_keyword_tokens?: string[]
           p_max_leads?: number

@@ -155,6 +155,17 @@ function getOptionLabel(options: { value: string; label: string }[], value: stri
   return options.find(option => option.value === value)?.label || value;
 }
 
+function getCitySearchValue(value: string) {
+  if (!value || value === 'Polska') return null;
+  const option = CITIES.find(item => item.value === value);
+  return (option?.value || value).replace(/_/g, ' ');
+}
+
+function getCountrySearchValue(value: string) {
+  if (!value || value === 'Global') return null;
+  return value;
+}
+
 function getDomain(website: string | null) {
   if (!website) return '';
   try {
@@ -499,7 +510,8 @@ export function ProspectingPage() {
     setIsSearching(true);
 
     try {
-      const cityLabel = common.city ? getOptionLabel(CITIES, common.city) : null;
+      const cityValue = getCitySearchValue(common.city);
+      const countryValue = getCountrySearchValue(common.country);
       const industryLabel = getOptionLabel(INDUSTRIES, common.industry);
       const industryTokens = common.industry
         ? [...tokenize(common.industry.replace(/_/g, ' ')), ...tokenize(industryLabel)]
@@ -507,7 +519,7 @@ export function ProspectingPage() {
       const keywordTokens = tokenize(common.keywords);
 
       const { data, error: searchError } = await supabase.rpc('zec_search_global_leads', {
-        p_city: cityLabel,
+        p_city: cityValue,
         p_industry_tokens: industryTokens,
         p_keyword_tokens: keywordTokens,
         p_max_leads: common.maxLeads,
@@ -516,6 +528,7 @@ export function ProspectingPage() {
         p_require_website: advanced.requireWebsite,
         p_require_social: advanced.requireSocial,
         p_only_enriched: advanced.onlyEnriched,
+        p_country: countryValue,
       });
       if (searchError) throw searchError;
 
