@@ -93,6 +93,7 @@ function NavBar() {
 
           {/* Right side */}
           <div className="flex items-center gap-4">
+            <CreditMeter />
             <Link to="/app/settings" className="hidden lg:block px-5 py-1.5 border border-white/[0.15] text-[#EAE8E1] text-[13px] font-medium rounded-full hover:bg-white/[0.08] hover:border-white/[0.25] transition-all tracking-wide">
               Upgrade
             </Link>
@@ -134,6 +135,90 @@ function NavBar() {
         </div>
       </div>
     </nav>
+  );
+}
+
+function CreditMeter() {
+  const [credits, setCredits] = useState<{ left: number; total: number } | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    let intervalId: number | undefined;
+
+    const loadCredits = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const { data, error } = await (supabase as any).rpc('zec_get_billing_overview');
+      if (!isMounted) return;
+
+      if (!error && data) {
+        const left = Number(data.profile?.credits || 0);
+        const total = Number(data.current_plan?.monthly_credits || left || 0);
+        setCredits({ left, total });
+        return;
+      }
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('credits')
+        .eq('id', session.user.id)
+        .single();
+
+      if (isMounted) {
+        const left = Number(profile?.credits || 0);
+        setCredits({ left, total: left });
+      }
+    };
+
+    loadCredits();
+    intervalId = window.setInterval(loadCredits, 60000);
+
+    return () => {
+      isMounted = false;
+      if (intervalId) window.clearInterval(intervalId);
+    };
+  }, []);
+
+  if (!credits) {
+    return (
+      <div className="hidden xl:block w-28">
+        <div className="h-1.5 rounded-full bg-white/[0.08]" />
+      </div>
+    );
+  }
+
+  const left = Math.max(0, Math.round(credits.left));
+  const total = Math.max(0, Math.round(credits.total));
+  const remainingPct = total > 0 ? Math.min(100, Math.round((left / total) * 100)) : 0;
+  const meterColor = remainingPct > 50
+    ? 'bg-[#5d9970]'
+    : remainingPct > 20
+    ? 'bg-[#a3956a]'
+    : 'bg-[#b56060]';
+
+  return (
+    <Link
+      to="/app/settings"
+      className="hidden xl:block w-32 group"
+      title={`Tokeny: ${left} / ${total}`}
+      aria-label={`Tokeny: ${left} z ${total}`}
+    >
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-[10px] uppercase tracking-wider text-[#827E78] group-hover:text-[#A3A09A] transition-colors">
+          Tokeny
+        </span>
+        <span className="text-[11px] font-mono text-[#A3A09A]">
+          {left}/{total}
+        </span>
+      </div>
+      <div className="h-1.5 rounded-full bg-white/[0.08] overflow-hidden">
+        <div
+          className={`h-full rounded-full transition-all duration-300 ${meterColor}`}
+          style={{ width: `${remainingPct}%` }}
+        />
+      </div>
+    </Link>
   );
 }
 

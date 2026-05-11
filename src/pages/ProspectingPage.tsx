@@ -570,7 +570,7 @@ export function ProspectingPage() {
     <div className="space-y-6 max-w-6xl mx-auto pb-28">
       <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="flex items-start justify-between gap-6">
         <div>
-          <h1 className="text-[28px] font-serif text-[#EAE8E1] tracking-tight mb-1">Prospecting</h1>
+          <h1 className="text-[28px] font-serif text-[#EAE8E1] tracking-tight mb-1">Wyszukiwarka</h1>
           <p className="text-[15px] text-[#A3A09A] max-w-2xl">
             Wyszukuj leady w globalnej bazie ZEC, odblokowuj dane tokenami i zapisuj najlepsze firmy do kampanii.
           </p>
