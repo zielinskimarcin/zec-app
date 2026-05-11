@@ -1230,7 +1230,7 @@ function NotificationsTab() {
               </div>
             ))}
           </div>
-          {gi < groups.length - 1 && <div className="h-px bg-white/[0.08] mt-8" />}
+          {gi < NOTIFICATION_SETTING_GROUPS.length - 1 && <div className="h-px bg-white/[0.08] mt-8" />}
         </section>
       ))}
     </div>
