@@ -344,14 +344,14 @@ function InsightSection({
       </div>
 
       {isLocked ? (
-        <div className="relative">
-          <div className="space-y-2 blur-[3px] opacity-55 select-none pointer-events-none">
+        <div className="relative min-h-[104px] overflow-hidden rounded-lg border border-white/[0.06] bg-white/[0.025]">
+          <div className="absolute inset-0 space-y-2 p-4 blur-md opacity-70 select-none pointer-events-none">
             {previewLines.map(line => (
               <p key={line} className="text-[13px] text-[#A3A09A] leading-relaxed">{line}</p>
             ))}
           </div>
-          <div className="absolute -inset-2 flex items-center justify-center bg-[#0a0a0a]/45 backdrop-blur-[2px]">
-            <div className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-white/[0.1] bg-[#111]/90 text-[12px] text-[#EAE8E1] shadow-xl">
+          <div className="absolute inset-0 flex items-center justify-center bg-[#050505]/75 backdrop-blur-sm">
+            <div className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-white/[0.12] bg-[#111]/95 text-[12px] text-[#EAE8E1] shadow-xl">
               <Lock className="size-3.5 text-[#827E78]" />
               Odblokuj rozszerzony profil
             </div>
@@ -1004,7 +1004,6 @@ export function ProspectingPage() {
           ) : leads.map(lead => {
             const selected = selectedIds.has(lead.id);
             const saved = Boolean(savedByGlobalId[lead.id]);
-            const score = leadScore(lead);
             const showcase = isShowcaseLead(lead);
             const extendedVisible = canViewExtendedLead(lead);
 
@@ -1062,30 +1061,30 @@ export function ProspectingPage() {
                 </div>
 
                 <div className="col-span-2">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-[11px] font-mono text-[#827E78]">{score}% jakości</span>
-                    {!extendedVisible && (
-                      <span className="inline-flex items-center text-[#827E78]" title="Dostępne w rozszerzonym profilu">
-                        <Lock className="size-3" />
-                      </span>
-                    )}
+                  <div className="mb-2">
+                    <p className={`text-[12px] font-medium ${showcase ? 'text-[#7fcf95]' : 'text-[#A3A09A]'}`}>
+                      {showcase ? 'darmowy full' : extendedVisible ? 'pełny profil' : 'podstawowy'}
+                    </p>
+                    {!extendedVisible && <p className="text-[11px] text-[#827E78]">rozszerzone ukryte</p>}
                   </div>
-                  <div className="relative inline-flex items-center gap-1.5">
+                  <div className="relative inline-flex min-w-[92px] h-6 items-center gap-1.5 overflow-hidden rounded-md border border-white/[0.08] bg-white/[0.025]">
                     {extendedVisible ? (
-                      <>
+                      <div className="flex items-center gap-1.5 px-2">
                         {lead.instagramUrl && <Instagram className="size-3.5 text-[#b56060]" />}
                         {lead.linkedinUrl && <Linkedin className="size-3.5 text-[#6a9bc9]" />}
                         {lead.facebookUrl && <Globe className="size-3.5 text-[#827E78]" />}
                         {!hasSocialData(lead) && <span className="text-[11px] text-[#3a3a3a]">brak sociali</span>}
-                      </>
+                      </div>
                     ) : (
                       <>
-                        <div className="flex items-center gap-1.5 blur-[2px] opacity-45">
+                        <div className="absolute inset-0 flex items-center gap-2 px-2 blur-sm opacity-70">
                           <Instagram className="size-3.5 text-[#827E78]" />
                           <Linkedin className="size-3.5 text-[#827E78]" />
                           <Globe className="size-3.5 text-[#827E78]" />
                         </div>
-                        <div className="absolute -inset-x-1 -inset-y-0.5 bg-[#0a0a0a]/25 backdrop-blur-[1px]" />
+                        <div className="absolute inset-0 flex items-center justify-center bg-[#050505]/70 backdrop-blur-sm">
+                          <Lock className="size-3 text-[#A3A09A]" />
+                        </div>
                       </>
                     )}
                   </div>
@@ -1103,12 +1102,17 @@ export function ProspectingPage() {
                           {getLeadSignalText(lead)}
                         </p>
                       ) : (
-                        <div className="relative max-w-full">
-                          <p className="text-[12px] text-[#A3A09A] truncate blur-[2px] opacity-55 select-none">
-                            Sygnały publiczne, ostatnie posty i źródła profilu
-                          </p>
-                          <div className="absolute -inset-x-1 -inset-y-0.5 flex items-center justify-end bg-[#0a0a0a]/25 backdrop-blur-[1px]">
-                            <Lock className="size-3 text-[#827E78]" />
+                        <div className="relative h-8 max-w-full overflow-hidden rounded-md border border-white/[0.08] bg-white/[0.025]">
+                          <div className="absolute inset-0 px-2 py-1.5 blur-sm opacity-70 select-none">
+                            <p className="text-[12px] text-[#A3A09A] truncate">
+                              Sygnały publiczne, ostatnie posty i źródła profilu
+                            </p>
+                          </div>
+                          <div className="absolute inset-0 flex items-center justify-end px-2 bg-[#050505]/70 backdrop-blur-sm">
+                            <div className="inline-flex items-center gap-1.5 text-[11px] text-[#A3A09A]">
+                              <Lock className="size-3" />
+                              ukryte
+                            </div>
                           </div>
                         </div>
                       )}
@@ -1130,9 +1134,11 @@ export function ProspectingPage() {
             <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 200 }} className="fixed right-0 top-[72px] h-[calc(100vh-72px)] w-full max-w-xl bg-[#0a0a0a] border-l border-white/[0.08] z-40 flex flex-col shadow-2xl">
               <div className="px-8 py-6 border-b border-white/[0.06] flex justify-between items-start bg-white/[0.02]">
                 <div className="min-w-0">
-                  <div className="flex items-center gap-2 mb-2 text-[11px] font-mono text-[#827E78]">
-                    <span className="text-[11px] font-mono text-[#827E78]">{leadScore(detailLead)}% jakości</span>
-                    {!detailCanViewExtended && <Lock className="size-3" />}
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className={`text-[12px] font-medium ${isShowcaseLead(detailLead) ? 'text-[#7fcf95]' : 'text-[#827E78]'}`}>
+                      {isShowcaseLead(detailLead) ? 'darmowy full' : detailCanViewExtended ? 'pełny profil' : 'podstawowy'}
+                    </span>
+                    {!detailCanViewExtended && <Lock className="size-3 text-[#827E78]" />}
                   </div>
                   <h2 className="text-[22px] font-serif text-[#EAE8E1] mb-1 truncate">{detailLead.companyName}</h2>
                   <p className="text-[14px] text-[#A3A09A] flex items-center gap-2">
