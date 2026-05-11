@@ -134,6 +134,7 @@ const DEPTH_CONFIG: Record<SearchDepth, { label: string; tokenCost: number }> = 
     tokenCost: 3,
   },
 };
+const SHOWCASE_LIMIT = 5;
 
 function normalize(value: string | null | undefined) {
   return (value || '')
@@ -271,6 +272,16 @@ function hasUnlockDepth(lead: ProspectLead, depth: SearchDepth) {
   if (isShowcaseLead(lead)) return true;
   if (!lead.isUnlocked) return false;
   return depth === 'basic' || lead.unlockDepth === 'enriched';
+}
+
+function orderLeadsForDisplay(leads: ProspectLead[]) {
+  const showcase = leads.filter(isShowcaseLead);
+  const regular = leads.filter(lead => !isShowcaseLead(lead));
+  return [
+    ...showcase.slice(0, SHOWCASE_LIMIT),
+    ...regular,
+    ...showcase.slice(SHOWCASE_LIMIT),
+  ];
 }
 
 function buildSummary(lead: ProspectLead, source: ResultSource) {
@@ -510,7 +521,7 @@ export function ProspectingPage() {
 
     async function fetchPreview() {
       const { data, error: previewError } = await supabase
-        .rpc('zec_preview_global_leads', { p_limit: 10 });
+        .rpc('zec_preview_global_leads', { p_limit: 50 });
 
       if (previewError) {
         console.error('Błąd pobierania preview:', previewError);
@@ -519,9 +530,9 @@ export function ProspectingPage() {
 
       if (!isMounted) return;
 
-      const preview = ((data || []) as GlobalLeadRow[])
+      const preview = orderLeadsForDisplay(((data || []) as GlobalLeadRow[])
         .map(mapLead)
-        .sort((a, b) => Number(isShowcaseLead(b)) - Number(isShowcaseLead(a)) || leadScore(b) - leadScore(a))
+        .sort((a, b) => Number(isShowcaseLead(b)) - Number(isShowcaseLead(a)) || leadScore(b) - leadScore(a)))
         .slice(0, 10);
 
       setLeads(preview);
@@ -604,7 +615,7 @@ export function ProspectingPage() {
         p_city: cityValue,
         p_industry_tokens: industryTokens,
         p_keyword_tokens: keywordTokens,
-        p_max_leads: common.maxLeads,
+        p_max_leads: 50,
         p_search_depth: searchDepth,
         p_require_email: advanced.requireEmail,
         p_require_website: advanced.requireWebsite,
@@ -615,7 +626,7 @@ export function ProspectingPage() {
       if (searchError) throw searchError;
 
       const rows = (data || []) as SearchGlobalLeadRow[];
-      const matches = rows.map(mapLead);
+      const matches = orderLeadsForDisplay(rows.map(mapLead)).slice(0, common.maxLeads);
 
       if (matches.length === 0) {
         setLeads([]);
