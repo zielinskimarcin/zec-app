@@ -1,80 +1,59 @@
 import { useState } from 'react';
-import { Link } from 'react-router';
 import { motion } from 'motion/react';
-import { ArrowLeft, Check } from 'lucide-react';
+import { Check, Zap, Sparkles, Crown } from 'lucide-react';
+import { Link } from 'react-router';
 
 const plans = [
   {
-    name: 'Free',
-    description: 'Do pierwszego sprawdzenia aplikacji',
-    price: { monthly: 0, yearly: 0 },
-    credits: '50 kredytów / miesiąc',
-    highlighted: false,
-    features: [
-      'Wyszukiwanie leadów',
-      'Zapisywanie pierwszych firm',
-      'Testowe kampanie',
-      'Podgląd wygenerowanych wiadomości',
-    ],
-  },
-  {
     name: 'Starter',
-    description: 'Dla własnego outboundu',
     price: { monthly: 49, yearly: 39 },
-    credits: '600 kredytów / miesiąc',
-    highlighted: false,
+    description: 'Dla freelancerów i solopreneurów',
+    icon: Zap,
     features: [
-      'Selekcja leadów do kampanii',
-      'Generowanie maili',
-      'Kolejka wysyłki SMTP',
-      'Statusy maili i kampanii',
+      '500 leadów miesięcznie',
+      '1 podpięta skrzynka',
+      'Podstawowe szablony',
+      'Standardowy support',
+      'AI generowanie treści',
+      'Podstawowe statystyki',
     ],
+    cta: 'Rozpocznij za darmo',
+    highlighted: false,
   },
   {
     name: 'Growth',
-    description: 'Dla regularnych kampanii',
     price: { monthly: 129, yearly: 103 },
-    credits: '2 000 kredytów / miesiąc',
+    description: 'Dla małych firm i agencji',
+    icon: Sparkles,
+    features: [
+      '2000 leadów miesięcznie',
+      '3 podpięte skrzynki',
+      'AI Hyper-Personalization',
+      'Auto-Follow-upy',
+      'Zaawansowane statystyki',
+      'Priorytetowy support',
+      'API dostęp',
+    ],
+    cta: 'Rozpocznij 14-dniowy trial',
     highlighted: true,
     badge: 'Najpopularniejszy',
-    features: [
-      'Większy wolumen wyszukiwania',
-      'Wiele scenariuszy kampanii',
-      'Limity i harmonogram wysyłki',
-      'Billing i kredyty w panelu',
-    ],
   },
   {
-    name: 'Scale',
-    description: 'Dla większych wolumenów',
+    name: 'Agency',
     price: { monthly: 299, yearly: 239 },
-    credits: '7 000 kredytów / miesiąc',
-    highlighted: false,
+    description: 'Dla dużych agencji lead-genowych',
+    icon: Crown,
     features: [
-      'Największy pakiet kredytów',
-      'Wysyłka w większej skali',
-      'Priorytetowe limity operacyjne',
-      'Przygotowanie pod proces zespołowy',
+      '10 000 leadów miesięcznie',
+      'Nielimitowane skrzynki',
+      'Dedykowane proxy',
+      'White-label opcja',
+      'Dedykowany account manager',
+      'SLA 99.9%',
+      'Customowe integracje',
     ],
-  },
-];
-
-const faqs = [
-  {
-    q: 'Czym są kredyty?',
-    a: 'Kredyty określają miesięczny limit pracy na leadach i kampaniach. W aplikacji widzisz dostępny plan, wykorzystanie i reset limitu.',
-  },
-  {
-    q: 'Czy Free wymaga karty?',
-    a: 'Nie. Darmowy plan jest dostępny bez podpinania karty i wystarcza do sprawdzenia podstawowego flow.',
-  },
-  {
-    q: 'Czy mogę zmienić plan później?',
-    a: 'Tak. Plan i wykorzystanie kredytów są widoczne w ustawieniach aplikacji, a płatne pakiety są przygotowane do uruchamiania z poziomu panelu.',
-  },
-  {
-    q: 'Czy wysyłka działa z mojej skrzynki?',
-    a: 'Tak. Kampanie korzystają z konfiguracji nadawcy i kolejki SMTP, dzięki czemu masz kontrolę nad wysyłką oraz limitami.',
+    cta: 'Skontaktuj się z nami',
+    highlighted: false,
   },
 ];
 
@@ -82,147 +61,200 @@ export function PricingPage() {
   const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'yearly'>('monthly');
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-[#EAE8E1] px-6 py-8">
+    <div className="min-h-screen bg-[#111111] py-20 px-4">
       <div className="max-w-7xl mx-auto">
-        <header className="flex items-center justify-between mb-16">
-          <Link to="/" className="flex items-center gap-2 group">
-            <div className="w-8 h-8 rounded-lg bg-white/[0.06] border border-white/[0.12] flex items-center justify-center group-hover:bg-white/[0.1] transition-colors">
-              <img src="/logo.png" alt="ZEC" className="w-5 h-5 object-contain brightness-0 invert" />
-            </div>
-            <span className="font-['Outfit'] font-medium text-[20px] text-[#EAE8E1] tracking-[-0.02em]">
-              zec
-            </span>
-          </Link>
-
-          <Link
-            to="/"
-            className="inline-flex items-center gap-2 text-sm text-[#827E78] hover:text-[#EAE8E1] transition-colors"
+        {/* Header */}
+        <div className="text-center mb-16">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="inline-block px-4 py-2 bg-white/10 backdrop-blur-sm rounded-full border border-white/20 mb-6"
           >
-            <ArrowLeft className="size-4" />
-            Strona główna
-          </Link>
-        </header>
+            <span className="text-sm font-medium text-white">Proste, transparentne ceny</span>
+          </motion.div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="grid lg:grid-cols-[1fr_auto] gap-8 lg:items-end mb-12"
-        >
-          <div className="max-w-3xl">
-            <p className="text-sm font-medium text-[#827E78] mb-3">Cennik</p>
-            <h1 className="text-4xl md:text-6xl font-serif font-normal tracking-tight text-[#EAE8E1] mb-5">
-              Plany dopasowane do wolumenu outboundu
-            </h1>
-            <p className="text-base md:text-lg text-[#A3A09A] leading-relaxed">
-              Zacznij od darmowego planu, a gdy potrzebujesz więcej leadów i kampanii, zwiększ miesięczny pakiet kredytów.
-            </p>
-          </div>
+          <motion.h1
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="text-5xl md:text-6xl font-bold text-white mb-6"
+          >
+            Wybierz plan dla siebie
+          </motion.h1>
 
-          <div className="inline-flex items-center gap-1 rounded-xl border border-white/[0.08] bg-white/[0.04] p-1 w-fit">
+          <motion.p
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="text-xl text-gray-400 max-w-2xl mx-auto mb-12"
+          >
+            Zacznij za darmo i rozwijaj się razem z nami. Bez ukrytych kosztów.
+          </motion.p>
+
+          {/* Billing Toggle */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="inline-flex items-center gap-4 bg-white/5 backdrop-blur-sm border border-white/10 rounded-full p-2"
+          >
             <button
               onClick={() => setBillingPeriod('monthly')}
-              className={`px-4 py-2 rounded-lg text-sm transition-all ${
+              className={`px-6 py-2 rounded-full font-medium transition-all ${
                 billingPeriod === 'monthly'
-                  ? 'bg-[#EAE8E1] text-[#0a0a0a]'
-                  : 'text-[#A3A09A] hover:text-[#EAE8E1]'
+                  ? 'bg-white text-black'
+                  : 'text-gray-400 hover:text-white'
               }`}
             >
               Miesięcznie
             </button>
             <button
               onClick={() => setBillingPeriod('yearly')}
-              className={`px-4 py-2 rounded-lg text-sm transition-all ${
+              className={`px-6 py-2 rounded-full font-medium transition-all flex items-center gap-2 ${
                 billingPeriod === 'yearly'
-                  ? 'bg-[#EAE8E1] text-[#0a0a0a]'
-                  : 'text-[#A3A09A] hover:text-[#EAE8E1]'
+                  ? 'bg-white text-black'
+                  : 'text-gray-400 hover:text-white'
               }`}
             >
               Rocznie
+              <span className="text-xs bg-emerald-500 text-white px-2 py-1 rounded-full">
+                -20%
+              </span>
             </button>
-          </div>
-        </motion.div>
+          </motion.div>
+        </div>
 
-        <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-4 mb-20">
-          {plans.map((plan, index) => (
-            <motion.div
-              key={plan.name}
-              initial={{ opacity: 0, y: 18 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.08 + index * 0.06 }}
-              className="relative"
-            >
-              {plan.badge && (
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-10">
-                  <div className="px-3 py-1 rounded-full border border-white/[0.1] bg-[#EAE8E1] text-[#0a0a0a] text-xs font-medium">
-                    {plan.badge}
-                  </div>
-                </div>
-              )}
-
-              <div
-                className={`h-full rounded-2xl border p-6 ${
+        {/* Pricing Cards */}
+        <div className="grid md:grid-cols-3 gap-8 mb-20">
+          {plans.map((plan, index) => {
+            const Icon = plan.icon;
+            return (
+              <motion.div
+                key={plan.name}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4 + index * 0.1 }}
+                className={`relative bg-white/5 backdrop-blur-sm rounded-2xl border p-8 ${
                   plan.highlighted
-                    ? 'border-white/[0.18] bg-white/[0.07]'
-                    : 'border-white/[0.08] bg-white/[0.035]'
+                    ? 'border-white/40 shadow-2xl shadow-white/10'
+                    : 'border-white/10'
                 }`}
               >
-                <div className="mb-6">
-                  <h2 className="text-xl font-medium text-[#EAE8E1] mb-2">{plan.name}</h2>
-                  <p className="text-sm text-[#A3A09A] leading-relaxed">{plan.description}</p>
-                </div>
+                {plan.badge && (
+                  <div className="absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1 bg-white text-black text-sm font-semibold rounded-full">
+                    {plan.badge}
+                  </div>
+                )}
 
                 <div className="mb-6">
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-4xl font-medium tracking-tight text-[#EAE8E1]">
+                  <div className="size-12 bg-white/10 rounded-xl flex items-center justify-center mb-4">
+                    <Icon className="size-6 text-white" />
+                  </div>
+                  <h3 className="text-2xl font-bold text-white mb-2">{plan.name}</h3>
+                  <p className="text-gray-400 text-sm">{plan.description}</p>
+                </div>
+
+                <div className="mb-8">
+                  <div className="flex items-baseline gap-2 mb-1">
+                    <span className="text-5xl font-bold text-white">
                       ${billingPeriod === 'monthly' ? plan.price.monthly : plan.price.yearly}
                     </span>
-                    <span className="text-sm text-[#827E78]">/ mies.</span>
+                    <span className="text-gray-400">/msc</span>
                   </div>
-                  <p className="text-sm text-[#A3A09A] mt-2">{plan.credits}</p>
+                  {billingPeriod === 'yearly' && (
+                    <div className="text-sm text-gray-400">
+                      Płatne rocznie (${plan.price.yearly * 12})
+                    </div>
+                  )}
                 </div>
 
                 <Link
                   to="/register"
-                  className={`block w-full text-center px-4 py-3 rounded-xl text-sm font-medium transition-colors mb-6 ${
+                  className={`block w-full text-center px-6 py-3 rounded-lg font-semibold transition-all mb-8 ${
                     plan.highlighted
-                      ? 'bg-[#EAE8E1] text-[#0a0a0a] hover:bg-white'
-                      : 'bg-white/[0.06] text-[#EAE8E1] border border-white/[0.08] hover:bg-white/[0.1]'
+                      ? 'bg-white hover:bg-gray-100 text-black'
+                      : 'bg-white/10 hover:bg-white/20 text-white'
                   }`}
                 >
-                  Załóż konto
+                  {plan.cta}
                 </Link>
 
-                <ul className="space-y-3">
-                  {plan.features.map((feature) => (
-                    <li key={feature} className="flex items-start gap-3">
-                      <div className="size-5 rounded-full border border-white/[0.08] bg-white/[0.05] flex items-center justify-center shrink-0 mt-0.5">
-                        <Check className="size-3 text-[#EAE8E1]" />
-                      </div>
-                      <span className="text-sm text-[#A3A09A] leading-relaxed">{feature}</span>
-                    </li>
+                <div className="space-y-3">
+                  {plan.features.map((feature, i) => (
+                    <div key={i} className="flex items-start gap-3">
+                      <Check className="size-5 text-emerald-400 flex-shrink-0 mt-0.5" />
+                      <span className="text-gray-300">{feature}</span>
+                    </div>
                   ))}
-                </ul>
-              </div>
-            </motion.div>
-          ))}
+                </div>
+              </motion.div>
+            );
+          })}
         </div>
 
-        <section className="grid lg:grid-cols-[0.8fr_1fr] gap-10 border-t border-white/[0.08] pt-12">
-          <div>
-            <p className="text-sm font-medium text-[#827E78] mb-3">FAQ</p>
-            <h2 className="text-3xl md:text-4xl font-serif font-normal tracking-tight text-[#EAE8E1]">
-              Krótko o rozliczeniu
-            </h2>
-          </div>
-          <div className="space-y-3">
-            {faqs.map((faq) => (
-              <div key={faq.q} className="rounded-2xl border border-white/[0.08] bg-white/[0.035] p-5">
-                <h3 className="text-base font-medium text-[#EAE8E1] mb-2">{faq.q}</h3>
-                <p className="text-sm text-[#A3A09A] leading-relaxed">{faq.a}</p>
+        {/* FAQ Section */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.8 }}
+          className="max-w-3xl mx-auto"
+        >
+          <h2 className="text-3xl font-bold text-white text-center mb-12">
+            Często zadawane pytania
+          </h2>
+
+          <div className="space-y-4">
+            {[
+              {
+                q: 'Czy mogę zmienić plan w dowolnym momencie?',
+                a: 'Tak! Możesz zmienić plan w dowolnym momencie. Przy upgrade\'zie natychmiast otrzymasz dostęp do nowych funkcji, a przy downgrade\'zie zmiany wejdą w życie w następnym cyklu rozliczeniowym.',
+              },
+              {
+                q: 'Co się stanie gdy wykorzystam wszystkie kredyty?',
+                a: 'Gdy wykorzystasz wszystkie kredyty, możesz dokupić dodatkowe pakiety lub zaczekać do następnego miesiąca, kiedy limit się odnowi. Zawsze otrzymasz powiadomienie gdy zbliżysz się do limitu.',
+              },
+              {
+                q: 'Czy mogę anulować subskrypcję?',
+                a: 'Oczywiście! Możesz anulować subskrypcję w dowolnym momencie z poziomu ustawień. Nie ma żadnych ukrytych opłat czy kar za wcześniejszą rezygnację.',
+              },
+              {
+                q: 'Czy oferujecie zwrot pieniędzy?',
+                a: 'Tak, oferujemy 14-dniową gwarancję zwrotu pieniędzy. Jeśli ZEC nie spełni Twoich oczekiwań, zwrócimy Ci 100% wpłaconej kwoty.',
+              },
+            ].map((faq, index) => (
+              <div
+                key={index}
+                className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-6 hover:border-white/20 transition-all"
+              >
+                <h3 className="text-lg font-semibold text-white mb-3">{faq.q}</h3>
+                <p className="text-gray-400">{faq.a}</p>
               </div>
             ))}
           </div>
-        </section>
+        </motion.div>
+
+        {/* CTA Section */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 1 }}
+          className="mt-20 text-center"
+        >
+          <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-sm border border-white/20 rounded-2xl p-12">
+            <h2 className="text-3xl font-bold text-white mb-4">
+              Gotowy do rozpoczęcia?
+            </h2>
+            <p className="text-gray-400 mb-8 max-w-2xl mx-auto">
+              Dołącz do setek firm, które już wykorzystują ZEC do automatyzacji swojego outreachu
+            </p>
+            <Link
+              to="/register"
+              className="inline-block px-8 py-4 bg-white hover:bg-gray-100 text-black font-bold rounded-lg transition-all text-lg"
+            >
+              Rozpocznij za darmo
+            </Link>
+          </div>
+        </motion.div>
       </div>
     </div>
   );

@@ -1,104 +1,112 @@
-import { Link } from 'react-router';
 import { motion } from 'motion/react';
-import { Coins, ListChecks, Mail, Search, Settings2, Workflow } from 'lucide-react';
+import { Search, Mail, Sparkles, Zap, Target, TrendingUp } from 'lucide-react';
 
 const features = [
   {
     icon: Search,
-    title: 'Wyszukiwarka leadów',
-    description: 'Szukasz firm po branży i lokalizacji, a wyniki możesz od razu selekcjonować do dalszej pracy.',
-  },
-  {
-    icon: ListChecks,
-    title: 'Listy i wybór rekordów',
-    description: 'Zapisane leady są widoczne w aplikacji, więc kampania startuje z konkretnych firm, a nie z przypadkowego pliku.',
+    title: 'Google Maps Scraping',
+    description: 'Wydobądź dane biznesowe w sekundy. Adresy, telefony i więcej automatycznie.',
   },
   {
     icon: Mail,
-    title: 'Generowanie maili',
-    description: 'Kreator kampanii przygotowuje wiadomości dla wybranych leadów i scenariusza, który podajesz w briefie.',
+    title: 'Email Finder',
+    description: 'Znajdź zweryfikowane adresy email dla każdego leada. Zero ręcznej pracy.',
   },
   {
-    icon: Workflow,
-    title: 'Kolejka wysyłki',
-    description: 'Wysyłka działa przez podpiętą skrzynkę, z kolejką, statusem i limitem dziennym nadawcy.',
+    icon: Sparkles,
+    title: 'AI Personalizacja',
+    description: 'Każda wiadomość tworzona przez AI na podstawie profilu firmy i Twoich celów.',
   },
   {
-    icon: Settings2,
-    title: 'Ustawienia nadawcy',
-    description: 'SMTP, dane nadawcy i limity są trzymane w panelu, żeby kampanie nie zależały od ręcznej konfiguracji za każdym razem.',
+    icon: Zap,
+    title: 'Natychmiastowe wyniki',
+    description: 'Setki leadów w sekundy. Bez czekania, bez ręcznej pracy.',
   },
   {
-    icon: Coins,
-    title: 'Kredyty i billing',
-    description: 'Plan i wykorzystanie kredytów są widoczne w aplikacji, więc łatwo ocenić, kiedy zwiększyć miesięczny pakiet.',
+    icon: Target,
+    title: 'Precyzyjne targetowanie',
+    description: 'Filtruj po branży, lokalizacji i więcej. Znajdź dokładnie kogo potrzebujesz.',
+  },
+  {
+    icon: TrendingUp,
+    title: 'Skaluj outreach',
+    description: 'Od 3 do 500+ leadów. Skaluj bez zatrudniania nowych osób.',
   },
 ];
 
 export function Features() {
   return (
-    <section id="features" className="bg-[#0a0a0a] py-24 border-t border-white/[0.08]">
-      <div className="max-w-7xl mx-auto px-6">
+    <div id="features" className="relative bg-[#0a0a0a] py-24 border-t border-white/10">
+      {/* Subtle background pattern */}
+      <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.015)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.015)_1px,transparent_1px)] bg-[size:64px_64px] opacity-50" />
+      
+      <div className="relative max-w-7xl mx-auto px-6">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.5 }}
-          className="max-w-3xl mb-12"
+          className="text-center mb-16"
         >
-          <p className="text-sm font-medium text-[#827E78] mb-3">Platforma</p>
-          <h2 className="text-3xl md:text-5xl font-serif text-[#EAE8E1] tracking-tight mb-4">
-            Jedno miejsce na prospecting i kampanie
+          <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">
+            Wszystko, czego potrzebujesz.
+            <br />
+            <span className="text-gray-500">Nic zbędnego.</span>
           </h2>
-          <p className="text-base md:text-lg text-[#A3A09A] leading-relaxed">
-            Interfejs pozostaje prosty, ale pod spodem każdy etap ma swój stan: lead, kampania, mail, kolejka, wysyłka i rozliczenie.
+          <p className="text-xl text-gray-400 max-w-2xl mx-auto">
+            Zautomatyzuj poszukiwanie nowych współprac i odzyskaj godziny cennego czasu każdego dnia.
           </p>
         </motion.div>
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           {features.map((feature, index) => (
             <motion.div
               key={feature.title}
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
-              transition={{ duration: 0.45, delay: index * 0.06 }}
-              className="rounded-2xl p-6 border border-white/[0.08] bg-white/[0.035] hover:border-white/[0.14] transition-colors"
+              transition={{ duration: 0.5, delay: index * 0.1 }}
+              className="group relative bg-white/5 backdrop-blur-xl rounded-2xl p-8 border border-white/10 hover:border-white/20 transition-all"
             >
-              <div className="size-10 rounded-xl border border-white/[0.08] bg-white/[0.06] flex items-center justify-center mb-6">
-                <feature.icon className="size-5 text-[#EAE8E1]" />
+              <div className="size-12 bg-white/10 rounded-xl flex items-center justify-center mb-4 group-hover:bg-white/20 transition-all">
+                <feature.icon className="size-6 text-white" />
               </div>
-              <h3 className="text-lg font-medium text-[#EAE8E1] mb-2">
+              <h3 className="text-lg font-semibold text-white mb-2">
                 {feature.title}
               </h3>
-              <p className="text-sm text-[#A3A09A] leading-relaxed">
+              <p className="text-gray-400 leading-relaxed">
                 {feature.description}
               </p>
             </motion.div>
           ))}
         </div>
 
+        {/* CTA Section */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
-          transition={{ duration: 0.5 }}
-          className="mt-16 flex flex-col md:flex-row md:items-center md:justify-between gap-6 border-t border-white/[0.08] pt-8"
+          transition={{ duration: 0.6 }}
+          className="mt-20 text-center"
         >
-          <div>
-            <p className="text-sm text-[#827E78] mb-2">Gotowy sprawdzić flow?</p>
-            <h3 className="text-2xl font-serif text-[#EAE8E1] tracking-tight">
-              Zacznij od wyszukania pierwszych leadów.
+          <div className="inline-block bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 p-12">
+            <h3 className="text-3xl font-bold text-white mb-4">
+              Gotowy znaleźć kolejnych 500 klientów?
             </h3>
+            <p className="text-gray-400 mb-8 max-w-md mx-auto">
+              Zacznij za darmo. Bez karty kredytowej. 3 prawdziwe leady natychmiast.
+            </p>
+            <button
+              onClick={() => {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className="px-8 py-4 bg-white text-black rounded-xl font-medium hover:bg-gray-200 transition-all text-lg shadow-2xl shadow-white/20"
+            >
+              Zacznij za darmo
+            </button>
           </div>
-          <Link
-            to="/register"
-            className="inline-flex items-center justify-center px-5 py-3 rounded-xl bg-[#EAE8E1] text-[#0a0a0a] text-sm font-medium hover:bg-white transition-colors w-fit"
-          >
-            Załóż konto
-          </Link>
         </motion.div>
       </div>
-    </section>
+    </div>
   );
 }

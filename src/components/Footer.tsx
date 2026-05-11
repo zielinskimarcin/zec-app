@@ -1,79 +1,135 @@
-import { Link } from 'react-router';
-
-const productLinks = [
-  { label: 'Jak działa', href: '#how-it-works' },
-  { label: 'Funkcje', href: '#features' },
-  { label: 'Cennik', href: '#pricing' },
-];
-
-const appLinks = [
-  { label: 'Logowanie', to: '/login' },
-  { label: 'Rejestracja', to: '/register' },
-  { label: 'Panel', to: '/app' },
-];
-
-const workflowItems = ['Wyszukiwanie leadów', 'Tworzenie kampanii', 'Wysyłka przez SMTP'];
+import { Sparkles, Twitter, Linkedin, Github } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 export function Footer() {
   return (
-    <footer className="bg-[#0a0a0a] border-t border-white/[0.08]">
-      <div className="max-w-7xl mx-auto px-6 py-14">
-        <div className="grid gap-10 md:grid-cols-[1.2fr_0.7fr_0.7fr_0.9fr] mb-12">
-          <div>
+    <footer className="bg-black border-t border-white/10">
+      <div className="max-w-7xl mx-auto px-6 py-16">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-8 mb-12">
+          {/* Brand */}
+          <div className="col-span-2">
             <div className="flex items-center gap-2 mb-4">
-              <div className="w-7 h-7 rounded-lg bg-white/[0.06] border border-white/[0.12] flex items-center justify-center">
-                <img src="/logo.png" alt="ZEC" className="w-4 h-4 brightness-0 invert" />
+              <div className="size-7 bg-white rounded-md flex items-center justify-center">
+                <Sparkles className="size-4 text-black fill-black" />
               </div>
-              <span className="font-['Outfit'] font-medium text-[18px] text-[#EAE8E1] tracking-[-0.02em]">
-                zec
-              </span>
+              <span className="text-xl font-bold text-white">ZEC</span>
             </div>
-            <p className="text-sm text-[#A3A09A] leading-relaxed max-w-sm">
-              Prospecting, kampanie i kontrolowana wysyłka maili w jednym panelu. Bez ręcznego składania procesu z kilku narzędzi.
+            <p className="text-gray-400 mb-6 max-w-sm">
+              Automated lead generation powered by AI. Find clients, send personalized outreach, scale your business.
             </p>
+            <div className="flex items-center gap-4">
+              <a href="#" className="text-gray-400 hover:text-white transition-colors">
+                <Twitter className="size-5" />
+              </a>
+              <a href="#" className="text-gray-400 hover:text-white transition-colors">
+                <Linkedin className="size-5" />
+              </a>
+              <a href="#" className="text-gray-400 hover:text-white transition-colors">
+                <Github className="size-5" />
+              </a>
+            </div>
           </div>
 
+          {/* Product */}
           <div>
-            <h4 className="text-sm font-medium text-[#EAE8E1] mb-4">Produkt</h4>
+            <h4 className="font-semibold text-white mb-4">Product</h4>
             <ul className="space-y-3">
-              {productLinks.map((link) => (
-                <li key={link.href}>
-                  <a href={link.href} className="text-sm text-[#827E78] hover:text-[#EAE8E1] transition-colors">
-                    {link.label}
-                  </a>
-                </li>
-              ))}
+              <li>
+                <a href="#features" className="text-gray-400 hover:text-white transition-colors">
+                  Features
+                </a>
+              </li>
+              <li>
+                <a href="#pricing" className="text-gray-400 hover:text-white transition-colors">
+                  Pricing
+                </a>
+              </li>
+              <li>
+                <a href="#" className="text-gray-400 hover:text-white transition-colors">
+                  Changelog
+                </a>
+              </li>
+              <li>
+                <a href="#" className="text-gray-400 hover:text-white transition-colors">
+                  Roadmap
+                </a>
+              </li>
             </ul>
           </div>
 
+          {/* Company */}
           <div>
-            <h4 className="text-sm font-medium text-[#EAE8E1] mb-4">Aplikacja</h4>
+            <h4 className="font-semibold text-white mb-4">Company</h4>
             <ul className="space-y-3">
-              {appLinks.map((link) => (
-                <li key={link.to}>
-                  <Link to={link.to} className="text-sm text-[#827E78] hover:text-[#EAE8E1] transition-colors">
-                    {link.label}
-                  </Link>
-                </li>
-              ))}
+              <li>
+                <a href="#" className="text-gray-400 hover:text-white transition-colors">
+                  About
+                </a>
+              </li>
+              <li>
+                <a href="#" className="text-gray-400 hover:text-white transition-colors">
+                  Blog
+                </a>
+              </li>
+              <li>
+                <a href="#" className="text-gray-400 hover:text-white transition-colors">
+                  Careers
+                </a>
+              </li>
+              <li>
+                <a href="#" className="text-gray-400 hover:text-white transition-colors">
+                  Contact
+                </a>
+              </li>
             </ul>
           </div>
 
+          {/* Legal */}
           <div>
-            <h4 className="text-sm font-medium text-[#EAE8E1] mb-4">Flow</h4>
+            <h4 className="font-semibold text-white mb-4">Legal</h4>
             <ul className="space-y-3">
-              {workflowItems.map((item) => (
-                <li key={item} className="text-sm text-[#827E78]">
-                  {item}
-                </li>
-              ))}
+              <li>
+                <a href="#" className="text-gray-400 hover:text-white transition-colors">
+                  Privacy
+                </a>
+              </li>
+              <li>
+                <a href="#" className="text-gray-400 hover:text-white transition-colors">
+                  Terms
+                </a>
+              </li>
+              <li>
+                <a href="#" className="text-gray-400 hover:text-white transition-colors">
+                  Security
+                </a>
+              </li>
+              <li>
+                <a href="#" className="text-gray-400 hover:text-white transition-colors">
+                  GDPR
+                </a>
+              </li>
             </ul>
           </div>
         </div>
 
-        <div className="pt-8 border-t border-white/[0.08] flex flex-col md:flex-row justify-between gap-4">
-          <p className="text-sm text-[#827E78]">© 2026 ZEC. All rights reserved.</p>
-          <p className="text-sm text-[#827E78]">Built for focused outbound work.</p>
+        {/* Bottom */}
+        <div className="pt-8 border-t border-white/10">
+          <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+            <p className="text-sm text-gray-400">
+              © 2026 ZEC. All rights reserved.
+            </p> 
+            <div className="flex items-center gap-6 text-sm">
+              <a href="#" className="text-gray-400 hover:text-white transition-colors">
+                Status
+              </a>
+              <a href="#" className="text-gray-400 hover:text-white transition-colors">
+                Documentation
+              </a>
+              <a href="#" className="text-gray-400 hover:text-white transition-colors">
+                API
+              </a>
+            </div>
+          </div>
         </div>
       </div>
     </footer>

@@ -1,107 +1,108 @@
 import { motion } from 'motion/react';
-import { CheckCircle2, MailCheck, Search, Send } from 'lucide-react';
+import { Search, Sparkles, Send } from 'lucide-react';
 
 const steps = [
   {
     number: '01',
     icon: Search,
-    title: 'Wyszukujesz leady',
-    description: 'Wpisujesz branżę, lokalizację i kryteria. ZEC zbiera firmy, porządkuje dane i pozwala wybrać konkretne rekordy do kampanii.',
+    title: 'Szukaj',
+    description: 'Wprowadź branżę i miasto. Nasz system automatycznie znajdzie setki potencjalnych klientów z Google Maps.',
   },
   {
     number: '02',
-    icon: MailCheck,
-    title: 'Tworzysz kampanię',
-    description: 'Wybierasz leady, skrzynkę nadawczą i kierunek wiadomości. Generator przygotowuje maile, które możesz przejrzeć przed wysyłką.',
+    icon: Sparkles,
+    title: 'AI pisze maile',
+    description: 'Dla każdego leada AI tworzy spersonalizowaną wiadomość dopasowaną do branży i lokalizacji.',
   },
   {
     number: '03',
     icon: Send,
-    title: 'Uruchamiasz wysyłkę',
-    description: 'Kampania trafia do kolejki. System pilnuje limitów, harmonogramu i statusów, a Ty widzisz postęp bez ręcznego przeklejania.',
+    title: 'Wysyłaj automatycznie',
+    description: 'Zaplanuj wysyłkę i pozwól systemowi działać. Śledź otwarcia, odpowiedzi i konwersje w czasie rzeczywistym.',
   },
-];
-
-const pipeline = [
-  'Lead zapisany w bazie',
-  'Mail wygenerowany do akceptacji',
-  'Wiadomość dodana do kolejki SMTP',
-  'Status kampanii aktualizowany automatycznie',
 ];
 
 export function HowItWorks() {
   return (
-    <section id="how-it-works" className="bg-[#0a0a0a] py-24 border-t border-white/[0.08]">
-      <div className="max-w-7xl mx-auto px-6">
+    <div className="relative bg-[#0a0a0a] py-24 border-t border-white/10">
+      {/* Subtle background pattern */}
+      <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:48px_48px] opacity-50" />
+      
+      <div className="relative max-w-7xl mx-auto px-6">
+        {/* Section Header */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6 }}
-          className="max-w-3xl mb-14"
+          className="text-center mb-20"
         >
-          <p className="text-sm font-medium text-[#827E78] mb-3">Jak to działa</p>
-          <h2 className="text-3xl md:text-5xl font-serif text-[#EAE8E1] tracking-tight mb-4">
+          <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">
             Jak to działa
           </h2>
-          <p className="text-base md:text-lg text-[#A3A09A] leading-relaxed">
-            Cały outbound przechodzi przez jeden prosty flow: wyszukanie firm, wybór leadów, wygenerowanie wiadomości i kontrolowaną wysyłkę z kampanii.
+          <p className="text-xl text-gray-400 max-w-2xl mx-auto">
+            Od wyszukiwania do spersonalizowanego outreachu — wszystko w 3 prostych krokach
           </p>
         </motion.div>
 
-        <div className="grid lg:grid-cols-[1fr_380px] gap-10 items-start">
-          <div className="rounded-2xl border border-white/[0.08] bg-white/[0.035] overflow-hidden">
-            {steps.map((step, index) => (
-              <motion.div
-                key={step.number}
-                initial={{ opacity: 0, y: 18 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.45, delay: index * 0.08 }}
-                className="grid md:grid-cols-[88px_1fr] gap-5 p-6 md:p-7 border-b border-white/[0.08] last:border-b-0"
-              >
-                <div className="flex md:block items-center gap-3">
-                  <div className="size-11 rounded-xl border border-white/[0.08] bg-white/[0.06] flex items-center justify-center">
-                    <step.icon className="size-5 text-[#EAE8E1]" />
+        {/* Steps Grid */}
+        <div className="grid md:grid-cols-3 gap-8 md:gap-12">
+          {steps.map((step, index) => (
+            <motion.div
+              key={step.number}
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6, delay: index * 0.15 }}
+              className="relative"
+            >
+              {/* Connecting line (only between steps on desktop) */}
+              {index < steps.length - 1 && (
+                <div className="hidden md:block absolute top-16 left-[60%] w-full h-[2px] bg-gradient-to-r from-white/20 to-transparent" />
+              )}
+
+              {/* Step Card */}
+              <div className="relative pt-6 pl-4">
+                {/* Number badge */}
+                <div className="absolute top-0 left-0 size-12 bg-white rounded-xl flex items-center justify-center shadow-2xl shadow-white/10 z-10">
+                  <span className="text-black font-bold text-lg">{step.number}</span>
+                </div>
+
+                {/* Main content */}
+                <div className="bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 p-8 pt-10 hover:border-white/20 transition-all group">
+                  {/* Icon */}
+                  <div className="size-14 bg-white/10 rounded-xl flex items-center justify-center mb-6 group-hover:bg-white/15 transition-all">
+                    <step.icon className="size-7 text-white" />
                   </div>
-                  <span className="mt-3 block text-xs font-medium text-[#827E78]">{step.number}</span>
-                </div>
-                <div>
-                  <h3 className="text-xl font-medium text-[#EAE8E1] mb-2">{step.title}</h3>
-                  <p className="text-sm md:text-base text-[#A3A09A] leading-relaxed">{step.description}</p>
-                </div>
-              </motion.div>
-            ))}
-          </div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 18 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5, delay: 0.12 }}
-            className="rounded-2xl border border-white/[0.08] bg-white/[0.035] p-6"
-          >
-            <div className="flex items-center justify-between border-b border-white/[0.08] pb-5 mb-5">
-              <div>
-                <p className="text-xs text-[#827E78]">Pipeline kampanii</p>
-                <p className="text-lg font-medium text-[#EAE8E1]">Od leada do wysyłki</p>
-              </div>
-              <div className="size-10 rounded-xl border border-white/[0.08] bg-white/[0.06] flex items-center justify-center">
-                <CheckCircle2 className="size-5 text-emerald-300" />
-              </div>
-            </div>
+                  {/* Title */}
+                  <h3 className="text-2xl font-bold text-white mb-3">
+                    {step.title}
+                  </h3>
 
-            <div className="space-y-3">
-              {pipeline.map((item) => (
-                <div key={item} className="flex items-center gap-3 text-sm text-[#A3A09A]">
-                  <div className="size-1.5 rounded-full bg-[#EAE8E1]" />
-                  <span>{item}</span>
+                  {/* Description */}
+                  <p className="text-gray-400 leading-relaxed">
+                    {step.description}
+                  </p>
                 </div>
-              ))}
-            </div>
-          </motion.div>
+              </div>
+            </motion.div>
+          ))}
         </div>
+
+        {/* Bottom CTA */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.6, delay: 0.5 }}
+          className="mt-16 text-center"
+        >
+          <p className="text-gray-500 text-sm">
+            Średni czas na pierwsze wyniki: <span className="text-white font-semibold">2 minuty</span>
+          </p>
+        </motion.div>
       </div>
-    </section>
+    </div>
   );
 }

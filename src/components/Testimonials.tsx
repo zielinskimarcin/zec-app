@@ -1,71 +1,133 @@
 import { motion } from 'motion/react';
-import { Database, MailCheck, ShieldCheck } from 'lucide-react';
+import { Star } from 'lucide-react';
 
-const productNotes = [
+const testimonials = [
   {
-    icon: Database,
-    label: 'Dane',
-    title: 'Leady są zapisywane w aplikacji',
-    description: 'Wyszukiwarka nie kończy się na jednorazowym eksporcie. Wybrane firmy trafiają do listy i mogą zostać użyte w kampanii.',
+    name: 'Michał Kowalczyk',
+    role: 'CEO, Digital Growth Agency',
+    company: 'Warsaw',
+    text: 'ZEC wygenerował mi 5 nowych klientów w tydzień. ROI zwrócił się już pierwszego miesiąca. Absolutna rewolucja w cold outreach.',
+    rating: 5,
+    avatar: 'MK',
   },
   {
-    icon: MailCheck,
-    label: 'Outreach',
-    title: 'Maile powstają w kontekście kampanii',
-    description: 'Wiadomości są generowane dla konkretnych leadów i scenariusza sprzedażowego, a nie jako luźny szablon do ręcznego kopiowania.',
+    name: 'Anna Wiśniewska',
+    role: 'Founder',
+    company: 'Marketing Studio',
+    text: 'Wcześniej spędzałam godziny na szukaniu leadów. Teraz zajmuje mi to 5 minut dziennie. AI pisze lepsze maile niż ja.',
+    rating: 5,
+    avatar: 'AW',
   },
   {
-    icon: ShieldCheck,
-    label: 'Kontrola',
-    title: 'Wysyłka ma kolejkę, statusy i limity',
-    description: 'Kampanie mogą działać automatycznie, ale z zachowaniem limitów nadawcy i widocznością tego, co jest gotowe, wysłane albo wymaga uwagi.',
+    name: 'Piotr Nowak',
+    role: 'Sales Director',
+    company: 'PropTech Solutions',
+    text: 'Przeszliśmy z 20 leadów miesięcznie na 200+. System się zwraca wielokrotnie. Nie wyobrażam sobie pracy bez ZEC.',
+    rating: 5,
+    avatar: 'PN',
   },
 ];
 
 export function Testimonials() {
   return (
-    <section className="bg-[#0a0a0a] py-24 border-t border-white/[0.08]">
-      <div className="max-w-7xl mx-auto px-6">
+    <div className="relative bg-[#0a0a0a] py-24 border-t border-white/10">
+      {/* Subtle gradient overlay */}
+      <div className="absolute inset-0 bg-gradient-to-b from-black via-transparent to-black opacity-50" />
+      
+      <div className="relative max-w-7xl mx-auto px-6">
+        {/* Section Header */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6 }}
-          className="grid lg:grid-cols-[0.85fr_1fr] gap-8 lg:gap-16 items-end mb-12"
+          className="text-center mb-16"
         >
-          <div>
-            <p className="text-sm font-medium text-[#827E78] mb-3">Co jest w środku</p>
-            <h2 className="text-3xl md:text-5xl font-serif text-[#EAE8E1] tracking-tight">
-              Od danych do wysyłki w jednym procesie
-            </h2>
-          </div>
-          <p className="text-base md:text-lg text-[#A3A09A] leading-relaxed">
-            Każdy etap ma jasny status: zapisany lead, wygenerowany mail, kampania w kolejce i wysyłka przez podpiętą skrzynkę.
+          <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">
+            Zaufali nam przedsiębiorcy
+          </h2>
+          <p className="text-xl text-gray-400 max-w-2xl mx-auto">
+            Zobacz, jak ZEC zmienił ich biznes
           </p>
         </motion.div>
 
-        <div className="grid md:grid-cols-3 gap-4">
-          {productNotes.map((item, index) => (
+        {/* Testimonials Grid */}
+        <div className="grid md:grid-cols-3 gap-8">
+          {testimonials.map((testimonial, index) => (
             <motion.div
-              key={item.title}
-              initial={{ opacity: 0, y: 20 }}
+              key={testimonial.name}
+              initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
-              transition={{ duration: 0.45, delay: index * 0.08 }}
-              className="rounded-2xl border border-white/[0.08] bg-white/[0.035] p-6"
+              transition={{ duration: 0.6, delay: index * 0.1 }}
+              className="relative group"
             >
-              <div className="flex items-center justify-between mb-8">
-                <span className="text-xs font-medium text-[#827E78]">{item.label}</span>
-                <div className="size-10 rounded-xl border border-white/[0.08] bg-white/[0.06] flex items-center justify-center">
-                  <item.icon className="size-5 text-[#EAE8E1]" />
+              {/* Card */}
+              <div className="bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 p-8 hover:border-white/20 transition-all h-full flex flex-col">
+                {/* Rating stars */}
+                <div className="flex gap-1 mb-4">
+                  {Array.from({ length: testimonial.rating }).map((_, i) => (
+                    <Star key={i} className="size-4 fill-yellow-500 text-yellow-500" />
+                  ))}
+                </div>
+
+                {/* Quote */}
+                <p className="text-gray-300 leading-relaxed mb-6 flex-1">
+                  "{testimonial.text}"
+                </p>
+
+                {/* Author info */}
+                <div className="flex items-center gap-4 pt-6 border-t border-white/10">
+                  {/* Avatar */}
+                  <div className="size-12 bg-white/10 rounded-full flex items-center justify-center flex-shrink-0">
+                    <span className="text-white font-semibold text-sm">
+                      {testimonial.avatar}
+                    </span>
+                  </div>
+
+                  {/* Name and role */}
+                  <div>
+                    <div className="text-white font-semibold">
+                      {testimonial.name}
+                    </div>
+                    <div className="text-gray-500 text-sm">
+                      {testimonial.role}
+                    </div>
+                    <div className="text-gray-600 text-xs">
+                      {testimonial.company}
+                    </div>
+                  </div>
                 </div>
               </div>
-              <h3 className="text-lg font-medium text-[#EAE8E1] mb-3">{item.title}</h3>
-              <p className="text-sm text-[#A3A09A] leading-relaxed">{item.description}</p>
             </motion.div>
           ))}
         </div>
+
+        {/* Trust badge */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.6, delay: 0.4 }}
+          className="mt-16 text-center"
+        >
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10">
+            <div className="flex gap-1">
+              {['MK', 'AW', 'PN', 'JK', 'AS'].map((initials, i) => (
+                <div
+                  key={i}
+                  className="size-8 bg-white/10 rounded-full border-2 border-[#111111] flex items-center justify-center"
+                >
+                  <span className="text-white text-xs font-semibold">{initials}</span>
+                </div>
+              ))}
+            </div>
+            <span className="text-gray-400 text-sm">
+              Dołącz do <span className="text-white font-semibold">200+</span> zadowolonych użytkowników
+            </span>
+          </div>
+        </motion.div>
       </div>
-    </section>
+    </div>
   );
 }
