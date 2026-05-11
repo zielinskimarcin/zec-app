@@ -873,11 +873,97 @@ function CampaignSettingsTab() {
 // ─── Billing, Blacklist, Notifications ────────────────────────────────────────
 
 function BillingTab() {
-  const invoices = [
-    { id: 1, date: '1.04.2026', plan: 'Growth', amount: '$129.00' },
-    { id: 2, date: '1.03.2026', plan: 'Growth', amount: '$129.00' },
-    { id: 3, date: '1.02.2026', plan: 'Starter', amount: '$49.00' },
-  ];
+  const [overview, setOverview] = useState<any | null>(null);
+  const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'yearly'>('monthly');
+  const [loading, setLoading] = useState(true);
+  const [busyAction, setBusyAction] = useState<string | null>(null);
+  const [message, setMessage] = useState<{ type: 'error' | 'success'; text: string } | null>(null);
+
+  const loadBilling = async () => {
+    setLoading(true);
+    const { data, error } = await (supabase as any).rpc('zec_get_billing_overview');
+    if (error) {
+      setMessage({ type: 'error', text: error.message || 'Nie udało się pobrać płatności.' });
+    } else {
+      setOverview(data);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    loadBilling();
+  }, []);
+
+  const plans = Array.isArray(overview?.plans) ? overview.plans : [];
+  const currentPlan = overview?.current_plan || plans.find((plan: any) => plan.id === 'free') || {};
+  const subscription = overview?.subscription || {};
+  const profile = overview?.profile || {};
+  const invoices = Array.isArray(overview?.invoices) ? overview.invoices : [];
+  const monthlyCredits = Number(currentPlan.monthly_credits || 0);
+  const creditsLeft = Number(profile.credits || 0);
+  const creditsUsed = Math.max(0, monthlyCredits - creditsLeft);
+  const usagePct = monthlyCredits > 0 ? Math.min(100, Math.round((creditsUsed / monthlyCredits) * 100)) : 0;
+  const renewalDate = subscription.current_period_end
+    ? new Intl.DateTimeFormat('pl-PL', { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(subscription.current_period_end))
+    : 'po podpięciu płatności';
+
+  const priceLabel = (plan: any) => {
+    const cents = billingPeriod === 'yearly' ? plan.yearly_price_cents : plan.monthly_price_cents;
+    if (!cents) return '$0';
+    return `$${Math.round(cents / 100)}`;
+  };
+
+  const amountLabel = (amountCents: number, currency = 'usd') =>
+    new Intl.NumberFormat('en-US', { style: 'currency', currency: currency.toUpperCase() }).format((amountCents || 0) / 100);
+
+  const openBillingPortal = async () => {
+    setBusyAction('portal');
+    setMessage(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Sesja wygasła. Zaloguj się ponownie.');
+      const response = await fetch('/api/billing-portal', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.url) throw new Error(result.error || 'Nie udało się otworzyć panelu płatności.');
+      window.location.href = result.url;
+    } catch (error) {
+      setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Nie udało się otworzyć panelu płatności.' });
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
+  const startCheckout = async (planId: string) => {
+    if (planId === 'free') {
+      setMessage({ type: 'success', text: 'Plan Free jest aktywny bez Stripe.' });
+      return;
+    }
+
+    setBusyAction(planId);
+    setMessage(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Sesja wygasła. Zaloguj się ponownie.');
+      const response = await fetch('/api/billing-checkout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ planId, billingPeriod }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.url) throw new Error(result.error || 'Nie udało się utworzyć checkoutu.');
+      window.location.href = result.url;
+    } catch (error) {
+      setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Nie udało się utworzyć checkoutu.' });
+    } finally {
+      setBusyAction(null);
+    }
+  };
 
   return (
     <div className="space-y-12">
@@ -885,20 +971,31 @@ function BillingTab() {
         <h2 className="text-[18px] font-medium text-[#EAE8E1] mb-1">Obecny plan</h2>
         <p className="text-[15px] text-[#A3A09A] mb-6">Zarządzaj subskrypcją i kredytami</p>
 
+        {message && (
+          <div className={`mb-5 flex items-start gap-3 p-4 rounded-xl border text-[14px] ${
+            message.type === 'error'
+              ? 'bg-[#b56060]/10 border-[#b56060]/20 text-[#d18888]'
+              : 'bg-[#5d9970]/10 border-[#5d9970]/20 text-[#8ab99a]'
+          }`}>
+            {message.type === 'error' ? <AlertCircle className="size-4 shrink-0 mt-0.5" /> : <CheckCircle2 className="size-4 shrink-0 mt-0.5" />}
+            {message.text}
+          </div>
+        )}
+
         <div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] p-8 mb-5">
           <div className="flex items-start justify-between mb-8">
             <div>
               <p className="text-[13px] text-[#827E78] uppercase tracking-wider mb-2">Twój plan</p>
-              <p className="text-[32px] font-medium text-[#EAE8E1] tracking-tight">Growth</p>
+              <p className="text-[32px] font-medium text-[#EAE8E1] tracking-tight">{loading ? '...' : currentPlan.name || 'Free'}</p>
             </div>
             <div className="text-right">
               <p className="text-[13px] text-[#827E78] uppercase tracking-wider mb-2">Cena</p>
-              <p className="text-[32px] font-medium text-[#EAE8E1] tracking-tight">$129<span className="text-[16px] text-[#A3A09A]">/msc</span></p>
+              <p className="text-[32px] font-medium text-[#EAE8E1] tracking-tight">{priceLabel(currentPlan)}<span className="text-[16px] text-[#A3A09A]">/{subscription.billing_period === 'yearly' ? 'rok' : 'msc'}</span></p>
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-y-3.5 gap-x-5 mb-8">
-            {['2000 leadów miesięcznie', '3 podpięte skrzynki', 'AI Hyper-Personalization', 'Auto-Follow-upy'].map(f => (
+            {(Array.isArray(currentPlan.features) ? currentPlan.features : []).map((f: string) => (
               <div key={f} className="flex items-center gap-3 text-[15px] text-[#A3A09A]">
                 <CheckCircle2 className="size-4 text-[#5d9970] shrink-0" />{f}
               </div>
@@ -908,16 +1005,66 @@ function BillingTab() {
           <div>
             <div className="flex justify-between text-[14px] mb-3">
               <span className="text-[#A3A09A]">Wykorzystanie kredytów</span>
-              <span className="text-[#EAE8E1] font-mono">1450 / 2000</span>
+              <span className="text-[#EAE8E1] font-mono">{creditsUsed} / {monthlyCredits}</span>
             </div>
-            <div className="h-1.5 bg-white/[0.06] rounded-full overflow-hidden"><div className="h-full bg-[#A3A09A] rounded-full" style={{ width: '72.5%' }} /></div>
-            <p className="text-[13px] text-[#827E78] mt-3">Odnawia się 1 maja 2026</p>
+            <div className="h-1.5 bg-white/[0.06] rounded-full overflow-hidden"><div className="h-full bg-[#A3A09A] rounded-full" style={{ width: `${usagePct}%` }} /></div>
+            <p className="text-[13px] text-[#827E78] mt-3">Odnawia się {renewalDate}</p>
           </div>
         </div>
 
         <div className="flex gap-4">
-          <button className="flex-1 py-3.5 bg-[#EAE8E1] hover:bg-white text-[#1A1A1A] text-[14px] font-medium rounded-xl transition-all">Zmień plan</button>
-          <button className="px-6 py-3.5 border border-white/[0.1] text-[#A3A09A] hover:text-[#EAE8E1] hover:border-white/[0.2] text-[14px] rounded-xl transition-all">Anuluj subskrypcję</button>
+          <button onClick={() => setMessage({ type: 'success', text: 'Wybierz plan poniżej, a przekieruję Cię do checkoutu Stripe.' })} className="flex-1 py-3.5 bg-[#EAE8E1] hover:bg-white text-[#1A1A1A] text-[14px] font-medium rounded-xl transition-all">Zmień plan</button>
+          <button onClick={openBillingPortal} disabled={busyAction === 'portal'} className="px-6 py-3.5 border border-white/[0.1] text-[#A3A09A] hover:text-[#EAE8E1] hover:border-white/[0.2] text-[14px] rounded-xl transition-all disabled:opacity-40">{busyAction === 'portal' ? 'Ładuję...' : 'Anuluj subskrypcję'}</button>
+        </div>
+      </section>
+
+      <Rule />
+
+      <section>
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-[18px] font-medium text-[#EAE8E1]">Dostępne plany</h2>
+          <div className="flex p-1 bg-white/[0.04] border border-white/[0.08] rounded-xl">
+            {(['monthly', 'yearly'] as const).map(period => (
+              <button
+                key={period}
+                onClick={() => setBillingPeriod(period)}
+                className={`px-4 py-2 text-[13px] rounded-lg transition-all ${billingPeriod === period ? 'bg-[#EAE8E1] text-[#1A1A1A]' : 'text-[#827E78] hover:text-[#EAE8E1]'}`}
+              >
+                {period === 'monthly' ? 'Miesięcznie' : 'Rocznie'}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-3">
+          {plans.map((plan: any) => {
+            const isCurrent = plan.id === currentPlan.id;
+            return (
+              <div key={plan.id} className={`p-5 rounded-2xl border transition-all ${isCurrent ? 'border-[#5d9970]/30 bg-[#5d9970]/5' : 'border-white/[0.08] bg-white/[0.03]'}`}>
+                <div className="flex items-start justify-between gap-4 mb-4">
+                  <div>
+                    <p className="text-[16px] font-medium text-[#EAE8E1]">{plan.name}</p>
+                    <p className="text-[13px] text-[#827E78] mt-1">{plan.description}</p>
+                  </div>
+                  <p className="text-[22px] font-medium text-[#EAE8E1] whitespace-nowrap">{priceLabel(plan)}<span className="text-[13px] text-[#827E78]">/{billingPeriod === 'yearly' ? 'rok' : 'msc'}</span></p>
+                </div>
+                <div className="space-y-2 mb-5">
+                  {(Array.isArray(plan.features) ? plan.features : []).slice(0, 4).map((feature: string) => (
+                    <div key={feature} className="flex items-center gap-2 text-[13px] text-[#A3A09A]">
+                      <CheckCircle2 className="size-3.5 text-[#5d9970] shrink-0" />{feature}
+                    </div>
+                  ))}
+                </div>
+                <button
+                  onClick={() => startCheckout(plan.id)}
+                  disabled={busyAction === plan.id || isCurrent}
+                  className={`w-full py-3 rounded-xl text-[14px] font-medium transition-all disabled:opacity-45 ${isCurrent ? 'bg-white/[0.06] text-[#827E78]' : 'bg-[#EAE8E1] hover:bg-white text-[#1A1A1A]'}`}
+                >
+                  {isCurrent ? 'Aktywny plan' : busyAction === plan.id ? 'Przygotowuję...' : 'Wybierz plan'}
+                </button>
+              </div>
+            );
+          })}
         </div>
       </section>
 
@@ -929,11 +1076,11 @@ function BillingTab() {
           <div className="flex items-center gap-4">
             <div className="size-11 bg-white/[0.05] rounded-xl flex items-center justify-center"><CreditCard className="size-5 text-[#A3A09A]" /></div>
             <div>
-              <p className="text-[16px] font-medium text-[#EAE8E1]">•••• •••• •••• 4242</p>
-              <p className="text-[14px] text-[#A3A09A] mt-0.5">Wygasa 12/27</p>
+              <p className="text-[16px] font-medium text-[#EAE8E1]">{subscription.stripe_customer_id ? 'Stripe Customer aktywny' : 'Brak metody płatności'}</p>
+              <p className="text-[14px] text-[#A3A09A] mt-0.5">{subscription.status === 'active' ? 'Subskrypcja aktywna' : 'Podłączana przez checkout Stripe'}</p>
             </div>
           </div>
-          <button className="text-[14px] font-medium text-[#A3A09A] hover:text-[#EAE8E1] border border-white/[0.1] hover:border-white/[0.2] px-5 py-2.5 rounded-xl transition-all">Zmień</button>
+          <button onClick={openBillingPortal} disabled={busyAction === 'portal'} className="text-[14px] font-medium text-[#A3A09A] hover:text-[#EAE8E1] border border-white/[0.1] hover:border-white/[0.2] px-5 py-2.5 rounded-xl transition-all disabled:opacity-40">Zmień</button>
         </div>
       </section>
 
@@ -942,18 +1089,23 @@ function BillingTab() {
       <section>
         <h2 className="text-[18px] font-medium text-[#EAE8E1] mb-6">Historia faktur</h2>
         <div className="space-y-2">
-          {invoices.map(inv => (
-            <div key={inv.id} className="flex items-center justify-between px-6 py-4 rounded-2xl hover:bg-white/[0.04] transition-all group border border-transparent hover:border-white/[0.06]">
+          {invoices.length === 0 && (
+            <div className="px-6 py-5 rounded-2xl border border-white/[0.08] bg-white/[0.03] text-[14px] text-[#827E78]">
+              Faktury pojawią się tutaj po pierwszej płatności Stripe.
+            </div>
+          )}
+          {invoices.map((inv: any) => (
+            <div key={inv.id || inv.provider_invoice_id} className="flex items-center justify-between px-6 py-4 rounded-2xl hover:bg-white/[0.04] transition-all group border border-transparent hover:border-white/[0.06]">
               <div className="flex items-center gap-4">
                 <div className="size-10 bg-white/[0.05] rounded-lg flex items-center justify-center"><CreditCard className="size-4 text-[#A3A09A]" /></div>
                 <div>
-                  <p className="text-[15px] font-medium text-[#EAE8E1]">{inv.plan}</p>
-                  <p className="text-[13px] text-[#827E78] mt-0.5">{inv.date}</p>
+                  <p className="text-[15px] font-medium text-[#EAE8E1]">{inv.invoice_number || inv.plan_id || 'Faktura'}</p>
+                  <p className="text-[13px] text-[#827E78] mt-0.5">{inv.issued_at ? new Intl.DateTimeFormat('pl-PL').format(new Date(inv.issued_at)) : '—'}</p>
                 </div>
               </div>
               <div className="flex items-center gap-4">
-                <span className="text-[15px] font-medium text-[#5d9970]">{inv.amount}</span>
-                <button className="p-2 text-[#827E78] hover:text-[#EAE8E1] hover:bg-white/[0.06] rounded-lg transition-all opacity-0 group-hover:opacity-100"><Download className="size-4" /></button>
+                <span className="text-[15px] font-medium text-[#5d9970]">{amountLabel(inv.amount_cents, inv.currency)}</span>
+                <button onClick={() => inv.invoice_pdf_url && window.open(inv.invoice_pdf_url, '_blank')} className="p-2 text-[#827E78] hover:text-[#EAE8E1] hover:bg-white/[0.06] rounded-lg transition-all opacity-0 group-hover:opacity-100"><Download className="size-4" /></button>
               </div>
             </div>
           ))}

@@ -309,12 +309,15 @@ function CampaignMailReview({
   };
 
   const saveEdit = async () => {
-    if (!canEdit) return;
+    if (!canEdit || !lead.lead_id) return;
     setSaving(true);
-    const { error } = await supabase
-      .from('campaign_emails')
-      .update({ subject: editSubject, body: editBody })
-      .eq('id', lead.id);
+    const { error } = await (supabase as any).rpc('zec_store_campaign_email_draft', {
+      p_campaign_id: campaign.id,
+      p_lead_id: lead.lead_id,
+      p_email_id: lead.id,
+      p_subject: editSubject,
+      p_body: editBody,
+    });
 
     if (!error) {
       onUpdateLead({ ...lead, subject: editSubject, mail_content: editBody });
@@ -654,13 +657,15 @@ function CampaignDetail({ campaign: initialCampaign, onBack }: { campaign: Campa
   const isReorderableLead = (lead: CampaignLead) => isQueuedLikeLead(lead);
 
   const persistQueueOrder = async (orderedLeads: CampaignLead[]) => {
-    await Promise.all(orderedLeads.map((lead, index) =>
-      supabase
-        .from('campaign_emails')
-        .update({ queue_position: index + 1 })
-        .eq('id', lead.id)
-    ));
-    if (campaign.status === 'active') await rescheduleCampaign();
+    const { error } = await (supabase as any).rpc('zec_reorder_campaign_emails', {
+      p_campaign_id: campaign.id,
+      p_email_ids: orderedLeads.map(lead => lead.id),
+    });
+    if (error) {
+      console.error('Nie udało się zapisać kolejności:', error);
+      await fetchLeads(false);
+      return;
+    }
     await fetchLeads(false);
   };
 
@@ -688,86 +693,49 @@ function CampaignDetail({ campaign: initialCampaign, onBack }: { campaign: Campa
     await persistQueueOrder(leadsRef.current);
   };
 
-  const maxQueuePosition = () => Math.max(0, ...leads.map(lead => lead.queue_position || 0));
-
-  const rescheduleCampaign = async () => {
-    const { error } = await supabase.rpc('zec_reschedule_campaign', { p_campaign_id: campaign.id });
-    if (error) console.error('Nie udało się przeliczyć terminów wysyłki:', error);
-  };
-
   const acceptLead = async (lead: CampaignLead) => {
-    const nextPosition = maxQueuePosition() + 1;
-    const shouldStayPaused = campaign.status === 'paused' || lead.status === 'paused';
-    const { error } = await supabase
-      .from('campaign_emails')
-      .update({
-        status: shouldStayPaused ? 'paused' : 'queued',
-        queue_position: nextPosition,
-        subject: lead.subject || '',
-        body: lead.mail_content || '',
-        last_error: null,
-        scheduled_at: shouldStayPaused ? null : lead.scheduled_at,
-        claimed_at: null,
-        claim_token: null,
-        paused_from_status: shouldStayPaused ? 'queued' : null,
-      })
-      .eq('id', lead.id);
+    const { error } = await (supabase as any).rpc('zec_update_campaign_email_review', {
+      p_email_id: lead.id,
+      p_action: 'accept',
+      p_subject: lead.subject || '',
+      p_body: lead.mail_content || '',
+    });
     if (error) {
       console.error('Nie udało się zaakceptować maila:', error);
       return;
     }
-    if (!shouldStayPaused) await rescheduleCampaign();
     await fetchLeads(false);
   };
 
   const skipLead = async (lead: CampaignLead) => {
-    const { error } = await supabase
-      .from('campaign_emails')
-      .update({
-        status: 'failed',
-        scheduled_at: null,
-        claimed_at: null,
-        claim_token: null,
-        priority_score: 0,
-        paused_from_status: null,
-      })
-      .eq('id', lead.id);
+    const { error } = await (supabase as any).rpc('zec_update_campaign_email_review', {
+      p_email_id: lead.id,
+      p_action: 'skip',
+    });
     if (error) {
       console.error('Nie udało się pominąć maila:', error);
       return;
     }
-    if (campaign.status === 'active') await rescheduleCampaign();
     await fetchLeads(false);
   };
 
   const restoreLead = async (lead: CampaignLead) => {
-    const nextPosition = maxQueuePosition() + 1;
-    const shouldStayPaused = campaign.status === 'paused';
-    const { error } = await supabase
-      .from('campaign_emails')
-      .update({
-        status: shouldStayPaused ? 'paused' : 'queued',
-        queue_position: nextPosition,
-        last_error: null,
-        priority_score: 0,
-        scheduled_at: null,
-        claimed_at: null,
-        claim_token: null,
-        paused_from_status: shouldStayPaused ? 'queued' : null,
-      })
-      .eq('id', lead.id);
+    const { error } = await (supabase as any).rpc('zec_update_campaign_email_review', {
+      p_email_id: lead.id,
+      p_action: 'restore',
+    });
     if (error) {
       console.error('Nie udało się przywrócić maila:', error);
       return;
     }
-    if (!shouldStayPaused) await rescheduleCampaign();
     await fetchLeads(false);
   };
 
   const toggleReplied = async (lead: CampaignLead) => {
     if (lead.status !== 'sent' && lead.status !== 'replied') return;
-    const nextStatus = lead.status === 'replied' ? 'sent' : 'replied';
-    const { error } = await supabase.from('campaign_emails').update({ status: nextStatus }).eq('id', lead.id);
+    const { error } = await (supabase as any).rpc('zec_toggle_campaign_email_reply', {
+      p_email_id: lead.id,
+    });
     if (error) {
       console.error('Nie udało się zmienić statusu odpowiedzi:', error);
       return;
@@ -1145,7 +1113,7 @@ function CampaignsList({ onSelect }: { onSelect: (c: Campaign) => void }) {
   const executeArchive = async (id: string, updateSkipWarning: boolean = false) => {
     if (updateSkipWarning) setSkipArchiveWarning(true);
     
-    const { error } = await supabase.from('campaigns').update({ status: 'archived' }).eq('id', id);
+    const { error } = await (supabase as any).rpc('zec_archive_campaign', { p_campaign_id: id });
 
     if (error) {
       showToast(AlertCircle, 'Błąd zapisu do bazy. Sprawdź statusy w SQL.', 'error');
@@ -1159,7 +1127,7 @@ function CampaignsList({ onSelect }: { onSelect: (c: Campaign) => void }) {
   };
 
   const handlePermanentDelete = async (c: Campaign) => {
-    const { error } = await supabase.from('campaigns').delete().eq('id', c.id);
+    const { error } = await (supabase as any).rpc('zec_delete_campaign', { p_campaign_id: c.id });
 
     if (error) {
       showToast(AlertCircle, 'Błąd usuwania kampanii.', 'error');

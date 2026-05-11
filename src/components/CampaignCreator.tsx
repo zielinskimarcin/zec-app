@@ -240,10 +240,71 @@ function AddMailboxModal({ onClose, onAdd }: { onClose: () => void; onAdd: (m: M
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setVerifying(true);
-    await new Promise(r => setTimeout(r, 1200));
-    onAdd({ id: `m${Date.now()}`, email: form.email, provider: provider === 'gmail' ? 'google' : provider === 'outlook' ? 'microsoft' : 'other' });
-    onClose();
-    setVerifying(false);
+    setErr(null);
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Sesja wygasła. Zaloguj się ponownie.');
+
+      const smtpPort = Number.parseInt(form.smtpPort, 10);
+      const imapPort = form.imapPort ? Number.parseInt(form.imapPort, 10) : null;
+      const email = form.email.trim();
+      const smtpHost = form.smtpHost.trim();
+      const imapHost = form.imapHost.trim();
+
+      const verifyResponse = await fetch('/api/verify', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          email,
+          password: form.password,
+          host: smtpHost,
+          port: smtpPort,
+        }),
+      });
+      const verifyResult = await verifyResponse.json().catch(() => ({}));
+      if (!verifyResponse.ok || !verifyResult.success) {
+        throw new Error(verifyResult.error || 'Nie udało się zweryfikować SMTP.');
+      }
+
+      const senderName = form.name.trim() || email.split('@')[0] || email;
+      const { data: inserted, error } = await supabase
+        .from('email_accounts')
+        .insert({
+          user_id: session.user.id,
+          email_address: email,
+          sender_name: senderName,
+          smtp_host: smtpHost,
+          smtp_port: smtpPort,
+          smtp_password: form.password,
+          imap_host: imapHost || null,
+          imap_port: imapPort && Number.isFinite(imapPort) ? imapPort : null,
+          status: 'connected',
+          daily_limit: 40,
+        })
+        .select('id, email_address, sender_name, smtp_host, daily_limit, sent_today, status')
+        .single();
+
+      if (error || !inserted) throw error || new Error('Nie udało się zapisać skrzynki.');
+
+      onAdd({
+        id: inserted.id,
+        email: inserted.email_address,
+        sender_name: inserted.sender_name,
+        provider: detectMailboxProvider(inserted.email_address, inserted.smtp_host),
+        daily_limit: inserted.daily_limit ?? 40,
+        sent_today: inserted.sent_today ?? 0,
+        status: inserted.status,
+      });
+      onClose();
+    } catch (error) {
+      setErr(error instanceof Error ? error.message : 'Nie udało się podłączyć skrzynki.');
+    } finally {
+      setVerifying(false);
+    }
   };
 
   return (
@@ -592,31 +653,22 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
         status: 'pending_review',
       };
 
-      const { data: dbEmail, error: emailErr } = emailId
-        ? await supabase
-            .from('campaign_emails')
-            .update(emailPayload)
-            .eq('id', emailId)
-            .select()
-            .single()
-        : await supabase
-            .from('campaign_emails')
-            .insert({
-              campaign_id: campaignId,
-              lead_id: lead.id,
-              ...emailPayload
-            })
-            .select()
-            .single();
-
-      if (emailErr || !dbEmail) throw emailErr;
+      const { data: dbEmailRows, error: emailErr } = await (supabase as any).rpc('zec_store_campaign_email_draft', {
+        p_campaign_id: campaignId,
+        p_lead_id: lead.id,
+        p_email_id: emailId ?? null,
+        p_subject: emailPayload.subject,
+        p_body: emailPayload.body,
+      });
+      const dbEmail = Array.isArray(dbEmailRows) ? dbEmailRows[0] : dbEmailRows;
+      if (emailErr || !dbEmail) throw emailErr || new Error('Nie udało się zapisać maila.');
 
       const intel = generated.intel || {};
       setGeneratedLeads(prev => prev.map(item =>
         item.leadId === lead.id
           ? {
               ...item,
-              emailId: dbEmail.id,
+              emailId: dbEmail.email_id,
               person: generated.person || lead.person || '—',
               website: generated.website || lead.website || '—',
               intel: {
@@ -666,62 +718,23 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
           .upsert({ user_id: session.user.id, ...companyInfo }, { onConflict: 'user_id' });
       }
 
-      const { data: campaign, error: campErr } = await supabase
-        .from('campaigns')
-        .insert({
-          user_id: session.user.id,
-          name: campaignName,
-          prompt_angle: promptAngle,
-          status: 'draft',
-          total_count: selectedLeads.length,
-          email_account_id: selectedMailboxIds[0] || null,
-          sending_window: sendingWindow,
-        })
-        .select()
-        .single();
+      const { data: campaignRows, error: campErr } = await (supabase as any).rpc('zec_create_campaign_draft', {
+        p_name: campaignName,
+        p_prompt_angle: promptAngle,
+        p_lead_ids: selectedLeads.map(lead => lead.id),
+        p_email_account_ids: selectedMailboxIds,
+        p_sending_window: sendingWindow,
+      });
+      if (campErr || !campaignRows?.length) throw campErr || new Error('Nie udało się utworzyć kampanii.');
 
-      if (campErr || !campaign) throw campErr;
-      createdCampaignId = campaign.id;
-      setDbCampaignId(campaign.id);
+      const campaignId = campaignRows[0].campaign_id as string;
+      createdCampaignId = campaignId;
+      setDbCampaignId(campaignId);
       clearDraftFromStorage();
       setDraftExists(false);
 
       const selectedMailboxes = mailboxes.filter(mailbox => selectedMailboxIds.includes(mailbox.id));
-      const mailboxIdForIndex = (index: number) =>
-        selectedMailboxes.length > 0 ? selectedMailboxes[index % selectedMailboxes.length].id : null;
-
-      if (selectedMailboxes.length > 0) {
-        const { error: senderErr } = await supabase
-          .from('campaign_email_accounts')
-          .insert(selectedMailboxes.map(mailbox => ({
-            campaign_id: campaign.id,
-            email_account_id: mailbox.id,
-            daily_limit: mailbox.daily_limit ?? 40,
-          })));
-        if (senderErr) throw senderErr;
-      }
-
-      await supabase
-        .from('user_leads')
-        .update({ campaign_id: campaign.id, status: 'pending' })
-        .in('id', selectedLeads.map(lead => lead.id));
-
-      const { data: placeholderEmails, error: placeholderErr } = await supabase
-        .from('campaign_emails')
-        .insert(selectedLeads.map((lead, index) => ({
-          campaign_id: campaign.id,
-          lead_id: lead.id,
-          subject: '',
-          body: '',
-          status: 'pending_review',
-          queue_position: index + 1,
-          email_account_id: mailboxIdForIndex(index),
-        })))
-        .select();
-
-      if (placeholderErr || !placeholderEmails) throw placeholderErr;
-
-      const emailIdByLeadId = new Map((placeholderEmails as any[]).map(email => [email.lead_id, email.id]));
+      const emailIdByLeadId = new Map((campaignRows as any[]).map(row => [row.lead_id, row.email_id]));
 
       setGeneratedLeads(selectedLeads.map(lead => createPlaceholderLead(lead, emailIdByLeadId.get(lead.id))));
       setCurrentIndex(0);
@@ -731,17 +744,15 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
 
       const [firstLead, ...remainingLeads] = selectedLeads;
       void (async () => {
-        if (firstLead) await generateAndStoreLeadEmail(campaign.id, firstLead, selectedMailboxes, emailIdByLeadId.get(firstLead.id));
+        if (firstLead) await generateAndStoreLeadEmail(campaignId, firstLead, selectedMailboxes, emailIdByLeadId.get(firstLead.id));
         remainingLeads.forEach(lead => {
-          void generateAndStoreLeadEmail(campaign.id, lead, selectedMailboxes, emailIdByLeadId.get(lead.id));
+          void generateAndStoreLeadEmail(campaignId, lead, selectedMailboxes, emailIdByLeadId.get(lead.id));
         });
       })();
 
     } catch (error) {
       console.error("Błąd podczas zapisywania kampanii do Supabase:", error);
       if (createdCampaignId) {
-        await supabase.from('campaign_emails').delete().eq('campaign_id', createdCampaignId);
-        await supabase.from('campaigns').delete().eq('id', createdCampaignId);
         setDbCampaignId(null);
       }
       alert(error instanceof Error ? error.message : "Nie udało się wygenerować kampanii.");
@@ -807,38 +818,22 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
         scheduled_at: null,
       };
 
-      const { data: dbEmail, error: emailErr } = currentLead.emailId
-        ? await supabase
-            .from('campaign_emails')
-            .update(emailPayload)
-            .eq('id', currentLead.emailId)
-            .select()
-            .single()
-        : await supabase
-            .from('campaign_emails')
-            .insert({
-              campaign_id: dbCampaignId,
-              lead_id: leadDb.id,
-              subject: generated.subject || 'Szybkie pytanie',
-              body: generated.body,
-              status: 'pending_review'
-            })
-            .select()
-            .single();
-
-      if (emailErr || !dbEmail) throw emailErr;
-
-      await supabase
-        .from('user_leads')
-        .update({ campaign_id: dbCampaignId, status: 'pending' })
-        .eq('id', leadDb.id);
+      const { data: dbEmailRows, error: emailErr } = await (supabase as any).rpc('zec_store_campaign_email_draft', {
+        p_campaign_id: dbCampaignId,
+        p_lead_id: leadDb.id,
+        p_email_id: currentLead.emailId ?? null,
+        p_subject: emailPayload.subject,
+        p_body: emailPayload.body,
+      });
+      const dbEmail = Array.isArray(dbEmailRows) ? dbEmailRows[0] : dbEmailRows;
+      if (emailErr || !dbEmail) throw emailErr || new Error('Nie udało się zapisać maila.');
 
       const intel = generated.intel || {};
       setGeneratedLeads(prev => prev.map((lead, index) =>
         index === currentIndex
           ? {
               ...lead,
-              emailId: dbEmail.id,
+              emailId: dbEmail.email_id,
               subject: dbEmail.subject,
               body: dbEmail.body,
               person: generated.person || leadDb.person || '—',
@@ -870,14 +865,19 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
       if (action === 'accepted') {
         const nextTime = new Date(lastScheduledTime.getTime() + 20 * 60000);
         setLastScheduledTime(nextTime);
-        await supabase.from('campaign_emails').update({
-          status: 'queued',
-          subject: lead.subject,
-          body: lead.body,
-          queue_position: currentIndex + 1,
-        }).eq('id', lead.emailId);
+        const { error } = await (supabase as any).rpc('zec_update_campaign_email_review', {
+          p_email_id: lead.emailId,
+          p_action: 'accept',
+          p_subject: lead.subject,
+          p_body: lead.body,
+        });
+        if (error) throw error;
       } else {
-        await supabase.from('campaign_emails').update({ status: 'failed' }).eq('id', lead.emailId);
+        const { error } = await (supabase as any).rpc('zec_update_campaign_email_review', {
+          p_email_id: lead.emailId,
+          p_action: 'skip',
+        });
+        if (error) throw error;
       }
     } catch (err) {
       console.error("Błąd podczas aktualizacji rekordu w Supabase:", err);
@@ -902,35 +902,42 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
   const handleBulkApprove = async () => {
     let currentTime = lastScheduledTime;
     const newLeads = [...generatedLeads];
-    const updatePromises = [];
+    const updateQueue = [];
     for (let i = currentIndex; i < newLeads.length; i++) {
       const lead = newLeads[i];
       if (lead.reviewStatus === 'pending' && !lead.isGenerating && !lead.generationError && lead.emailId) {
         currentTime = new Date(currentTime.getTime() + 20 * 60000);
-        updatePromises.push(
-          supabase.from('campaign_emails').update({
-            status: 'queued',
-            queue_position: i + 1,
-            subject: lead.subject,
-            body: lead.body
-          }).eq('id', lead.emailId)
-        );
+        updateQueue.push({
+          emailId: lead.emailId,
+          subject: lead.subject,
+          body: lead.body,
+        });
         lead.reviewStatus = 'accepted';
       }
     }
     setLastScheduledTime(currentTime);
     setGeneratedLeads(newLeads);
-    try { await Promise.all(updatePromises); } catch (err) { console.error(err); }
+    try {
+      for (const item of updateQueue) {
+        const { error } = await (supabase as any).rpc('zec_update_campaign_email_review', {
+          p_email_id: item.emailId,
+          p_action: 'accept',
+          p_subject: item.subject,
+          p_body: item.body,
+        });
+        if (error) throw error;
+      }
+    } catch (err) { console.error(err); }
     setTimeout(() => setStep(5), 400);
   };
 
   const handleLaunch = async () => {
     setLaunching(true);
     if (dbCampaignId) {
-      const { error: updateError } = await supabase
-        .from('campaigns')
-        .update({ sending_window: sendingWindow })
-        .eq('id', dbCampaignId);
+      const { error: updateError } = await (supabase as any).rpc('zec_update_campaign_settings', {
+        p_campaign_id: dbCampaignId,
+        p_sending_window: sendingWindow,
+      });
       if (updateError) {
         console.error('Nie udało się zapisać okna wysyłki:', updateError);
         alert(updateError.message || 'Nie udało się zapisać okna wysyłki.');
@@ -956,7 +963,10 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
   const handleSaveCampaign = async () => {
     setLaunching(true);
     if (dbCampaignId) {
-      await supabase.from('campaigns').update({ status: 'draft', sending_window: sendingWindow }).eq('id', dbCampaignId);
+      await (supabase as any).rpc('zec_update_campaign_settings', {
+        p_campaign_id: dbCampaignId,
+        p_sending_window: sendingWindow,
+      });
     }
     await new Promise(r => setTimeout(r, 700));
     setLaunching(false);
@@ -1609,19 +1619,21 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
                             </p>
                           </div>
 
-                          <div className="flex justify-end -mt-5 opacity-35 hover:opacity-90 transition-opacity">
-                            <button
-                              type="button"
-                              onClick={() => setSendingWindow(prev => prev === 'business_hours' ? 'all_day' : 'business_hours')}
-                              className="flex items-center gap-2 px-2 py-1 text-[10px] text-[#827E78] hover:text-[#A3A09A] rounded-md transition-colors"
-                              title="Dev test: przełącz okno wysyłki"
-                            >
-                              <span className={`relative inline-flex h-3 w-6 rounded-full transition-colors ${sendingWindow === 'all_day' ? 'bg-[#a3956a]/60' : 'bg-white/[0.12]'}`}>
-                                <span className={`absolute top-0.5 size-2 rounded-full bg-[#827E78] transition-transform ${sendingWindow === 'all_day' ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
-                              </span>
-                              dev {sendingWindow === 'all_day' ? '24h' : '9-15'}
-                            </button>
-                          </div>
+                          {import.meta.env.DEV && (
+                            <div className="flex justify-end -mt-5 opacity-35 hover:opacity-90 transition-opacity">
+                              <button
+                                type="button"
+                                onClick={() => setSendingWindow(prev => prev === 'business_hours' ? 'all_day' : 'business_hours')}
+                                className="flex items-center gap-2 px-2 py-1 text-[10px] text-[#827E78] hover:text-[#A3A09A] rounded-md transition-colors"
+                                title="Przełącz okno wysyłki"
+                              >
+                                <span className={`relative inline-flex h-3 w-6 rounded-full transition-colors ${sendingWindow === 'all_day' ? 'bg-[#a3956a]/60' : 'bg-white/[0.12]'}`}>
+                                  <span className={`absolute top-0.5 size-2 rounded-full bg-[#827E78] transition-transform ${sendingWindow === 'all_day' ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
+                                </span>
+                                {sendingWindow === 'all_day' ? '24h' : '9-15'}
+                              </button>
+                            </div>
+                          )}
 
                           {hasSelectedMailbox ? (
                             <div className="space-y-3">
