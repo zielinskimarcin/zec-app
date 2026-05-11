@@ -1,7 +1,17 @@
 import { useState, useEffect } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router';
-import { LayoutDashboard, Search, Mail, Database, Settings, Bell, ChevronDown, LogOut } from 'lucide-react';
+import {
+  LayoutDashboard, Search, Mail, Database, Settings, Bell, ChevronDown, LogOut,
+  CheckCircle2, AlertTriangle, XCircle, Circle, CheckCheck, Inbox
+} from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import {
+  fetchNotifications,
+  markAllNotificationsRead,
+  markNotificationRead,
+  type AppNotification,
+  type NotificationSeverity,
+} from '../lib/notifications';
 import { OnboardingProvider, useOnboarding } from '../contexts/OnboardingContext';
 import { OnboardingSandbox } from '../components/OnboardingSandbox';
 
@@ -98,10 +108,7 @@ function NavBar() {
               Upgrade
             </Link>
             <div className="hidden lg:block w-px h-5 bg-white/[0.1] mx-1" />
-            <button className="relative p-2 text-[#827E78] hover:text-[#EAE8E1] transition-colors rounded-lg hover:bg-white/[0.04]">
-              <Bell className="size-[18px]" />
-              <span className="absolute top-1.5 right-1.5 size-2 bg-[#b56060] rounded-full border-2 border-[#0a0a0a]" />
-            </button>
+            <NotificationBell />
 
             <div className="relative">
               <button
@@ -135,6 +142,187 @@ function NavBar() {
         </div>
       </div>
     </nav>
+  );
+}
+
+function formatNotificationTime(value: string) {
+  const time = new Date(value).getTime();
+  const diffMs = Date.now() - time;
+  if (!Number.isFinite(diffMs)) return '';
+
+  const minutes = Math.max(0, Math.floor(diffMs / 60000));
+  if (minutes < 1) return 'teraz';
+  if (minutes < 60) return `${minutes} min`;
+
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} godz.`;
+
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days} dni`;
+
+  return new Intl.DateTimeFormat('pl-PL', { day: '2-digit', month: '2-digit' }).format(new Date(value));
+}
+
+function notificationTone(severity: NotificationSeverity) {
+  switch (severity) {
+    case 'success':
+      return { icon: CheckCircle2, bg: 'bg-[#5d9970]/10', text: 'text-[#5d9970]', dot: 'bg-[#5d9970]' };
+    case 'warning':
+      return { icon: AlertTriangle, bg: 'bg-[#a3956a]/10', text: 'text-[#a3956a]', dot: 'bg-[#a3956a]' };
+    case 'error':
+      return { icon: XCircle, bg: 'bg-[#b56060]/10', text: 'text-[#b56060]', dot: 'bg-[#b56060]' };
+    default:
+      return { icon: Circle, bg: 'bg-white/[0.06]', text: 'text-[#A3A09A]', dot: 'bg-[#A3A09A]' };
+  }
+}
+
+function NotificationBell() {
+  const navigate = useNavigate();
+  const [isOpen, setIsOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+
+  const unreadCount = notifications.filter(notification => !notification.read_at).length;
+
+  const loadNotifications = async (silent = false) => {
+    if (!silent) setLoading(true);
+    const next = await fetchNotifications(12);
+    setNotifications(next);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    let isMounted = true;
+    let intervalId: number | undefined;
+
+    const load = async (silent = false) => {
+      if (!silent) setLoading(true);
+      const next = await fetchNotifications(12);
+      if (!isMounted) return;
+      setNotifications(next);
+      setLoading(false);
+    };
+
+    load();
+    intervalId = window.setInterval(() => load(true), 30000);
+
+    return () => {
+      isMounted = false;
+      if (intervalId) window.clearInterval(intervalId);
+    };
+  }, []);
+
+  const handleOpen = () => {
+    setIsOpen(prev => !prev);
+    void loadNotifications(true);
+  };
+
+  const handleReadAll = async () => {
+    await markAllNotificationsRead();
+    const readAt = new Date().toISOString();
+    setNotifications(prev => prev.map(notification => ({
+      ...notification,
+      read_at: notification.read_at || readAt,
+    })));
+  };
+
+  const handleNotificationClick = async (notification: AppNotification) => {
+    if (!notification.read_at) {
+      await markNotificationRead(notification.id);
+      setNotifications(prev => prev.map(item =>
+        item.id === notification.id
+          ? { ...item, read_at: new Date().toISOString() }
+          : item
+      ));
+    }
+
+    if (notification.action_url?.startsWith('/')) {
+      navigate(notification.action_url);
+      setIsOpen(false);
+    }
+  };
+
+  return (
+    <div className="relative">
+      <button
+        onClick={handleOpen}
+        className={`relative p-2 transition-colors rounded-lg hover:bg-white/[0.04] ${isOpen ? 'text-[#EAE8E1]' : 'text-[#827E78] hover:text-[#EAE8E1]'}`}
+        aria-label="Powiadomienia"
+      >
+        <Bell className="size-[18px]" />
+        {unreadCount > 0 && (
+          <span className="absolute top-1 right-1 min-w-[16px] h-4 px-1 bg-[#b56060] text-white text-[9px] font-semibold leading-4 rounded-full border border-[#0a0a0a]">
+            {unreadCount > 9 ? '9+' : unreadCount}
+          </span>
+        )}
+      </button>
+
+      {isOpen && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
+          <div className="absolute right-0 mt-2 w-[360px] max-w-[calc(100vw-2rem)] bg-[#1A1A1A] border border-white/[0.08] rounded-xl shadow-2xl z-50 overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3.5 border-b border-white/[0.06]">
+              <div>
+                <h3 className="text-[14px] font-medium text-[#EAE8E1]">Powiadomienia</h3>
+                <p className="text-[12px] text-[#827E78] mt-0.5">{unreadCount} nieprzeczytane</p>
+              </div>
+              {unreadCount > 0 && (
+                <button
+                  onClick={handleReadAll}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 text-[12px] text-[#A3A09A] hover:text-[#EAE8E1] rounded-lg hover:bg-white/[0.05] transition-colors"
+                >
+                  <CheckCheck className="size-3.5" />
+                  Oznacz
+                </button>
+              )}
+            </div>
+
+            <div className="max-h-[420px] overflow-y-auto">
+              {loading ? (
+                <div className="px-4 py-10 text-center text-[13px] text-[#827E78]">Ładowanie...</div>
+              ) : notifications.length === 0 ? (
+                <div className="px-4 py-10 text-center">
+                  <Inbox className="size-5 text-[#3a3a3a] mx-auto mb-3" />
+                  <p className="text-[13px] text-[#827E78]">Brak powiadomień</p>
+                </div>
+              ) : (
+                notifications.map(notification => {
+                  const tone = notificationTone(notification.severity);
+                  const Icon = tone.icon;
+
+                  return (
+                    <button
+                      key={notification.id}
+                      onClick={() => handleNotificationClick(notification)}
+                      className={`w-full flex gap-3 px-4 py-3.5 text-left border-b border-white/[0.04] last:border-b-0 hover:bg-white/[0.04] transition-colors ${notification.read_at ? '' : 'bg-white/[0.025]'}`}
+                    >
+                      <div className={`mt-0.5 size-8 rounded-lg flex items-center justify-center shrink-0 ${tone.bg}`}>
+                        <Icon className={`size-4 ${tone.text}`} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start gap-2">
+                          <p className="text-[13px] font-medium text-[#EAE8E1] leading-snug flex-1">{notification.title}</p>
+                          {!notification.read_at && <span className={`mt-1.5 size-1.5 rounded-full shrink-0 ${tone.dot}`} />}
+                        </div>
+                        {notification.body && (
+                          <p
+                            className="text-[12px] text-[#A3A09A] leading-relaxed mt-1 overflow-hidden"
+                            style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}
+                          >
+                            {notification.body}
+                          </p>
+                        )}
+                        <p className="text-[11px] text-[#5f5b55] mt-2">{formatNotificationTime(notification.created_at)}</p>
+                      </div>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -182,8 +370,8 @@ function CreditMeter() {
 
   if (!credits) {
     return (
-      <div className="hidden xl:block w-28">
-        <div className="h-1.5 rounded-full bg-white/[0.08]" />
+      <div className="hidden xl:block w-24">
+        <div className="h-px rounded-full bg-white/[0.08]" />
       </div>
     );
   }
@@ -200,21 +388,21 @@ function CreditMeter() {
   return (
     <Link
       to="/app/settings"
-      className="hidden xl:block w-32 group"
+      className="hidden xl:flex w-[112px] flex-col gap-1 group"
       title={`Tokeny: ${left} / ${total}`}
       aria-label={`Tokeny: ${left} z ${total}`}
     >
-      <div className="flex items-center justify-between mb-1">
-        <span className="text-[10px] uppercase tracking-wider text-[#827E78] group-hover:text-[#A3A09A] transition-colors">
+      <div className="flex items-center justify-between leading-none">
+        <span className="text-[9px] uppercase tracking-wider text-[#827E78] group-hover:text-[#A3A09A] transition-colors">
           Tokeny
         </span>
-        <span className="text-[11px] font-mono text-[#A3A09A]">
+        <span className="text-[10px] font-mono text-[#A3A09A]">
           {left}/{total}
         </span>
       </div>
-      <div className="h-1.5 rounded-full bg-white/[0.08] overflow-hidden">
+      <div className="h-px rounded-full bg-white/[0.08] overflow-hidden">
         <div
-          className={`h-full rounded-full transition-all duration-300 ${meterColor}`}
+          className={`h-full rounded-full transition-[width,background-color] duration-500 ease-out ${meterColor}`}
           style={{ width: `${remainingPct}%` }}
         />
       </div>

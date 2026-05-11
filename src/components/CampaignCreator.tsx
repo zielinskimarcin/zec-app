@@ -7,6 +7,7 @@ import {
   Server, CheckCircle2
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { createNotification } from '../lib/notifications';
 
 // ─── Brand logos ──────────────────────────────────────────────────────────────
 
@@ -637,7 +638,7 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
     })),
   });
 
-  const generateAndStoreLeadEmail = async (campaignId: string, lead: DatabaseLead, selectedMailboxes: Mailbox[], emailId?: string) => {
+  const generateAndStoreLeadEmail = async (campaignId: string, lead: DatabaseLead, selectedMailboxes: Mailbox[], emailId?: string): Promise<boolean> => {
     try {
       const generation = await requestCampaignEmailGeneration(
         buildGenerationPayload(campaignId, selectedMailboxes, [lead])
@@ -684,6 +685,7 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
             }
           : item
       ));
+      return true;
     } catch (error) {
       console.error(`Błąd generowania maila dla ${lead.company}:`, error);
       setGeneratedLeads(prev => prev.map(item =>
@@ -695,6 +697,7 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
             }
           : item
       ));
+      return false;
     }
   };
 
@@ -744,9 +747,40 @@ export function CampaignCreator({ isOpen, onClose, preselectedLeadIds }: Campaig
 
       const [firstLead, ...remainingLeads] = selectedLeads;
       void (async () => {
-        if (firstLead) await generateAndStoreLeadEmail(campaignId, firstLead, selectedMailboxes, emailIdByLeadId.get(firstLead.id));
-        remainingLeads.forEach(lead => {
-          void generateAndStoreLeadEmail(campaignId, lead, selectedMailboxes, emailIdByLeadId.get(lead.id));
+        const results: boolean[] = [];
+
+        if (firstLead) {
+          results.push(await generateAndStoreLeadEmail(campaignId, firstLead, selectedMailboxes, emailIdByLeadId.get(firstLead.id)));
+        }
+
+        if (remainingLeads.length > 0) {
+          const remainingResults = await Promise.all(remainingLeads.map(lead =>
+            generateAndStoreLeadEmail(campaignId, lead, selectedMailboxes, emailIdByLeadId.get(lead.id))
+          ));
+          results.push(...remainingResults);
+        }
+
+        const generatedCount = results.filter(Boolean).length;
+        const failedCount = results.length - generatedCount;
+
+        await createNotification({
+          type: 'campaign_generation_finished',
+          title: failedCount > 0 ? 'Generowanie zakończone z błędami' : 'Maile gotowe do review',
+          body: failedCount > 0
+            ? `Kampania "${campaignName}": wygenerowano ${generatedCount}/${results.length} maili.`
+            : `Kampania "${campaignName}": przygotowano ${generatedCount} maili do akceptacji.`,
+          severity: failedCount > 0 ? 'warning' : 'success',
+          entityType: 'campaign',
+          entityId: campaignId,
+          actionUrl: '/app/campaigns',
+          metadata: {
+            campaign_id: campaignId,
+            campaign_name: campaignName,
+            generated_count: generatedCount,
+            failed_count: failedCount,
+            total_count: results.length,
+          },
+          dedupeKey: `campaign_generation_finished:${campaignId}`,
         });
       })();
 

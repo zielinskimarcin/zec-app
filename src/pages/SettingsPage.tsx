@@ -8,6 +8,14 @@ import {
   Building, Megaphone, Lock
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import {
+  DEFAULT_NOTIFICATION_SETTINGS,
+  NOTIFICATION_SETTING_GROUPS,
+  fetchNotificationSettings,
+  saveNotificationSettings,
+  type NotificationSettingKey,
+  type NotificationSettings,
+} from '../lib/notifications';
 
 // IMPORT TWOICH BRANŻ
 import { INDUSTRIES } from '../data/searchOptions';
@@ -1160,29 +1168,63 @@ function BlacklistTab() {
 }
 
 function NotificationsTab() {
-  const [s, setS] = useState({ campaignFinished: true, newReply: true, dailyReport: false, weeklyReport: true, lowCredits: true, mailboxError: true, newLead: false, productUpdates: true });
-  const tog = (k: keyof typeof s) => setS(p => ({ ...p, [k]: !p[k] }));
+  const [settings, setSettings] = useState<NotificationSettings>(DEFAULT_NOTIFICATION_SETTINGS);
+  const [loading, setLoading] = useState(true);
+  const [savingKey, setSavingKey] = useState<NotificationSettingKey | null>(null);
 
-  const groups = [
-    { title: 'Kampanie', items: [{ k: 'campaignFinished' as const, l: 'Kampania zakończona', d: 'Gdy wszystkie maile zostaną wysłane' }, { k: 'newReply' as const, l: 'Nowa odpowiedź', d: 'Ktoś odpowiedział na Twój mail' }, { k: 'newLead' as const, l: 'Lead zakwalifikowany', d: 'AI oznaczyło lead jako gorący' }] },
-    { title: 'Raporty', items: [{ k: 'dailyReport' as const, l: 'Raport dzienny', d: 'Podsumowanie aktywności każdego dnia' }, { k: 'weeklyReport' as const, l: 'Raport tygodniowy', d: 'Podsumowanie wyników co tydzień' }] },
-    { title: 'System', items: [{ k: 'lowCredits' as const, l: 'Niski stan kredytów', d: 'Gdy pozostanie mniej niż 10% kredytów' }, { k: 'mailboxError' as const, l: 'Błąd skrzynki', d: 'Gdy skrzynka straci połączenie' }, { k: 'productUpdates' as const, l: 'Aktualizacje produktu', d: 'Nowe funkcje i poprawki' }] },
-  ];
+  useEffect(() => {
+    let isMounted = true;
+
+    const load = async () => {
+      const next = await fetchNotificationSettings();
+      if (!isMounted) return;
+      setSettings(next);
+      setLoading(false);
+    };
+
+    load();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const tog = async (key: NotificationSettingKey) => {
+    const previous = settings;
+    const next = { ...settings, [key]: !settings[key] };
+
+    setSettings(next);
+    setSavingKey(key);
+
+    const { error } = await saveNotificationSettings(next);
+    if (error) {
+      console.error('Nie udało się zapisać ustawień powiadomień:', error);
+      setSettings(previous);
+    }
+
+    setSavingKey(null);
+  };
+
+  if (loading) {
+    return <div className="flex justify-center py-14"><Loader2 className="size-6 text-[#827E78] animate-spin" /></div>;
+  }
 
   return (
     <div className="space-y-10">
-      {groups.map((g, gi) => (
+      {NOTIFICATION_SETTING_GROUPS.map((g, gi) => (
         <section key={g.title}>
           <h2 className="text-[18px] font-medium text-[#EAE8E1] mb-6">{g.title}</h2>
           <div className="space-y-0">
             {g.items.map((item, i) => (
-              <div key={item.k}>
+              <div key={item.key}>
                 <div className="flex items-center justify-between py-5">
                   <div>
-                    <p className="text-[15px] font-medium text-[#EAE8E1]">{item.l}</p>
-                    <p className="text-[14px] text-[#A3A09A] mt-1">{item.d}</p>
+                    <p className="text-[15px] font-medium text-[#EAE8E1]">{item.label}</p>
+                    <p className="text-[14px] text-[#A3A09A] mt-1">{item.description}</p>
                   </div>
-                  <SoftToggle checked={s[item.k]} onChange={() => tog(item.k)} />
+                  <div className={savingKey === item.key ? 'opacity-60 pointer-events-none' : ''}>
+                    <SoftToggle checked={settings[item.key]} onChange={() => tog(item.key)} />
+                  </div>
                 </div>
                 {i < g.items.length - 1 && <div className="h-px bg-white/[0.06]" />}
               </div>
