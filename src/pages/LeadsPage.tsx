@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { 
   Search, Mail, Globe, Calendar, X, 
   Clock, Send, ArrowUpDown, ChevronRight, 
-  Loader2, Instagram, Linkedin, Lock, Trash2, Plus, SlidersHorizontal, Check, Users, ShieldAlert
+  Loader2, Instagram, Linkedin, Lock, Trash2, Plus, SlidersHorizontal, Check, Users
 } from 'lucide-react';
 import { Link } from 'react-router';
 import { supabase } from '../lib/supabase';
@@ -48,7 +48,6 @@ export function LeadsPage() {
   const [filterStatus, setFilterStatus] = useState<LeadStatus | 'all'>('all');
   const [filterSource, setFilterSource] = useState<'all' | 'ig' | 'in'>('all');
   const [sortBy, setSortBy] = useState<'date_desc' | 'date_asc' | 'company_asc' | 'city_asc' | 'industry_asc'>('date_desc');
-  const [isAddingMock, setIsAddingMock] = useState(false);
   const [isCreatorOpen, setIsCreatorOpen] = useState(false);
   const [creatorLeadIds, setCreatorLeadIds] = useState<string[]>([]);
   const openCreator = (ids: string[]) => {
@@ -158,97 +157,6 @@ export function LeadsPage() {
     if (error) {
       console.error('Błąd usuwania:', error);
       alert('Wystąpił błąd podczas usuwania. Odśwież stronę.');
-    }
-  };
-
-  // --- FUNKCJA DEWELOPERSKA: DODAJ MOCK LEADY ---
-  const handleAddMockLeads = async () => {
-    setIsAddingMock(true);
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
-      alert('Musisz być zalogowany.');
-      setIsAddingMock(false);
-      return;
-    }
-
-    const rand = Math.floor(Math.random() * 100000);
-    const mockHistory = [{ date: new Date().toISOString(), action: 'Wyszukano', details: 'Zescrapowano z Google Maps. Dodano przez Dev-Button.' }];
-
-    // Zmiana JSONa na zwykły tekst w punktach
-    const igDataText = `• Obserwujący: 14 500\n• Bio: 🚀 Skalujemy Twój biznes | Agencja 360\n• Ostatnie posty:\n  - Prezentacja nowego case-study z branży e-commerce (wzrost konwersji o 150%).\n  - Zdjęcia z integracji zespołu w górach - mocny nacisk na kulturę pracy.\n  - Promocja nowej usługi automatyzacji marketingu przy użyciu AI.`;
-
-    const inDataText = `• Wielkość firmy: 11-50 pracowników\n• Założona: 2018 (Polska)\n• Ostatnie posty:\n  - Ogłoszenie o poszukiwaniu Mid/Senior React Developera na projekt zagraniczny.\n  - Komentarz CEO dotyczący przyszłości sztucznej inteligencji w B2B SaaS.\n  - Podsumowanie kwartału: pozyskanie 3 nowych, dużych klientów z rynku brytyjskiego.`;
-
-    const mockData = [
-      { c: `Digital Growth ${rand}`, e: `kontakt${rand}@digitalgrowth.pl`, ind: 'Agencja Marketingowa', loc: 'Warszawa', person: 'Anna Nowak', ig: true, in: true, status: 'sent', summary: 'Dynamiczna agencja reklamowa. Mocno aktywna na LinkedIn, szukają rozwiązań do automatyzacji.' },
-      { c: `Code Crafters ${rand}`, e: `hello${rand}@codecrafters.io`, ind: 'Software House', loc: 'Kraków', person: 'Piotr Zieliński', ig: false, in: true, status: 'pending', summary: 'Firma IT tworząca aplikacje webowe. Zatrudniają około 50 osób. Nie prowadzą Instagrama.' },
-      { c: `Beauty Med Clinic ${rand}`, e: `recepcja${rand}@beautymed.pl`, ind: 'Medycyna Estetyczna', loc: 'Wrocław', person: 'Marta Kowal', ig: true, in: false, status: 'pending', summary: 'Klinika medycyny estetycznej premium. Mają świetny i angażujący profil na Instagramie.' },
-      { c: `Logistix B2B ${rand}`, e: `biuro${rand}@logistix.com.pl`, ind: 'Logistyka', loc: 'Poznań', person: 'Jan Kowalski', ig: false, in: false, status: 'pending', summary: 'Tradycyjna firma logistyczna, stara strona www. Potrzebują digitalizacji.' },
-      { c: `Eco Store E-commerce ${rand}`, e: `sklep${rand}@ecostore.pl`, ind: 'E-commerce', loc: 'Gdańsk', person: 'Tomasz Lis', ig: true, in: true, status: 'sent', summary: 'Szybko rosnący e-commerce z kosmetykami naturalnymi. Skalują się na rynki zagraniczne.' },
-      { c: `Archi Studio ${rand}`, e: `design${rand}@archistudio.pl`, ind: 'Architektura', loc: 'Warszawa', person: 'Katarzyna Zając', ig: true, in: false, status: 'pending', summary: 'Biuro projektowe z nagrodami. Publikują piękne realizacje na swoim profilu.' },
-      { c: `Fin-Tech Polska ${rand}`, e: `contact${rand}@fintech.pl`, ind: 'Finanse', loc: 'Warszawa', person: 'Michał Wiśniewski', ig: false, in: true, status: 'sent', summary: 'Startup technologiczny w branży finansowej. Właśnie zebrali drugą rundę finansowania.' },
-      { c: `Green Solar Energy ${rand}`, e: `biuro${rand}@greensolar.pl`, ind: 'OZE', loc: 'Rzeszów', person: 'Adam Małysz', ig: false, in: false, status: 'pending', summary: 'Lokalny instalator fotowoltaiki. Dużo negatywnych opinii w Google Maps, trzeba podejść ostrożnie.' },
-      { c: `Next Gen AI ${rand}`, e: `hello${rand}@nextgen.ai`, ind: 'SaaS', loc: 'Kraków', person: 'Julia Wieniawa', ig: true, in: true, status: 'pending', summary: 'Nowoczesny SaaS. Mocny content marketing i świetny Employer Branding na LinkedInie.' },
-      { c: `Real Estate Pro ${rand}`, e: `agents${rand}@realestate.com`, ind: 'Nieruchomości', loc: 'Gdynia', person: 'Robert Lewandowski', ig: false, in: true, status: 'sent', summary: 'Agencja nieruchomości premium z Trójmiasta. Oferują obsługę inwestorów z zagranicy.' },
-    ];
-
-    try {
-      let addedCount = 0;
-
-      for (const m of mockData) {
-        // 1. Wstaw do global_leads
-        const { data: globalData, error: globalErr } = await supabase
-          .from('global_leads')
-          .insert({ 
-            query_hash: `dev-mock-${rand}-${addedCount}`, 
-            company_name: m.c, 
-            email: m.e, 
-            industry: m.ind, 
-            city: m.loc, 
-            website: `www.${m.c.toLowerCase().replace(/\s+/g, '')}.pl` 
-          })
-          .select('id')
-          .single();
-
-        if (globalErr) { 
-          console.error('Błąd global_leads:', globalErr); 
-          alert(`Błąd dodawania do global_leads: ${globalErr.message}`);
-          continue; 
-        }
-
-        // 2. Wstaw do user_leads przypisane do usera
-        const { error: userErr } = await supabase
-          .from('user_leads')
-          .insert({
-            user_id: session.user.id,
-            global_lead_id: globalData.id,
-            name: m.person,
-            status: m.status,
-            summary: m.summary,
-            has_instagram: m.ig,
-            has_linkedin: m.in,
-            instagram_data: m.ig ? igDataText : null,
-            linkedin_data: m.in ? inDataText : null,
-            history: mockHistory
-          });
-
-        if (userErr) {
-          console.error('Błąd user_leads:', userErr);
-          alert(`Błąd dodawania do user_leads: ${userErr.message}`);
-        } else {
-          addedCount++;
-        }
-      }
-      
-      if (addedCount > 0) {
-        alert(`Dodano ${addedCount} leadów testowych!`);
-        fetchLeads(); // Odśwież listę po udanym dodaniu
-      }
-    } catch (err) {
-      console.error(err);
-      alert('Wystąpił nieoczekiwany błąd podczas dodawania mocków.');
-    } finally {
-      setIsAddingMock(false);
     }
   };
 
@@ -601,18 +509,6 @@ export function LeadsPage() {
         onClose={() => setIsCreatorOpen(false)}
         preselectedLeadIds={creatorLeadIds}
       />
-
-      {/* --- DEV BUTTON: DODAJ TESTOWE LEADY --- */}
-      <div className="fixed bottom-4 right-4 z-50">
-        <button 
-          onClick={handleAddMockLeads} 
-          disabled={isAddingMock}
-          className="flex items-center gap-2 px-3 py-1.5 bg-[#b56060]/10 border border-[#b56060]/30 hover:bg-[#b56060]/20 text-[#b56060] text-[11px] font-mono rounded-md transition-all opacity-50 hover:opacity-100 disabled:opacity-30 disabled:cursor-not-allowed"
-        >
-          {isAddingMock ? <Loader2 className="size-3 animate-spin" /> : <ShieldAlert className="size-3" />}
-          DEV: Wstaw 10 Mocków
-        </button>
-      </div>
 
     </div>
   );

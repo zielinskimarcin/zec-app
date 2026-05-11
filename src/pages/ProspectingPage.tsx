@@ -20,7 +20,6 @@ import {
   Lock,
   Mail,
   MapPin,
-  PlusCircle,
   Search,
   ShieldCheck,
   SlidersHorizontal,
@@ -56,6 +55,12 @@ interface GlobalLeadRow {
   created_at: string;
 }
 
+interface SearchGlobalLeadRow extends GlobalLeadRow {
+  credits_after: number | null;
+  charged_credits: number | null;
+  total_matches: number | null;
+}
+
 interface ProspectLead {
   id: string;
   companyName: string;
@@ -75,12 +80,6 @@ interface ProspectLead {
   createdAt: string;
 }
 
-const GLOBAL_LEAD_SELECT = `
-  id, query_hash, company_name, email, website, city, industry, created_at,
-  instagram_url, linkedin_url, facebook_url, linkedin_bio, instagram_last_post,
-  ai_icebreaker, email_source, enrichment_status, enriched_at
-`;
-
 const DEPTH_CONFIG: Record<SearchDepth, { label: string; tokenCost: number }> = {
   basic: {
     label: 'Podstawowe',
@@ -91,6 +90,8 @@ const DEPTH_CONFIG: Record<SearchDepth, { label: string; tokenCost: number }> = 
     tokenCost: 3,
   },
 };
+
+const FREE_RESULTS_PER_SEARCH = 10;
 
 function normalize(value: string | null | undefined) {
   return (value || '')
@@ -301,7 +302,6 @@ export function ProspectingPage() {
   const [error, setError] = useState<string | null>(null);
   const [availableTokens, setAvailableTokens] = useState(0);
   const [userId, setUserId] = useState<string | null>(null);
-  const [isAddingCredits, setIsAddingCredits] = useState(false);
   const [isCreatorOpen, setIsCreatorOpen] = useState(false);
   const [creatorLeadIds, setCreatorLeadIds] = useState<string[]>([]);
 
@@ -325,17 +325,14 @@ export function ProspectingPage() {
   );
 
   const tokenCostPerLead = DEPTH_CONFIG[searchDepth].tokenCost;
-  const estimatedCost = common.maxLeads * tokenCostPerLead;
+  const estimatedCost = Math.max(0, common.maxLeads - FREE_RESULTS_PER_SEARCH) * tokenCostPerLead;
 
   useEffect(() => {
     let isMounted = true;
 
     async function fetchPreview() {
       const { data, error: previewError } = await supabase
-        .from('global_leads')
-        .select(GLOBAL_LEAD_SELECT)
-        .not('email', 'is', null)
-        .limit(90);
+        .rpc('zec_preview_global_leads', { p_limit: 10 });
 
       if (previewError) {
         console.error('Błąd pobierania preview:', previewError);
@@ -400,33 +397,6 @@ export function ProspectingPage() {
     };
   }, []);
 
-  const leadMatchesFilters = (lead: ProspectLead) => {
-    const cityLabel = getOptionLabel(CITIES, common.city);
-    const industryLabel = getOptionLabel(INDUSTRIES, common.industry);
-    const industryTokens = common.industry ? [...tokenize(common.industry.replace(/_/g, ' ')), ...tokenize(industryLabel)] : [];
-    const keywordTokens = tokenize(common.keywords);
-    const haystack = normalize([
-      lead.companyName,
-      lead.email,
-      lead.website,
-      lead.city,
-      lead.industry,
-      lead.aiIcebreaker,
-      lead.instagramLastPost,
-      lead.linkedinBio,
-    ].filter(Boolean).join(' '));
-
-    if (common.city && !normalize(lead.city).includes(normalize(cityLabel))) return false;
-    if (common.industry && !industryTokens.some(token => haystack.includes(token))) return false;
-    if (keywordTokens.length > 0 && !keywordTokens.every(token => haystack.includes(token))) return false;
-    if (advanced.requireEmail && !lead.email) return false;
-    if (advanced.requireWebsite && !lead.website) return false;
-    if (advanced.requireSocial && !hasSocialData(lead)) return false;
-    if ((advanced.onlyEnriched || searchDepth === 'enriched') && !isEnriched(lead)) return false;
-
-    return true;
-  };
-
   const handleSearch = async () => {
     setError(null);
 
@@ -440,27 +410,31 @@ export function ProspectingPage() {
       return;
     }
 
-    if (availableTokens < tokenCostPerLead) {
-      setError(`Masz za mało tokenów na wyszukiwanie ${DEPTH_CONFIG[searchDepth].label}.`);
-      return;
-    }
-
     setIsSearching(true);
 
     try {
-      const query = supabase
-        .from('global_leads')
-        .select(GLOBAL_LEAD_SELECT)
-        .range(0, 1999);
+      const cityLabel = common.city ? getOptionLabel(CITIES, common.city) : null;
+      const industryLabel = getOptionLabel(INDUSTRIES, common.industry);
+      const industryTokens = common.industry
+        ? [...tokenize(common.industry.replace(/_/g, ' ')), ...tokenize(industryLabel)]
+        : [];
+      const keywordTokens = tokenize(common.keywords);
 
-      const { data, error: searchError } = await query;
+      const { data, error: searchError } = await supabase.rpc('zec_search_global_leads', {
+        p_city: cityLabel,
+        p_industry_tokens: industryTokens,
+        p_keyword_tokens: keywordTokens,
+        p_max_leads: common.maxLeads,
+        p_search_depth: searchDepth,
+        p_require_email: advanced.requireEmail,
+        p_require_website: advanced.requireWebsite,
+        p_require_social: advanced.requireSocial,
+        p_only_enriched: advanced.onlyEnriched,
+      });
       if (searchError) throw searchError;
 
-      const matches = ((data || []) as GlobalLeadRow[])
-        .map(mapLead)
-        .filter(leadMatchesFilters)
-        .sort((a, b) => leadScore(b) - leadScore(a))
-        .slice(0, common.maxLeads);
+      const rows = (data || []) as SearchGlobalLeadRow[];
+      const matches = rows.map(mapLead);
 
       if (matches.length === 0) {
         setLeads([]);
@@ -469,33 +443,17 @@ export function ProspectingPage() {
         return;
       }
 
-      const affordableCount = Math.floor(availableTokens / tokenCostPerLead);
-      const finalMatches = matches.slice(0, affordableCount);
-      const charge = finalMatches.length * tokenCostPerLead;
+      const meta = rows[0];
+      const totalMatches = meta?.total_matches ?? matches.length;
+      const nextCredits = meta?.credits_after;
 
-      if (finalMatches.length === 0 || charge <= 0) {
-        setError('Masz za mało tokenów, żeby odblokować znalezione leady.');
-        return;
-      }
-
-      const { data: nextCredits, error: creditError } = await supabase.rpc('zec_spend_profile_credits', { p_amount: charge });
-      if (creditError) throw creditError;
-
-      await supabase.from('search_requests').insert({
-        user_id: userId,
-        query_hash: `${searchDepth}:${common.industry || 'any'}:${common.city || 'any'}:${common.keywords || 'any'}`.toLowerCase(),
-        status: 'completed',
-        leads_requested: common.maxLeads,
-        leads_found: finalMatches.length,
-      });
-
-      setAvailableTokens(typeof nextCredits === 'number' ? nextCredits : Math.max(0, availableTokens - charge));
-      setLeads(finalMatches);
+      if (typeof nextCredits === 'number') setAvailableTokens(nextCredits);
+      setLeads(matches);
       setResultSource(searchDepth);
       setSelectedIds(new Set());
 
-      if (finalMatches.length < matches.length) {
-        setError(`Pokazuję ${finalMatches.length} wyników, bo tyle mieści się w aktualnym saldzie tokenów.`);
+      if (matches.length < totalMatches) {
+        setError(`Pokazuję ${matches.length} wyników. Pierwsze ${FREE_RESULTS_PER_SEARCH} jest bez tokenów, reszta zależy od salda.`);
       }
     } catch (err) {
       console.error(err);
@@ -531,6 +489,20 @@ export function ProspectingPage() {
       })
       .select('id')
       .single();
+
+    if (saveError?.code === '23505') {
+      const { data: existingLead, error: existingError } = await supabase
+        .from('user_leads')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('global_lead_id', lead.id)
+        .single();
+
+      if (!existingError && existingLead?.id) {
+        setSavedByGlobalId(prev => ({ ...prev, [lead.id]: existingLead.id }));
+        return existingLead.id;
+      }
+    }
 
     if (saveError || !data) throw saveError || new Error('Nie udało się zapisać leada.');
 
@@ -586,26 +558,6 @@ export function ProspectingPage() {
     setSelectedIds(prev => prev.size === leads.length ? new Set() : new Set(leads.map(lead => lead.id)));
   };
 
-  const handleAddDevCredits = async () => {
-    setIsAddingCredits(true);
-
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-
-      const { data: profile } = await supabase.from('profiles').select('credits').eq('id', session.user.id).single();
-      const nextCredits = (profile?.credits || 0) + 500;
-      const { error: creditError } = await supabase.from('profiles').update({ credits: nextCredits }).eq('id', session.user.id);
-      if (creditError) throw creditError;
-      setAvailableTokens(nextCredits);
-    } catch (err) {
-      console.error(err);
-      setError('Nie udało się dodać tokenów testowych.');
-    } finally {
-      setIsAddingCredits(false);
-    }
-  };
-
   if (isLoading) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
@@ -634,10 +586,6 @@ export function ProspectingPage() {
               <p className="text-[16px] font-bold text-[#EAE8E1] font-mono leading-none">{availableTokens.toLocaleString('pl-PL')}</p>
             </div>
           </div>
-          <div className="w-px h-8 bg-white/[0.08] mx-1" />
-          <button onClick={handleAddDevCredits} disabled={isAddingCredits} className="p-2 text-[#827E78] hover:text-[#5d9970] transition-colors disabled:opacity-50" title="Dodaj tokeny testowe">
-            {isAddingCredits ? <Loader2 className="size-4 animate-spin" /> : <PlusCircle className="size-4" />}
-          </button>
         </div>
       </motion.div>
 
@@ -673,7 +621,7 @@ export function ProspectingPage() {
           <p className="text-[12px] text-[#827E78]">
             Koszt: <span className="text-[#EAE8E1] font-mono">{DEPTH_CONFIG[searchDepth].tokenCost} tok/lead</span>
             <span className="mx-2 text-white/[0.14]">·</span>
-            razem <span className="text-[#EAE8E1] font-mono">{estimatedCost} tok.</span>
+            pierwsze {FREE_RESULTS_PER_SEARCH} bez tokenów
           </p>
         </div>
 
@@ -777,7 +725,7 @@ export function ProspectingPage() {
           <div className="w-full md:w-auto">
             <p className="text-[12px] font-medium text-[#827E78] uppercase tracking-wider mb-1">Wyszukiwanie w bazie</p>
             <p className="text-[13px] text-[#A3A09A]">
-              {common.maxLeads} wyników · {DEPTH_CONFIG[searchDepth].label.toLowerCase()} · {estimatedCost} tok.
+              {common.maxLeads} wyników · {DEPTH_CONFIG[searchDepth].label.toLowerCase()} · koszt do {estimatedCost} tok.
             </p>
           </div>
 

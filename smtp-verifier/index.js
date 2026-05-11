@@ -1,29 +1,37 @@
 const express = require('express');
 const nodemailer = require('nodemailer');
 const cors = require('cors');
+require('dotenv').config();
 
 const app = express();
 app.use(express.json());
-app.use(cors());
+app.use(cors({ origin: process.env.CORS_ORIGIN || true }));
 
-// Twój lokalny klucz
-const API_SECRET = 'ZEC_SECRET_2026';
+const apiSecret = process.env.SMTP_VERIFY_SECRET;
 
 app.post('/verify', async (req, res) => {
   const authHeader = req.headers.authorization;
-  if (authHeader !== `Bearer ${API_SECRET}`) {
+  if (apiSecret && authHeader !== `Bearer ${apiSecret}`) {
     return res.status(401).json({ success: false, error: 'Brak autoryzacji' });
   }
 
   const { email, password, host, port } = req.body;
+  const smtpPort = parseInt(port, 10);
+
+  if (!email || !password || !host || ![465, 587].includes(smtpPort)) {
+    return res.status(400).json({ success: false, error: 'Uzupełnij poprawne dane SMTP.' });
+  }
 
   try {
     const transporter = nodemailer.createTransport({
-      host: host,
-      port: parseInt(port),
-      secure: parseInt(port) === 465,
+      host,
+      port: smtpPort,
+      secure: smtpPort === 465,
+      requireTLS: smtpPort === 587,
       auth: { user: email, pass: password },
-      connectionTimeout: 5000 // 5 sekund timeoutu
+      connectionTimeout: 8000,
+      greetingTimeout: 8000,
+      socketTimeout: 8000,
     });
 
     await transporter.verify();

@@ -139,14 +139,16 @@ function detectMailboxProvider(email: string, smtpHost?: string): 'google' | 'mi
 }
 
 const DRAFT_KEY = 'zec_campaign_draft';
-const CAMPAIGN_EMAIL_WEBHOOK_URL =
-  import.meta.env.VITE_N8N_CAMPAIGN_EMAIL_WEBHOOK_URL ||
-  'https://n8n.srv1579942.hstgr.cloud/webhook/zec-campaign-email-generator';
-
 async function requestCampaignEmailGeneration(payload: unknown): Promise<EmailGenerationResponse> {
-  const response = await fetch(CAMPAIGN_EMAIL_WEBHOOK_URL, {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error("Sesja wygasła. Zaloguj się ponownie.");
+
+  const response = await fetch('/api/campaign-email-generation', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${session.access_token}`,
+    },
     body: JSON.stringify(payload),
   });
 

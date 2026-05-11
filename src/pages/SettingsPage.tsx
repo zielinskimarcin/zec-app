@@ -15,6 +15,8 @@ import { INDUSTRIES } from '../data/searchOptions';
 type Tab = 'profile' | 'company' | 'mailboxes' | 'campaign' | 'billing' | 'blacklist' | 'notifications';
 type Provider = 'gmail' | 'outlook' | 'other' | null;
 
+const EMAIL_ACCOUNT_SAFE_SELECT = 'id, email_address, sender_name, status, daily_limit, sent_today, last_sync, smtp_host';
+
 interface EmailAccount {
   id: string;
   email_address: string;
@@ -510,7 +512,10 @@ function MailboxesTab() {
     setLoading(true);
     const { data: { session } } = await supabase.auth.getSession();
     if (session) {
-      const { data } = await supabase.from('email_accounts').select('*').order('created_at', { ascending: false });
+      const { data } = await supabase
+        .from('email_accounts')
+        .select(EMAIL_ACCOUNT_SAFE_SELECT)
+        .order('created_at', { ascending: false });
       if (data) setMailboxes(data);
     }
     setLoading(false);
@@ -537,10 +542,17 @@ function MailboxesTab() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('Brak autoryzacji');
       const URL = import.meta.env.DEV ? 'http://localhost:3000/verify' : '/api/verify';
-      const res = await fetch(URL, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ZEC_SECRET_2026' }, body: JSON.stringify({ email: mb.email, password: mb.password, host: mb.smtpHost, port: mb.smtpPort }) });
+      const res = await fetch(URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ email: mb.email, password: mb.password, host: mb.smtpHost, port: mb.smtpPort }),
+      });
       const r = await res.json();
       if (!res.ok || !r.success) throw new Error(r.error || 'Błędne dane SMTP.');
-      const { data, error } = await supabase.from('email_accounts').insert([{ user_id: session.user.id, email_address: mb.email, sender_name: mb.name || mb.email.split('@')[0], smtp_host: mb.smtpHost, smtp_port: parseInt(mb.smtpPort), smtp_password: mb.password, imap_host: mb.imapHost, imap_port: parseInt(mb.imapPort), status: 'connected' }]).select().single();
+      const { data, error } = await supabase.from('email_accounts').insert([{ user_id: session.user.id, email_address: mb.email, sender_name: mb.name || mb.email.split('@')[0], smtp_host: mb.smtpHost, smtp_port: parseInt(mb.smtpPort), smtp_password: mb.password, imap_host: mb.imapHost, imap_port: parseInt(mb.imapPort), status: 'connected' }]).select(EMAIL_ACCOUNT_SAFE_SELECT).single();
       if (error) throw error;
       setMailboxes(p => [data, ...p]); close();
     } catch (e: any) { setErr(e.message); } finally { setVerifying(false); }
