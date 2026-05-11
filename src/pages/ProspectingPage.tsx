@@ -309,6 +309,9 @@ function InsightSection({
   title,
   href,
   isLocked,
+  onLockedClick,
+  lockedActionLabel = 'Kliknij, żeby odblokować',
+  lockedDisabled = false,
   previewKey,
   emptyText,
   children,
@@ -318,6 +321,9 @@ function InsightSection({
   title: string;
   href?: string | null;
   isLocked: boolean;
+  onLockedClick?: () => void;
+  lockedActionLabel?: string;
+  lockedDisabled?: boolean;
   previewKey: keyof typeof LOCKED_SECTION_PREVIEW;
   emptyText: string;
   children?: ReactNode;
@@ -345,16 +351,21 @@ function InsightSection({
 
       {isLocked ? (
         <div className="relative min-h-[104px] overflow-hidden rounded-lg border border-white/[0.06] bg-white/[0.025]">
-          <div className="absolute inset-0 space-y-2 p-4 blur-md opacity-70 select-none pointer-events-none">
+          <div className="absolute inset-0 space-y-2 p-4 blur-[2px] opacity-55 select-none pointer-events-none">
             {previewLines.map(line => (
               <p key={line} className="text-[13px] text-[#A3A09A] leading-relaxed">{line}</p>
             ))}
           </div>
-          <div className="absolute inset-0 flex items-center justify-center bg-[#050505]/75 backdrop-blur-sm">
-            <div className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-white/[0.12] bg-[#111]/95 text-[12px] text-[#EAE8E1] shadow-xl">
+          <div className="absolute inset-0 flex items-center justify-center bg-[#050505]/45">
+            <button
+              type="button"
+              onClick={onLockedClick}
+              disabled={!onLockedClick || lockedDisabled}
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-white/[0.1] bg-[#111]/90 text-[12px] text-[#EAE8E1] shadow-xl transition-colors disabled:cursor-default disabled:opacity-70 enabled:hover:border-white/[0.18]"
+            >
               <Lock className="size-3.5 text-[#827E78]" />
-              Odblokuj rozszerzony profil
-            </div>
+              {lockedActionLabel}
+            </button>
           </div>
         </div>
       ) : (
@@ -500,7 +511,7 @@ export function ProspectingPage() {
 
   const tokenCostPerLead = DEPTH_CONFIG[searchDepth].tokenCost;
   const selectedUnlockCost = selectedLeads
-    .filter(lead => lead.emailAvailable && !savedByGlobalId[lead.id] && !hasUnlockDepth(lead, searchDepth))
+    .filter(lead => lead.emailAvailable && !hasUnlockDepth(lead, searchDepth))
     .length * tokenCostPerLead;
   const displayedTotal = resultSource === 'preview' ? leads.length : (totalMatches ?? leads.length);
   const isPartialResult = resultSource !== 'preview' && displayedTotal > leads.length;
@@ -643,7 +654,7 @@ export function ProspectingPage() {
   };
 
   const unlockLeads = async (leadsToUnlock: ProspectLead[], depth: SearchDepth = searchDepth) => {
-    const candidates = leadsToUnlock.filter(lead => !savedByGlobalId[lead.id] && !hasUnlockDepth(lead, depth));
+    const candidates = leadsToUnlock.filter(lead => !hasUnlockDepth(lead, depth));
     const withoutEmail = candidates.filter(lead => !lead.emailAvailable && !lead.email);
 
     if (withoutEmail.length > 0) {
@@ -672,6 +683,24 @@ export function ProspectingPage() {
     }
 
     return leadsToUnlock.map(lead => unlockedById.get(lead.id) || lead);
+  };
+
+  const unlockDetailLead = async () => {
+    if (!detailLead) return;
+    setSavingAction('save');
+    setError(null);
+
+    try {
+      const [unlockedLead] = await unlockLeads([detailLead], 'enriched');
+      if (unlockedLead) setDetailLead(unlockedLead);
+    } catch (err) {
+      console.error(err);
+      setError(err instanceof Error && err.message.includes('Insufficient credits')
+        ? 'Masz za mało tokenów, żeby odblokować rozszerzony profil.'
+        : 'Nie udało się odblokować rozszerzonego profilu.');
+    } finally {
+      setSavingAction(null);
+    }
   };
 
   const saveLeadRecord = async (lead: ProspectLead, source: ResultSource = resultSource) => {
@@ -1062,30 +1091,24 @@ export function ProspectingPage() {
 
                 <div className="col-span-2">
                   <div className="mb-2">
-                    <p className={`text-[12px] font-medium ${showcase ? 'text-[#7fcf95]' : 'text-[#A3A09A]'}`}>
+                    <p className={`text-[12px] font-medium ${showcase ? 'text-[#6f9275]' : 'text-[#A3A09A]'}`}>
                       {showcase ? 'darmowy full' : extendedVisible ? 'pełny profil' : 'podstawowy'}
                     </p>
                     {!extendedVisible && <p className="text-[11px] text-[#827E78]">rozszerzone ukryte</p>}
                   </div>
-                  <div className="relative inline-flex min-w-[92px] h-6 items-center gap-1.5 overflow-hidden rounded-md border border-white/[0.08] bg-white/[0.025]">
+                  <div className="flex h-5 items-center gap-1.5">
                     {extendedVisible ? (
-                      <div className="flex items-center gap-1.5 px-2">
+                      <>
                         {lead.instagramUrl && <Instagram className="size-3.5 text-[#b56060]" />}
                         {lead.linkedinUrl && <Linkedin className="size-3.5 text-[#6a9bc9]" />}
                         {lead.facebookUrl && <Globe className="size-3.5 text-[#827E78]" />}
                         {!hasSocialData(lead) && <span className="text-[11px] text-[#3a3a3a]">brak sociali</span>}
-                      </div>
-                    ) : (
-                      <>
-                        <div className="absolute inset-0 flex items-center gap-2 px-2 blur-sm opacity-70">
-                          <Instagram className="size-3.5 text-[#827E78]" />
-                          <Linkedin className="size-3.5 text-[#827E78]" />
-                          <Globe className="size-3.5 text-[#827E78]" />
-                        </div>
-                        <div className="absolute inset-0 flex items-center justify-center bg-[#050505]/70 backdrop-blur-sm">
-                          <Lock className="size-3 text-[#A3A09A]" />
-                        </div>
                       </>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 text-[11px] text-[#827E78]">
+                        <Lock className="size-3" />
+                        social + sygnały
+                      </span>
                     )}
                   </div>
                 </div>
@@ -1102,19 +1125,9 @@ export function ProspectingPage() {
                           {getLeadSignalText(lead)}
                         </p>
                       ) : (
-                        <div className="relative h-8 max-w-full overflow-hidden rounded-md border border-white/[0.08] bg-white/[0.025]">
-                          <div className="absolute inset-0 px-2 py-1.5 blur-sm opacity-70 select-none">
-                            <p className="text-[12px] text-[#A3A09A] truncate">
-                              Sygnały publiczne, ostatnie posty i źródła profilu
-                            </p>
-                          </div>
-                          <div className="absolute inset-0 flex items-center justify-end px-2 bg-[#050505]/70 backdrop-blur-sm">
-                            <div className="inline-flex items-center gap-1.5 text-[11px] text-[#A3A09A]">
-                              <Lock className="size-3" />
-                              ukryte
-                            </div>
-                          </div>
-                        </div>
+                        <p className="text-[12px] text-[#827E78] truncate">
+                          Dostępne w rozszerzonym profilu
+                        </p>
                       )}
                     </>
                   </div>
@@ -1135,7 +1148,7 @@ export function ProspectingPage() {
               <div className="px-8 py-6 border-b border-white/[0.06] flex justify-between items-start bg-white/[0.02]">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 mb-2">
-                    <span className={`text-[12px] font-medium ${isShowcaseLead(detailLead) ? 'text-[#7fcf95]' : 'text-[#827E78]'}`}>
+                    <span className={`text-[12px] font-medium ${isShowcaseLead(detailLead) ? 'text-[#6f9275]' : 'text-[#827E78]'}`}>
                       {isShowcaseLead(detailLead) ? 'darmowy full' : detailCanViewExtended ? 'pełny profil' : 'podstawowy'}
                     </span>
                     {!detailCanViewExtended && <Lock className="size-3 text-[#827E78]" />}
@@ -1186,6 +1199,9 @@ export function ProspectingPage() {
                       icon={ShieldCheck}
                       title="Sygnały publiczne"
                       isLocked={!detailCanViewExtended}
+                      onLockedClick={() => void unlockDetailLead()}
+                      lockedActionLabel={savingAction === 'save' ? 'Odblokowuję...' : 'Kliknij, żeby odblokować'}
+                      lockedDisabled={savingAction === 'save'}
                       previewKey="public"
                       emptyText="Brak potwierdzonych sygnałów publicznych w tym profilu."
                       accentClass="text-[#5d9970]"
@@ -1208,6 +1224,9 @@ export function ProspectingPage() {
                       title="Instagram"
                       href={detailLead.instagramUrl}
                       isLocked={!detailCanViewExtended}
+                      onLockedClick={() => void unlockDetailLead()}
+                      lockedActionLabel={savingAction === 'save' ? 'Odblokowuję...' : 'Kliknij, żeby odblokować'}
+                      lockedDisabled={savingAction === 'save'}
                       previewKey="instagram"
                       emptyText="Brak potwierdzonego profilu lub ostatniej aktywności Instagram."
                       accentClass="text-[#b56060]"
@@ -1226,6 +1245,9 @@ export function ProspectingPage() {
                       title="LinkedIn"
                       href={detailLead.linkedinUrl}
                       isLocked={!detailCanViewExtended}
+                      onLockedClick={() => void unlockDetailLead()}
+                      lockedActionLabel={savingAction === 'save' ? 'Odblokowuję...' : 'Kliknij, żeby odblokować'}
+                      lockedDisabled={savingAction === 'save'}
                       previewKey="linkedin"
                       emptyText="Brak potwierdzonego profilu lub opisu LinkedIn."
                       accentClass="text-[#6a9bc9]"
@@ -1244,6 +1266,9 @@ export function ProspectingPage() {
                       title="Facebook"
                       href={detailLead.facebookUrl}
                       isLocked={!detailCanViewExtended}
+                      onLockedClick={() => void unlockDetailLead()}
+                      lockedActionLabel={savingAction === 'save' ? 'Odblokowuję...' : 'Kliknij, żeby odblokować'}
+                      lockedDisabled={savingAction === 'save'}
                       previewKey="facebook"
                       emptyText="Brak potwierdzonego profilu Facebook."
                     >
@@ -1258,6 +1283,9 @@ export function ProspectingPage() {
                       icon={ExternalLink}
                       title="Źródła"
                       isLocked={!detailCanViewExtended}
+                      onLockedClick={() => void unlockDetailLead()}
+                      lockedActionLabel={savingAction === 'save' ? 'Odblokowuję...' : 'Kliknij, żeby odblokować'}
+                      lockedDisabled={savingAction === 'save'}
                       previewKey="sources"
                       emptyText="Brak zapisanych źródeł dla tego profilu."
                     >
