@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ElementType } from 'react';
+import { useEffect, useMemo, useRef, useState, type ElementType, type ReactNode } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   AlertCircle,
@@ -263,6 +263,25 @@ function getLeadSignalText(lead: ProspectLead) {
     || 'Publiczny rekord firmowy w bazie ZEC.';
 }
 
+function formatNumber(value: number) {
+  return value.toLocaleString('pl-PL');
+}
+
+function isShowcaseLead(lead: ProspectLead) {
+  const value = lead.publicProfile?.showcase_full_profile;
+  return value === true || value === 'true';
+}
+
+function canViewExtendedLead(lead: ProspectLead) {
+  return isShowcaseLead(lead) || lead.unlockDepth === 'enriched';
+}
+
+function hasUnlockDepth(lead: ProspectLead, depth: SearchDepth) {
+  if (isShowcaseLead(lead)) return true;
+  if (!lead.isUnlocked) return false;
+  return depth === 'basic' || lead.unlockDepth === 'enriched';
+}
+
 function buildSummary(lead: ProspectLead, source: ResultSource) {
   const signals = lead.businessSignals
     .slice(0, 3)
@@ -284,6 +303,74 @@ function makeHistory(source: ResultSource) {
       ? 'Lead zapisany z dodatkowymi danymi z globalnej bazy ZEC.'
       : 'Lead dodany z globalnej bazy ZEC.',
   }];
+}
+
+const LOCKED_SECTION_PREVIEW: Record<string, string[]> = {
+  public: ['Sygnały z publicznych stron i katalogów', 'Aktywność, zmiany i kontekst firmy', 'Źródła do szybkiej weryfikacji'],
+  instagram: ['Ostatnia aktywność profilu', 'Tematy komunikacji i aktualne posty', 'Link do profilu firmowego'],
+  linkedin: ['Opis firmy i pozycjonowanie', 'Profil firmowy lub decyzyjny', 'Kontekst pod kampanię B2B'],
+  facebook: ['Publiczny profil firmy', 'Dodatkowy kanał kontaktu', 'Ślad aktywności w social media'],
+  sources: ['Strona firmowa', 'Profile social media', 'Publiczne źródła danych'],
+};
+
+function InsightSection({
+  icon: Icon,
+  title,
+  href,
+  isLocked,
+  previewKey,
+  emptyText,
+  children,
+  accentClass = 'text-[#827E78]',
+}: {
+  icon: ElementType;
+  title: string;
+  href?: string | null;
+  isLocked: boolean;
+  previewKey: keyof typeof LOCKED_SECTION_PREVIEW;
+  emptyText: string;
+  children?: ReactNode;
+  accentClass?: string;
+}) {
+  const previewLines = LOCKED_SECTION_PREVIEW[previewKey];
+
+  return (
+    <div className="p-5 rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden">
+      <div className="flex items-center gap-2 mb-3 text-[#EAE8E1]">
+        <Icon className={`size-4 ${accentClass}`} />
+        <span className="text-[13px] font-medium">{title}</span>
+        {!isLocked && href && (
+          <a href={ensureUrl(href)} target="_blank" rel="noopener noreferrer" className="ml-auto text-[#827E78] hover:text-[#EAE8E1] transition-colors">
+            <ExternalLink className="size-3.5" />
+          </a>
+        )}
+        {isLocked && (
+          <span className="ml-auto inline-flex items-center gap-1.5 text-[10px] text-[#827E78] bg-white/[0.04] border border-white/[0.08] rounded-full px-2 py-0.5">
+            <Lock className="size-3" />
+            rozszerzone
+          </span>
+        )}
+      </div>
+
+      {isLocked ? (
+        <div className="relative">
+          <div className="space-y-2 blur-[2px] opacity-45 select-none pointer-events-none">
+            {previewLines.map(line => (
+              <p key={line} className="text-[13px] text-[#A3A09A] leading-relaxed">{line}</p>
+            ))}
+          </div>
+          <div className="absolute inset-0 flex items-center justify-center bg-[#0a0a0a]/35">
+            <div className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-white/[0.08] bg-[#111]/85 text-[12px] text-[#EAE8E1] shadow-xl">
+              <Lock className="size-3.5 text-[#827E78]" />
+              Odblokuj rozszerzony profil
+            </div>
+          </div>
+        </div>
+      ) : (
+        children || <p className="text-[13px] text-[#827E78] leading-relaxed">{emptyText}</p>
+      )}
+    </div>
+  );
 }
 
 function CheckRow({ label, checked, onChange }: { label: string; checked: boolean; onChange: (value: boolean) => void }) {
@@ -389,6 +476,7 @@ export function ProspectingPage() {
   const [savedByGlobalId, setSavedByGlobalId] = useState<Record<string, string>>({});
   const [detailLead, setDetailLead] = useState<ProspectLead | null>(null);
   const [resultSource, setResultSource] = useState<ResultSource>('preview');
+  const [totalMatches, setTotalMatches] = useState<number | null>(null);
   const [searchDepth, setSearchDepth] = useState<SearchDepth>('basic');
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -421,8 +509,10 @@ export function ProspectingPage() {
 
   const tokenCostPerLead = DEPTH_CONFIG[searchDepth].tokenCost;
   const selectedUnlockCost = selectedLeads
-    .filter(lead => lead.emailAvailable && !lead.isUnlocked && !savedByGlobalId[lead.id])
+    .filter(lead => lead.emailAvailable && !savedByGlobalId[lead.id] && !hasUnlockDepth(lead, searchDepth))
     .length * tokenCostPerLead;
+  const displayedTotal = resultSource === 'preview' ? leads.length : (totalMatches ?? leads.length);
+  const isPartialResult = resultSource !== 'preview' && displayedTotal > leads.length;
 
   useEffect(() => {
     let isMounted = true;
@@ -440,11 +530,12 @@ export function ProspectingPage() {
 
       const preview = ((data || []) as GlobalLeadRow[])
         .map(mapLead)
-        .sort((a, b) => leadScore(b) - leadScore(a))
+        .sort((a, b) => Number(isShowcaseLead(b)) - Number(isShowcaseLead(a)) || leadScore(b) - leadScore(a))
         .slice(0, 10);
 
       setLeads(preview);
       setResultSource('preview');
+      setTotalMatches(null);
     }
 
     async function fetchUserData(currentUserId: string) {
@@ -503,7 +594,7 @@ export function ProspectingPage() {
     }
 
     if (!userId) {
-      setError('Musisz być zalogowany, żeby używać płatnego wyszukiwania.');
+      setError('Musisz być zalogowany, żeby używać wyszukiwania w bazie.');
       return;
     }
 
@@ -538,6 +629,7 @@ export function ProspectingPage() {
       if (matches.length === 0) {
         setLeads([]);
         setResultSource(searchDepth);
+        setTotalMatches(0);
         setError('Brak wyników dla tych kryteriów. Spróbuj poluzować filtry albo zmienić miasto.');
         return;
       }
@@ -549,11 +641,8 @@ export function ProspectingPage() {
       if (typeof nextCredits === 'number') setAvailableTokens(nextCredits);
       setLeads(matches);
       setResultSource(searchDepth);
+      setTotalMatches(totalMatches);
       setSelectedIds(new Set());
-
-      if (matches.length < totalMatches) {
-        setError(`Pokazuję ${matches.length} z ${totalMatches} wyników. Samo wyszukiwanie nie pobiera tokenów.`);
-      }
     } catch (err) {
       console.error(err);
       setError('Nie udało się wykonać wyszukiwania w bazie.');
@@ -563,7 +652,7 @@ export function ProspectingPage() {
   };
 
   const unlockLeads = async (leadsToUnlock: ProspectLead[], depth: SearchDepth = searchDepth) => {
-    const candidates = leadsToUnlock.filter(lead => !savedByGlobalId[lead.id]);
+    const candidates = leadsToUnlock.filter(lead => !savedByGlobalId[lead.id] && !hasUnlockDepth(lead, depth));
     const withoutEmail = candidates.filter(lead => !lead.emailAvailable && !lead.email);
 
     if (withoutEmail.length > 0) {
@@ -700,6 +789,9 @@ export function ProspectingPage() {
     setSelectedIds(prev => prev.size === leads.length ? new Set() : new Set(leads.map(lead => lead.id)));
   };
 
+  const detailIsShowcase = detailLead ? isShowcaseLead(detailLead) : false;
+  const detailCanViewExtended = detailLead ? canViewExtendedLead(detailLead) : false;
+
   if (isLoading) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
@@ -832,30 +924,12 @@ export function ProspectingPage() {
           <AnimatePresence>
             {showAdvanced && (
               <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden bg-white/[0.01]">
-                <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="p-6">
                   <div className="space-y-3.5">
                     <CheckRow label="Tylko leady z e-mailem" checked={advanced.requireEmail} onChange={value => setAdvanced(prev => ({ ...prev, requireEmail: value }))} />
                     <CheckRow label="Wymagaj strony WWW" checked={advanced.requireWebsite} onChange={value => setAdvanced(prev => ({ ...prev, requireWebsite: value }))} />
                     <CheckRow label="Wymagaj przynajmniej jednego sociala" checked={advanced.requireSocial} onChange={value => setAdvanced(prev => ({ ...prev, requireSocial: value }))} />
                     <CheckRow label="Tylko z dodatkowymi danymi" checked={advanced.onlyEnriched} onChange={value => setAdvanced(prev => ({ ...prev, onlyEnriched: value }))} />
-                  </div>
-                  <div>
-                    <div className="flex items-center justify-between mb-3">
-                      <p className="text-[12px] font-medium text-[#827E78] uppercase tracking-wider">Liczba wyników</p>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[16px] font-bold text-[#EAE8E1] font-mono">{common.maxLeads}</span>
-                        <span className="text-[12px] text-[#827E78]">/ 0 tok. za search</span>
-                      </div>
-                    </div>
-                    <input
-                      type="range"
-                      min={5}
-                      max={50}
-                      step={5}
-                      value={common.maxLeads}
-                      onChange={event => setCommon(prev => ({ ...prev, maxLeads: Number(event.target.value) }))}
-                      className="w-full h-px bg-white/[0.08] rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:size-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#EAE8E1] [&::-webkit-slider-thumb]:border-4 [&::-webkit-slider-thumb]:border-[#1a1a1a]"
-                    />
                   </div>
                 </div>
               </motion.div>
@@ -864,11 +938,20 @@ export function ProspectingPage() {
         </div>
 
         <div className="border-t border-white/[0.06] px-6 py-5 flex flex-col md:flex-row items-center justify-between gap-5 bg-white/[0.01]">
-          <div className="w-full md:w-auto">
-            <p className="text-[12px] font-medium text-[#827E78] uppercase tracking-wider mb-1">Wyszukiwanie w bazie</p>
-            <p className="text-[13px] text-[#A3A09A]">
-              {common.maxLeads} wyników · {DEPTH_CONFIG[searchDepth].label.toLowerCase()} · odblokowanie {tokenCostPerLead} tok/lead
-            </p>
+          <div className="w-full md:max-w-xs">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-[11px] font-medium text-[#827E78] uppercase tracking-wider">Liczba wyników</p>
+              <span className="text-[13px] font-mono text-[#EAE8E1]">{common.maxLeads}</span>
+            </div>
+            <input
+              type="range"
+              min={5}
+              max={50}
+              step={5}
+              value={common.maxLeads}
+              onChange={event => setCommon(prev => ({ ...prev, maxLeads: Number(event.target.value) }))}
+              className="w-full h-1 bg-white/[0.08] rounded-full appearance-none cursor-pointer accent-[#EAE8E1] [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:size-3.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#EAE8E1] [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-[#1a1a1a]"
+            />
           </div>
 
           <button
@@ -889,13 +972,13 @@ export function ProspectingPage() {
                 {resultSource === 'preview' ? 'Podgląd bazy' : `Wyniki: ${DEPTH_CONFIG[resultSource].label.toLowerCase()}`}
               </p>
               <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-white/[0.06] border border-white/[0.08] text-[#A3A09A]">
-                {leads.length} leadów
+                {formatNumber(leads.length)} leadów
               </span>
             </div>
             <p className="text-[12px] text-[#827E78]">
               {resultSource === 'preview'
-                ? '10 przykładowych leadów z najwyższą kompletnością danych.'
-                : `Znaleziono ${leads.length} wyników. Tokeny pobieramy dopiero przy zapisie lub kampanii.`}
+                ? 'Przykładowe leady z najwyższą kompletnością danych.'
+                : `Znaleziono ${formatNumber(displayedTotal)}${isPartialResult ? '+' : ''} wyników · pokazano ${formatNumber(leads.length)}. Tokeny pobieramy dopiero przy zapisie lub kampanii.`}
             </p>
           </div>
 
@@ -933,12 +1016,14 @@ export function ProspectingPage() {
             const saved = Boolean(savedByGlobalId[lead.id]);
             const score = leadScore(lead);
             const leadEnriched = isEnriched(lead);
+            const showcase = isShowcaseLead(lead);
+            const extendedVisible = canViewExtendedLead(lead);
 
             return (
               <div
                 key={lead.id}
                 onClick={() => setDetailLead(lead)}
-                className={`grid grid-cols-12 gap-4 px-6 py-4 items-center cursor-pointer transition-all ${selected ? 'bg-white/[0.04]' : 'hover:bg-white/[0.02]'}`}
+                className={`grid grid-cols-12 gap-4 px-6 py-4 items-center cursor-pointer transition-all border-l-2 ${selected ? 'bg-white/[0.04] border-l-[#EAE8E1]/50' : showcase ? 'bg-[#5d9970]/[0.035] hover:bg-[#5d9970]/[0.06] border-l-[#5d9970]/50' : 'hover:bg-white/[0.02] border-l-transparent'}`}
               >
                 <div className="col-span-1 flex items-center">
                   <button
@@ -955,6 +1040,7 @@ export function ProspectingPage() {
                 <div className="col-span-4 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     <p className="text-[14px] font-medium text-[#EAE8E1] truncate">{lead.companyName}</p>
+                    {showcase && <span className="text-[10px] text-[#5d9970] bg-[#5d9970]/10 border border-[#5d9970]/20 rounded-full px-2 py-0.5 shrink-0">darmowy full</span>}
                     {saved && <span className="text-[10px] text-[#5d9970] bg-[#5d9970]/10 border border-[#5d9970]/20 rounded-full px-2 py-0.5 shrink-0">zapisany</span>}
                   </div>
                   <p className="text-[13px] text-[#827E78] truncate flex items-center gap-1.5">
@@ -965,10 +1051,12 @@ export function ProspectingPage() {
                 <div className="col-span-2 min-w-0">
                   <div className="flex items-center gap-1.5 text-[12px] text-[#A3A09A] truncate mb-1">
                     <Mail className="size-3.5 shrink-0" />
-                    {resultSource === 'preview' ? (
+                    {lead.email ? (
+                      <span className="truncate">{lead.email}</span>
+                    ) : resultSource === 'preview' ? (
                       <span className="text-[#827E78]">{lead.emailAvailable ? 'email do odblokowania' : 'brak emaila'}</span>
                     ) : (
-                      <span className="truncate">{lead.email || (lead.emailAvailable ? 'email do odblokowania' : 'brak emaila')}</span>
+                      <span className="truncate">{lead.emailAvailable ? 'email do odblokowania' : 'brak emaila'}</span>
                     )}
                   </div>
                   {lead.website && (
@@ -987,9 +1075,9 @@ export function ProspectingPage() {
 
                 <div className="col-span-2">
                   <div className="flex items-center gap-2 mb-2">
-                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium border ${leadEnriched ? 'text-[#5d9970] bg-[#5d9970]/10 border-[#5d9970]/20' : 'text-[#A3A09A] bg-white/[0.06] border-white/[0.08]'}`}>
-                      {leadEnriched ? <Sparkles className="size-3" /> : <Database className="size-3" />}
-                      {leadEnriched ? 'Rozszerzony' : 'Podstawowy'}
+                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium border ${leadEnriched || showcase ? 'text-[#5d9970] bg-[#5d9970]/10 border-[#5d9970]/20' : 'text-[#A3A09A] bg-white/[0.06] border-white/[0.08]'}`}>
+                      {leadEnriched || showcase ? <Sparkles className="size-3" /> : <Database className="size-3" />}
+                      {showcase ? 'Darmowy full' : leadEnriched ? 'Rozszerzony' : 'Podstawowy'}
                     </span>
                     <span className="text-[11px] font-mono text-[#827E78]">{score}%</span>
                   </div>
@@ -1009,7 +1097,7 @@ export function ProspectingPage() {
                         <span className="text-[10px] text-[#827E78] uppercase tracking-wider font-medium">Sygnały publiczne</span>
                       </div>
                       <p className="text-[12px] text-[#A3A09A] truncate">
-                        {getLeadSignalText(lead)}
+                        {extendedVisible ? getLeadSignalText(lead) : 'Sociale, sygnały i źródła w rozszerzonym profilu'}
                       </p>
                     </>
                   </div>
@@ -1030,9 +1118,9 @@ export function ProspectingPage() {
               <div className="px-8 py-6 border-b border-white/[0.06] flex justify-between items-start bg-white/[0.02]">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 mb-2">
-                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium border ${isEnriched(detailLead) ? 'text-[#5d9970] bg-[#5d9970]/10 border-[#5d9970]/20' : 'text-[#A3A09A] bg-white/[0.06] border-white/[0.08]'}`}>
-                      {isEnriched(detailLead) ? <Sparkles className="size-3" /> : <Database className="size-3" />}
-                      {isEnriched(detailLead) ? 'Rozszerzony' : 'Podstawowy'}
+                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium border ${detailCanViewExtended ? 'text-[#5d9970] bg-[#5d9970]/10 border-[#5d9970]/20' : 'text-[#A3A09A] bg-white/[0.06] border-white/[0.08]'}`}>
+                      {detailCanViewExtended ? <Sparkles className="size-3" /> : <Database className="size-3" />}
+                      {detailIsShowcase ? 'Darmowy full' : detailCanViewExtended ? 'Rozszerzony' : 'Podstawowy'}
                     </span>
                     <span className="text-[11px] font-mono text-[#827E78]">{leadScore(detailLead)}% jakości</span>
                   </div>
@@ -1050,7 +1138,7 @@ export function ProspectingPage() {
                 <div className="bg-white/[0.02] border border-white/[0.06] rounded-2xl p-6">
                   <h3 className="text-[12px] font-medium text-[#A3A09A] mb-3 uppercase tracking-wider">Podsumowanie</h3>
                   <p className="text-[14px] text-[#EAE8E1] leading-relaxed">
-                    {buildSummary(detailLead, resultSource)}
+                    {buildSummary(detailLead, detailCanViewExtended ? 'enriched' : 'basic')}
                   </p>
                 </div>
 
@@ -1078,66 +1166,88 @@ export function ProspectingPage() {
                   </div>
 
                   <div className="space-y-3">
-                    {detailLead.businessSignals.length > 0 && (
-                      <div className="p-5 rounded-xl border border-white/[0.06] bg-white/[0.02]">
-                        <div className="flex items-center gap-2 mb-3 text-[#EAE8E1]">
-                          <ShieldCheck className="size-4 text-[#5d9970]" />
-                          <span className="text-[13px] font-medium">Sygnały publiczne</span>
-                        </div>
-                        <div className="space-y-2">
-                          {detailLead.businessSignals.slice(0, 5).map((signal, index) => (
+                    <InsightSection
+                      icon={ShieldCheck}
+                      title="Sygnały publiczne"
+                      isLocked={!detailCanViewExtended}
+                      previewKey="public"
+                      emptyText="Brak potwierdzonych sygnałów publicznych w tym profilu."
+                      accentClass="text-[#5d9970]"
+                    >
+                      <div className="space-y-2">
+                        {detailLead.businessSignals.length > 0 ? (
+                          detailLead.businessSignals.slice(0, 5).map((signal, index) => (
                             <p key={index} className="text-[13px] text-[#A3A09A] leading-relaxed">
                               {[signal.label, signal.value].filter(Boolean).join(': ')}
                             </p>
-                          ))}
-                        </div>
+                          ))
+                        ) : (
+                          <p className="text-[13px] text-[#827E78] leading-relaxed">Brak potwierdzonych sygnałów publicznych w tym profilu.</p>
+                        )}
                       </div>
-                    )}
+                    </InsightSection>
 
-                    {detailLead.instagramUrl || detailLead.instagramLastPost ? (
-                      <div className="p-5 rounded-xl border border-white/[0.06] bg-white/[0.02]">
-                        <div className="flex items-center gap-2 mb-3 text-[#EAE8E1]">
-                          <Instagram className="size-4 text-[#b56060]" />
-                          <span className="text-[13px] font-medium">Instagram</span>
-                          {detailLead.instagramUrl && <a href={ensureUrl(detailLead.instagramUrl)} target="_blank" rel="noopener noreferrer" className="ml-auto text-[#827E78] hover:text-[#EAE8E1]"><ExternalLink className="size-3.5" /></a>}
-                        </div>
+                    <InsightSection
+                      icon={Instagram}
+                      title="Instagram"
+                      href={detailLead.instagramUrl}
+                      isLocked={!detailCanViewExtended}
+                      previewKey="instagram"
+                      emptyText="Brak potwierdzonego profilu lub ostatniej aktywności Instagram."
+                      accentClass="text-[#b56060]"
+                    >
+                      {detailLead.instagramLastPost || detailLead.instagramUrl ? (
                         <p className="text-[13px] text-[#A3A09A] leading-relaxed whitespace-pre-wrap">
                           {detailLead.instagramLastPost || detailLead.instagramUrl}
                         </p>
-                      </div>
-                    ) : null}
+                      ) : (
+                        <p className="text-[13px] text-[#827E78] leading-relaxed">Brak potwierdzonego profilu lub ostatniej aktywności Instagram.</p>
+                      )}
+                    </InsightSection>
 
-                    {detailLead.linkedinUrl || detailLead.linkedinBio ? (
-                      <div className="p-5 rounded-xl border border-white/[0.06] bg-white/[0.02]">
-                        <div className="flex items-center gap-2 mb-3 text-[#EAE8E1]">
-                          <Linkedin className="size-4 text-[#6a9bc9]" />
-                          <span className="text-[13px] font-medium">LinkedIn</span>
-                          {detailLead.linkedinUrl && <a href={ensureUrl(detailLead.linkedinUrl)} target="_blank" rel="noopener noreferrer" className="ml-auto text-[#827E78] hover:text-[#EAE8E1]"><ExternalLink className="size-3.5" /></a>}
-                        </div>
+                    <InsightSection
+                      icon={Linkedin}
+                      title="LinkedIn"
+                      href={detailLead.linkedinUrl}
+                      isLocked={!detailCanViewExtended}
+                      previewKey="linkedin"
+                      emptyText="Brak potwierdzonego profilu lub opisu LinkedIn."
+                      accentClass="text-[#6a9bc9]"
+                    >
+                      {detailLead.linkedinBio || detailLead.linkedinUrl ? (
                         <p className="text-[13px] text-[#A3A09A] leading-relaxed whitespace-pre-wrap">
                           {detailLead.linkedinBio || detailLead.linkedinUrl}
                         </p>
-                      </div>
-                    ) : null}
+                      ) : (
+                        <p className="text-[13px] text-[#827E78] leading-relaxed">Brak potwierdzonego profilu lub opisu LinkedIn.</p>
+                      )}
+                    </InsightSection>
 
-                    {detailLead.facebookUrl ? (
-                      <div className="p-5 rounded-xl border border-white/[0.06] bg-white/[0.02] flex items-center justify-between gap-4">
-                        <div className="flex items-center gap-2 text-[#EAE8E1]">
-                          <Globe className="size-4 text-[#827E78]" />
-                          <span className="text-[13px] font-medium">Facebook</span>
-                        </div>
+                    <InsightSection
+                      icon={Globe}
+                      title="Facebook"
+                      href={detailLead.facebookUrl}
+                      isLocked={!detailCanViewExtended}
+                      previewKey="facebook"
+                      emptyText="Brak potwierdzonego profilu Facebook."
+                    >
+                      {detailLead.facebookUrl ? (
                         <a href={ensureUrl(detailLead.facebookUrl)} target="_blank" rel="noopener noreferrer" className="text-[13px] text-[#A3A09A] hover:text-[#EAE8E1] transition-colors">Otwórz profil</a>
-                      </div>
-                    ) : null}
+                      ) : (
+                        <p className="text-[13px] text-[#827E78] leading-relaxed">Brak potwierdzonego profilu Facebook.</p>
+                      )}
+                    </InsightSection>
 
-                    {detailLead.dataSources.length > 0 && (
-                      <div className="p-5 rounded-xl border border-white/[0.06] bg-white/[0.02]">
-                        <div className="flex items-center gap-2 mb-3 text-[#EAE8E1]">
-                          <ExternalLink className="size-4 text-[#827E78]" />
-                          <span className="text-[13px] font-medium">Źródła</span>
-                        </div>
-                        <div className="space-y-2">
-                          {detailLead.dataSources.slice(0, 4).map((source, index) => (
+                    <InsightSection
+                      icon={ExternalLink}
+                      title="Źródła"
+                      isLocked={!detailCanViewExtended}
+                      previewKey="sources"
+                      emptyText="Brak zapisanych źródeł dla tego profilu."
+                    >
+                      <div className="space-y-2">
+                        {detailLead.dataSources.length > 0 ? (
+                          detailLead.dataSources.slice(0, 4).map((source, index) => (
                             source.url ? (
                               <a
                                 key={index}
@@ -1149,18 +1259,12 @@ export function ProspectingPage() {
                                 {source.label || source.url}
                               </a>
                             ) : null
-                          ))}
-                        </div>
+                          ))
+                        ) : (
+                          <p className="text-[13px] text-[#827E78] leading-relaxed">Brak zapisanych źródeł dla tego profilu.</p>
+                        )}
                       </div>
-                    )}
-
-                    {!hasSocialData(detailLead) && !detailLead.instagramLastPost && !detailLead.linkedinBio && detailLead.businessSignals.length === 0 && (
-                      <div className="text-center p-8 border border-dashed border-white/[0.1] rounded-2xl bg-white/[0.01]">
-                        <Lock className="size-5 text-[#827E78] mx-auto mb-4" />
-                        <h4 className="text-[14px] font-medium text-[#EAE8E1] mb-2">Brak rozszerzonych social danych</h4>
-                        <p className="text-[13px] text-[#827E78]">Ten rekord ma na razie tylko podstawowe dane.</p>
-                      </div>
-                    )}
+                    </InsightSection>
                   </div>
                 </div>
               </div>
