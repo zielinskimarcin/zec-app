@@ -10,7 +10,6 @@ import {
   ChevronRight,
   ChevronUp,
   Coins,
-  Database,
   ExternalLink,
   Globe,
   Instagram,
@@ -23,7 +22,6 @@ import {
   Search,
   ShieldCheck,
   SlidersHorizontal,
-  Sparkles,
   Target,
   X,
 } from 'lucide-react';
@@ -227,13 +225,6 @@ function hasSocialData(lead: ProspectLead) {
   return Boolean(lead.instagramUrl || lead.linkedinUrl || lead.facebookUrl);
 }
 
-function isEnriched(lead: ProspectLead) {
-  return lead.enrichmentStatus === 'enriched'
-    || lead.dataQualityScore >= 70
-    || lead.businessSignals.length > 0
-    || Boolean(lead.description || lead.instagramLastPost || lead.linkedinBio || hasSocialData(lead));
-}
-
 function leadScore(lead: ProspectLead) {
   if (lead.dataQualityScore > 0) return lead.dataQualityScore;
 
@@ -335,7 +326,7 @@ function InsightSection({
   const previewLines = LOCKED_SECTION_PREVIEW[previewKey];
 
   return (
-    <div className="p-5 rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden">
+    <div className={`p-5 rounded-xl border overflow-hidden ${isLocked ? 'relative border-white/[0.08] bg-white/[0.015]' : 'border-white/[0.06] bg-white/[0.02]'}`}>
       <div className="flex items-center gap-2 mb-3 text-[#EAE8E1]">
         <Icon className={`size-4 ${accentClass}`} />
         <span className="text-[13px] font-medium">{title}</span>
@@ -354,13 +345,13 @@ function InsightSection({
 
       {isLocked ? (
         <div className="relative">
-          <div className="space-y-2 blur-[2px] opacity-45 select-none pointer-events-none">
+          <div className="space-y-2 blur-[3px] opacity-55 select-none pointer-events-none">
             {previewLines.map(line => (
               <p key={line} className="text-[13px] text-[#A3A09A] leading-relaxed">{line}</p>
             ))}
           </div>
-          <div className="absolute inset-0 flex items-center justify-center bg-[#0a0a0a]/35">
-            <div className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-white/[0.08] bg-[#111]/85 text-[12px] text-[#EAE8E1] shadow-xl">
+          <div className="absolute -inset-2 flex items-center justify-center bg-[#0a0a0a]/45 backdrop-blur-[2px]">
+            <div className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-white/[0.1] bg-[#111]/90 text-[12px] text-[#EAE8E1] shadow-xl">
               <Lock className="size-3.5 text-[#827E78]" />
               Odblokuj rozszerzony profil
             </div>
@@ -789,7 +780,6 @@ export function ProspectingPage() {
     setSelectedIds(prev => prev.size === leads.length ? new Set() : new Set(leads.map(lead => lead.id)));
   };
 
-  const detailIsShowcase = detailLead ? isShowcaseLead(detailLead) : false;
   const detailCanViewExtended = detailLead ? canViewExtendedLead(detailLead) : false;
 
   if (isLoading) {
@@ -984,7 +974,7 @@ export function ProspectingPage() {
 
           <div className="hidden md:flex items-center gap-2 text-[12px] text-[#827E78]">
             <ShieldCheck className="size-4" />
-            <span>{leads.filter(isEnriched).length} z dodatkowymi danymi</span>
+            <span>{leads.filter(canViewExtendedLead).length} pełnych podglądów</span>
           </div>
         </div>
 
@@ -1015,7 +1005,6 @@ export function ProspectingPage() {
             const selected = selectedIds.has(lead.id);
             const saved = Boolean(savedByGlobalId[lead.id]);
             const score = leadScore(lead);
-            const leadEnriched = isEnriched(lead);
             const showcase = isShowcaseLead(lead);
             const extendedVisible = canViewExtendedLead(lead);
 
@@ -1040,7 +1029,6 @@ export function ProspectingPage() {
                 <div className="col-span-4 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     <p className="text-[14px] font-medium text-[#EAE8E1] truncate">{lead.companyName}</p>
-                    {showcase && <span className="text-[10px] text-[#5d9970] bg-[#5d9970]/10 border border-[#5d9970]/20 rounded-full px-2 py-0.5 shrink-0">darmowy full</span>}
                     {saved && <span className="text-[10px] text-[#5d9970] bg-[#5d9970]/10 border border-[#5d9970]/20 rounded-full px-2 py-0.5 shrink-0">zapisany</span>}
                   </div>
                   <p className="text-[13px] text-[#827E78] truncate flex items-center gap-1.5">
@@ -1075,17 +1063,31 @@ export function ProspectingPage() {
 
                 <div className="col-span-2">
                   <div className="flex items-center gap-2 mb-2">
-                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium border ${leadEnriched || showcase ? 'text-[#5d9970] bg-[#5d9970]/10 border-[#5d9970]/20' : 'text-[#A3A09A] bg-white/[0.06] border-white/[0.08]'}`}>
-                      {leadEnriched || showcase ? <Sparkles className="size-3" /> : <Database className="size-3" />}
-                      {showcase ? 'Darmowy full' : leadEnriched ? 'Rozszerzony' : 'Podstawowy'}
-                    </span>
-                    <span className="text-[11px] font-mono text-[#827E78]">{score}%</span>
+                    <span className="text-[11px] font-mono text-[#827E78]">{score}% jakości</span>
+                    {!extendedVisible && (
+                      <span className="inline-flex items-center text-[#827E78]" title="Dostępne w rozszerzonym profilu">
+                        <Lock className="size-3" />
+                      </span>
+                    )}
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    {lead.instagramUrl && <Instagram className="size-3.5 text-[#b56060]" />}
-                    {lead.linkedinUrl && <Linkedin className="size-3.5 text-[#6a9bc9]" />}
-                    {lead.facebookUrl && <Globe className="size-3.5 text-[#827E78]" />}
-                    {!hasSocialData(lead) && <span className="text-[11px] text-[#3a3a3a]">brak sociali</span>}
+                  <div className="relative inline-flex items-center gap-1.5">
+                    {extendedVisible ? (
+                      <>
+                        {lead.instagramUrl && <Instagram className="size-3.5 text-[#b56060]" />}
+                        {lead.linkedinUrl && <Linkedin className="size-3.5 text-[#6a9bc9]" />}
+                        {lead.facebookUrl && <Globe className="size-3.5 text-[#827E78]" />}
+                        {!hasSocialData(lead) && <span className="text-[11px] text-[#3a3a3a]">brak sociali</span>}
+                      </>
+                    ) : (
+                      <>
+                        <div className="flex items-center gap-1.5 blur-[2px] opacity-45">
+                          <Instagram className="size-3.5 text-[#827E78]" />
+                          <Linkedin className="size-3.5 text-[#827E78]" />
+                          <Globe className="size-3.5 text-[#827E78]" />
+                        </div>
+                        <div className="absolute -inset-x-1 -inset-y-0.5 bg-[#0a0a0a]/25 backdrop-blur-[1px]" />
+                      </>
+                    )}
                   </div>
                 </div>
 
@@ -1096,9 +1098,20 @@ export function ProspectingPage() {
                         <Layers3 className="size-3 text-[#A3A09A]" />
                         <span className="text-[10px] text-[#827E78] uppercase tracking-wider font-medium">Sygnały publiczne</span>
                       </div>
-                      <p className="text-[12px] text-[#A3A09A] truncate">
-                        {extendedVisible ? getLeadSignalText(lead) : 'Sociale, sygnały i źródła w rozszerzonym profilu'}
-                      </p>
+                      {extendedVisible ? (
+                        <p className="text-[12px] text-[#A3A09A] truncate">
+                          {getLeadSignalText(lead)}
+                        </p>
+                      ) : (
+                        <div className="relative max-w-full">
+                          <p className="text-[12px] text-[#A3A09A] truncate blur-[2px] opacity-55 select-none">
+                            Sygnały publiczne, ostatnie posty i źródła profilu
+                          </p>
+                          <div className="absolute -inset-x-1 -inset-y-0.5 flex items-center justify-end bg-[#0a0a0a]/25 backdrop-blur-[1px]">
+                            <Lock className="size-3 text-[#827E78]" />
+                          </div>
+                        </div>
+                      )}
                     </>
                   </div>
                   <ChevronRight className="size-4 text-[#3a3a3a] shrink-0" />
@@ -1117,12 +1130,9 @@ export function ProspectingPage() {
             <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 200 }} className="fixed right-0 top-[72px] h-[calc(100vh-72px)] w-full max-w-xl bg-[#0a0a0a] border-l border-white/[0.08] z-40 flex flex-col shadow-2xl">
               <div className="px-8 py-6 border-b border-white/[0.06] flex justify-between items-start bg-white/[0.02]">
                 <div className="min-w-0">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium border ${detailCanViewExtended ? 'text-[#5d9970] bg-[#5d9970]/10 border-[#5d9970]/20' : 'text-[#A3A09A] bg-white/[0.06] border-white/[0.08]'}`}>
-                      {detailCanViewExtended ? <Sparkles className="size-3" /> : <Database className="size-3" />}
-                      {detailIsShowcase ? 'Darmowy full' : detailCanViewExtended ? 'Rozszerzony' : 'Podstawowy'}
-                    </span>
+                  <div className="flex items-center gap-2 mb-2 text-[11px] font-mono text-[#827E78]">
                     <span className="text-[11px] font-mono text-[#827E78]">{leadScore(detailLead)}% jakości</span>
+                    {!detailCanViewExtended && <Lock className="size-3" />}
                   </div>
                   <h2 className="text-[22px] font-serif text-[#EAE8E1] mb-1 truncate">{detailLead.companyName}</h2>
                   <p className="text-[14px] text-[#A3A09A] flex items-center gap-2">
