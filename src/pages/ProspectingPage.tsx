@@ -25,7 +25,6 @@ import {
   SlidersHorizontal,
   Sparkles,
   Target,
-  Wand2,
   X,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -34,6 +33,17 @@ import { CITIES, COUNTRIES, INDUSTRIES } from '../data/searchOptions';
 
 type SearchDepth = 'basic' | 'enriched';
 type ResultSource = 'preview' | SearchDepth;
+
+interface LeadSignal {
+  label?: string | null;
+  value?: string | null;
+}
+
+interface LeadSource {
+  type?: string | null;
+  label?: string | null;
+  url?: string | null;
+}
 
 interface GlobalLeadRow {
   id: string;
@@ -53,6 +63,24 @@ interface GlobalLeadRow {
   enrichment_status: string | null;
   enriched_at: string | null;
   created_at: string;
+  country?: string | null;
+  region?: string | null;
+  address?: string | null;
+  phone?: string | null;
+  contact_page_url?: string | null;
+  description?: string | null;
+  category_tags?: string[] | null;
+  technologies?: string[] | null;
+  business_signals?: LeadSignal[] | null;
+  data_sources?: LeadSource[] | null;
+  contact_status?: string | null;
+  data_quality_score?: number | null;
+  source_confidence?: number | null;
+  last_checked_at?: string | null;
+  public_profile?: Record<string, unknown> | null;
+  is_unlocked?: boolean | null;
+  unlock_depth?: string | null;
+  email_available?: boolean | null;
 }
 
 interface SearchGlobalLeadRow extends GlobalLeadRow {
@@ -78,6 +106,24 @@ interface ProspectLead {
   enrichmentStatus: string | null;
   enrichedAt: string | null;
   createdAt: string;
+  country: string | null;
+  region: string | null;
+  address: string | null;
+  phone: string | null;
+  contactPageUrl: string | null;
+  description: string | null;
+  categoryTags: string[];
+  technologies: string[];
+  businessSignals: LeadSignal[];
+  dataSources: LeadSource[];
+  contactStatus: string | null;
+  dataQualityScore: number;
+  sourceConfidence: number;
+  lastCheckedAt: string | null;
+  publicProfile: Record<string, unknown>;
+  isUnlocked: boolean;
+  unlockDepth: string | null;
+  emailAvailable: boolean;
 }
 
 const DEPTH_CONFIG: Record<SearchDepth, { label: string; tokenCost: number }> = {
@@ -90,8 +136,6 @@ const DEPTH_CONFIG: Record<SearchDepth, { label: string; tokenCost: number }> = 
     tokenCost: 3,
   },
 };
-
-const FREE_RESULTS_PER_SEARCH = 10;
 
 function normalize(value: string | null | undefined) {
   return (value || '')
@@ -127,6 +171,9 @@ function ensureUrl(website: string | null) {
 }
 
 function mapLead(row: GlobalLeadRow): ProspectLead {
+  const businessSignals = Array.isArray(row.business_signals) ? row.business_signals : [];
+  const dataSources = Array.isArray(row.data_sources) ? row.data_sources : [];
+
   return {
     id: row.id,
     companyName: row.company_name,
@@ -144,6 +191,24 @@ function mapLead(row: GlobalLeadRow): ProspectLead {
     enrichmentStatus: row.enrichment_status,
     enrichedAt: row.enriched_at,
     createdAt: row.created_at,
+    country: row.country || null,
+    region: row.region || null,
+    address: row.address || null,
+    phone: row.phone || null,
+    contactPageUrl: row.contact_page_url || null,
+    description: row.description || null,
+    categoryTags: row.category_tags || [],
+    technologies: row.technologies || [],
+    businessSignals,
+    dataSources,
+    contactStatus: row.contact_status || null,
+    dataQualityScore: row.data_quality_score || 0,
+    sourceConfidence: row.source_confidence || 0,
+    lastCheckedAt: row.last_checked_at || null,
+    publicProfile: row.public_profile || {},
+    isUnlocked: Boolean(row.is_unlocked || row.email),
+    unlockDepth: row.unlock_depth || null,
+    emailAvailable: Boolean(row.email_available || row.email),
   };
 }
 
@@ -153,10 +218,14 @@ function hasSocialData(lead: ProspectLead) {
 
 function isEnriched(lead: ProspectLead) {
   return lead.enrichmentStatus === 'enriched'
-    || Boolean(lead.aiIcebreaker || lead.instagramLastPost || lead.linkedinBio || hasSocialData(lead));
+    || lead.dataQualityScore >= 70
+    || lead.businessSignals.length > 0
+    || Boolean(lead.description || lead.instagramLastPost || lead.linkedinBio || hasSocialData(lead));
 }
 
 function leadScore(lead: ProspectLead) {
+  if (lead.dataQualityScore > 0) return lead.dataQualityScore;
+
   let score = 0;
   if (lead.email) score += 30;
   if (lead.website) score += 15;
@@ -170,15 +239,30 @@ function leadScore(lead: ProspectLead) {
   return Math.min(100, score);
 }
 
-function buildSummary(lead: ProspectLead, source: ResultSource) {
-  if (source === 'basic') {
-    return `Lead z globalnej bazy ZEC. Firma: ${lead.companyName}. ${lead.industry ? `Branża: ${lead.industry}. ` : ''}${lead.city ? `Lokalizacja: ${lead.city}.` : ''}`;
+function getLeadSignalText(lead: ProspectLead) {
+  const signal = lead.businessSignals.find(item => item?.value || item?.label);
+
+  if (signal) {
+    return [signal.label, signal.value].filter(Boolean).join(': ');
   }
 
-  return lead.aiIcebreaker
-    || lead.instagramLastPost
+  return lead.description
     || lead.linkedinBio
-    || `Lead z globalnej bazy ZEC z dostępem do dodatkowych sygnałów. ${lead.industry ? `Branża: ${lead.industry}.` : ''}`;
+    || lead.instagramLastPost
+    || 'Publiczny rekord firmowy w bazie ZEC.';
+}
+
+function buildSummary(lead: ProspectLead, source: ResultSource) {
+  const signals = lead.businessSignals
+    .slice(0, 3)
+    .map(signal => [signal.label, signal.value].filter(Boolean).join(': '))
+    .filter(Boolean);
+
+  const base = `${lead.companyName}. ${lead.description || `${lead.industry ? `Branża: ${lead.industry}. ` : ''}${lead.city ? `Lokalizacja: ${lead.city}.` : ''}`}`;
+
+  if (source === 'basic' || signals.length === 0) return base;
+
+  return `${base} Sygnały publiczne: ${signals.join(' | ')}.`;
 }
 
 function makeHistory(source: ResultSource) {
@@ -325,7 +409,9 @@ export function ProspectingPage() {
   );
 
   const tokenCostPerLead = DEPTH_CONFIG[searchDepth].tokenCost;
-  const estimatedCost = Math.max(0, common.maxLeads - FREE_RESULTS_PER_SEARCH) * tokenCostPerLead;
+  const selectedUnlockCost = selectedLeads
+    .filter(lead => lead.emailAvailable && !lead.isUnlocked && !savedByGlobalId[lead.id])
+    .length * tokenCostPerLead;
 
   useEffect(() => {
     let isMounted = true;
@@ -453,7 +539,7 @@ export function ProspectingPage() {
       setSelectedIds(new Set());
 
       if (matches.length < totalMatches) {
-        setError(`Pokazuję ${matches.length} wyników. Pierwsze ${FREE_RESULTS_PER_SEARCH} jest bez tokenów, reszta zależy od salda.`);
+        setError(`Pokazuję ${matches.length} z ${totalMatches} wyników. Samo wyszukiwanie nie pobiera tokenów.`);
       }
     } catch (err) {
       console.error(err);
@@ -463,7 +549,39 @@ export function ProspectingPage() {
     }
   };
 
-  const saveLead = async (lead: ProspectLead, source: ResultSource = resultSource) => {
+  const unlockLeads = async (leadsToUnlock: ProspectLead[], depth: SearchDepth = searchDepth) => {
+    const candidates = leadsToUnlock.filter(lead => !savedByGlobalId[lead.id]);
+    const withoutEmail = candidates.filter(lead => !lead.emailAvailable && !lead.email);
+
+    if (withoutEmail.length > 0) {
+      throw new Error('Wybrane leady nie mają jeszcze publicznego emaila.');
+    }
+
+    if (candidates.length === 0) return leadsToUnlock;
+
+    const { data, error: unlockError } = await (supabase as any).rpc('zec_unlock_global_leads', {
+      p_lead_ids: candidates.map(lead => lead.id),
+      p_unlock_depth: depth,
+    });
+
+    if (unlockError) throw unlockError;
+
+    const rows = (data || []) as SearchGlobalLeadRow[];
+    const unlocked = rows.map(mapLead);
+    const unlockedById = new Map(unlocked.map(lead => [lead.id, lead]));
+    const nextCredits = rows[0]?.credits_after;
+
+    if (typeof nextCredits === 'number') setAvailableTokens(nextCredits);
+
+    if (unlocked.length > 0) {
+      setLeads(prev => prev.map(lead => unlockedById.get(lead.id) || lead));
+      setDetailLead(prev => prev ? unlockedById.get(prev.id) || prev : prev);
+    }
+
+    return leadsToUnlock.map(lead => unlockedById.get(lead.id) || lead);
+  };
+
+  const saveLeadRecord = async (lead: ProspectLead, source: ResultSource = resultSource) => {
     if (!userId) throw new Error('Brak użytkownika.');
     if (savedByGlobalId[lead.id]) return savedByGlobalId[lead.id];
 
@@ -510,17 +628,25 @@ export function ProspectingPage() {
     return data.id as string;
   };
 
+  const saveLead = async (lead: ProspectLead, source: ResultSource = resultSource) => {
+    const [unlockedLead] = await unlockLeads([lead], searchDepth);
+    return saveLeadRecord(unlockedLead || lead, source);
+  };
+
   const handleSaveSelected = async () => {
     if (selectedLeads.length === 0) return;
     setSavingAction('save');
     setError(null);
 
     try {
-      await Promise.all(selectedLeads.map(lead => saveLead(lead)));
+      const unlockedLeads = await unlockLeads(selectedLeads, searchDepth);
+      await Promise.all(unlockedLeads.map(lead => saveLeadRecord(lead)));
       setSelectedIds(new Set());
     } catch (err) {
       console.error(err);
-      setError('Nie udało się zapisać wybranych leadów.');
+      setError(err instanceof Error && err.message.includes('Insufficient credits')
+        ? 'Masz za mało tokenów, żeby odblokować wybrane leady.'
+        : 'Nie udało się zapisać wybranych leadów.');
     } finally {
       setSavingAction(null);
     }
@@ -532,14 +658,17 @@ export function ProspectingPage() {
     setError(null);
 
     try {
-      const userLeadIds = await Promise.all(leadsToUse.map(lead => saveLead(lead)));
+      const unlockedLeads = await unlockLeads(leadsToUse, searchDepth);
+      const userLeadIds = await Promise.all(unlockedLeads.map(lead => saveLeadRecord(lead)));
       setCreatorLeadIds(userLeadIds);
       setIsCreatorOpen(true);
       setSelectedIds(new Set());
       setDetailLead(null);
     } catch (err) {
       console.error(err);
-      setError('Nie udało się przygotować leadów do kampanii.');
+      setError(err instanceof Error && err.message.includes('Insufficient credits')
+        ? 'Masz za mało tokenów, żeby odblokować leady do kampanii.'
+        : 'Nie udało się przygotować leadów do kampanii.');
     } finally {
       setSavingAction(null);
     }
@@ -619,9 +748,9 @@ export function ProspectingPage() {
           </div>
 
           <p className="text-[12px] text-[#827E78]">
-            Koszt: <span className="text-[#EAE8E1] font-mono">{DEPTH_CONFIG[searchDepth].tokenCost} tok/lead</span>
+            Odblokowanie: <span className="text-[#EAE8E1] font-mono">{DEPTH_CONFIG[searchDepth].tokenCost} tok/lead</span>
             <span className="mx-2 text-white/[0.14]">·</span>
-            pierwsze {FREE_RESULTS_PER_SEARCH} bez tokenów
+            wyszukiwanie bez tokenów
           </p>
         </div>
 
@@ -702,7 +831,7 @@ export function ProspectingPage() {
                       <p className="text-[12px] font-medium text-[#827E78] uppercase tracking-wider">Liczba wyników</p>
                       <div className="flex items-center gap-2">
                         <span className="text-[16px] font-bold text-[#EAE8E1] font-mono">{common.maxLeads}</span>
-                        <span className="text-[12px] text-[#827E78]">/ {estimatedCost} tok.</span>
+                        <span className="text-[12px] text-[#827E78]">/ 0 tok. za search</span>
                       </div>
                     </div>
                     <input
@@ -725,7 +854,7 @@ export function ProspectingPage() {
           <div className="w-full md:w-auto">
             <p className="text-[12px] font-medium text-[#827E78] uppercase tracking-wider mb-1">Wyszukiwanie w bazie</p>
             <p className="text-[13px] text-[#A3A09A]">
-              {common.maxLeads} wyników · {DEPTH_CONFIG[searchDepth].label.toLowerCase()} · koszt do {estimatedCost} tok.
+              {common.maxLeads} wyników · {DEPTH_CONFIG[searchDepth].label.toLowerCase()} · odblokowanie {tokenCostPerLead} tok/lead
             </p>
           </div>
 
@@ -753,7 +882,7 @@ export function ProspectingPage() {
             <p className="text-[12px] text-[#827E78]">
               {resultSource === 'preview'
                 ? '10 przykładowych leadów z najwyższą kompletnością danych.'
-                : `Odblokowano ${leads.length} wyników. Pobrano tokeny tylko za znalezione leady.`}
+                : `Znaleziono ${leads.length} wyników. Tokeny pobieramy dopiero przy zapisie lub kampanii.`}
             </p>
           </div>
 
@@ -791,7 +920,6 @@ export function ProspectingPage() {
             const saved = Boolean(savedByGlobalId[lead.id]);
             const score = leadScore(lead);
             const leadEnriched = isEnriched(lead);
-            const lockedEnriched = resultSource === 'basic' && leadEnriched;
 
             return (
               <div
@@ -825,9 +953,9 @@ export function ProspectingPage() {
                   <div className="flex items-center gap-1.5 text-[12px] text-[#A3A09A] truncate mb-1">
                     <Mail className="size-3.5 shrink-0" />
                     {resultSource === 'preview' ? (
-                      <span className="text-[#827E78]">email dostępny</span>
+                      <span className="text-[#827E78]">{lead.emailAvailable ? 'email do odblokowania' : 'brak emaila'}</span>
                     ) : (
-                      <span className="truncate">{lead.email || 'brak emaila'}</span>
+                      <span className="truncate">{lead.email || (lead.emailAvailable ? 'email do odblokowania' : 'brak emaila')}</span>
                     )}
                   </div>
                   {lead.website && (
@@ -862,22 +990,15 @@ export function ProspectingPage() {
 
                 <div className="col-span-3 min-w-0 flex items-center justify-between gap-4">
                   <div className="min-w-0">
-                    {lockedEnriched ? (
-                      <div className="flex items-center gap-2 text-[12px] text-[#827E78]">
-                        <Lock className="size-3.5 shrink-0" />
-                        <span>Dodatkowe informacje w trybie rozszerzonym</span>
+                    <>
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <Layers3 className="size-3 text-[#A3A09A]" />
+                        <span className="text-[10px] text-[#827E78] uppercase tracking-wider font-medium">Sygnały publiczne</span>
                       </div>
-                    ) : (
-                      <>
-                        <div className="flex items-center gap-1.5 mb-1">
-                          <Wand2 className="size-3 text-[#A3A09A]" />
-                          <span className="text-[10px] text-[#827E78] uppercase tracking-wider font-medium">Powód dopasowania</span>
-                        </div>
-                        <p className="text-[12px] text-[#A3A09A] truncate">
-                          {lead.aiIcebreaker || lead.instagramLastPost || lead.linkedinBio || 'Kompletny rekord firmowy w bazie global leads.'}
-                        </p>
-                      </>
-                    )}
+                      <p className="text-[12px] text-[#A3A09A] truncate">
+                        {getLeadSignalText(lead)}
+                      </p>
+                    </>
                   </div>
                   <ChevronRight className="size-4 text-[#3a3a3a] shrink-0" />
                 </div>
@@ -922,7 +1043,7 @@ export function ProspectingPage() {
 
                 <div className="grid grid-cols-1 gap-3">
                   {[
-                    { icon: Mail, label: 'Email', value: resultSource === 'preview' ? 'Dostępny po zapisie' : detailLead.email || '-' },
+                    { icon: Mail, label: 'Email', value: detailLead.email || (detailLead.emailAvailable ? 'Dostępny po odblokowaniu' : '-') },
                     { icon: Globe, label: 'WWW', value: detailLead.website || '-' },
                     { icon: MapPin, label: 'Lokalizacja', value: detailLead.city || '-' },
                     { icon: Building2, label: 'Branża', value: detailLead.industry || '-' },
@@ -940,10 +1061,26 @@ export function ProspectingPage() {
                 <div>
                   <div className="flex items-center gap-2 mb-4">
                     <Layers3 className="size-4 text-[#827E78]" />
-                    <h3 className="text-[14px] font-medium text-[#EAE8E1]">Social & enrichment</h3>
+                    <h3 className="text-[14px] font-medium text-[#EAE8E1]">Źródła i sygnały</h3>
                   </div>
 
                   <div className="space-y-3">
+                    {detailLead.businessSignals.length > 0 && (
+                      <div className="p-5 rounded-xl border border-white/[0.06] bg-white/[0.02]">
+                        <div className="flex items-center gap-2 mb-3 text-[#EAE8E1]">
+                          <ShieldCheck className="size-4 text-[#5d9970]" />
+                          <span className="text-[13px] font-medium">Sygnały publiczne</span>
+                        </div>
+                        <div className="space-y-2">
+                          {detailLead.businessSignals.slice(0, 5).map((signal, index) => (
+                            <p key={index} className="text-[13px] text-[#A3A09A] leading-relaxed">
+                              {[signal.label, signal.value].filter(Boolean).join(': ')}
+                            </p>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     {detailLead.instagramUrl || detailLead.instagramLastPost ? (
                       <div className="p-5 rounded-xl border border-white/[0.06] bg-white/[0.02]">
                         <div className="flex items-center gap-2 mb-3 text-[#EAE8E1]">
@@ -980,7 +1117,31 @@ export function ProspectingPage() {
                       </div>
                     ) : null}
 
-                    {!hasSocialData(detailLead) && !detailLead.instagramLastPost && !detailLead.linkedinBio && (
+                    {detailLead.dataSources.length > 0 && (
+                      <div className="p-5 rounded-xl border border-white/[0.06] bg-white/[0.02]">
+                        <div className="flex items-center gap-2 mb-3 text-[#EAE8E1]">
+                          <ExternalLink className="size-4 text-[#827E78]" />
+                          <span className="text-[13px] font-medium">Źródła</span>
+                        </div>
+                        <div className="space-y-2">
+                          {detailLead.dataSources.slice(0, 4).map((source, index) => (
+                            source.url ? (
+                              <a
+                                key={index}
+                                href={ensureUrl(source.url)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="block text-[13px] text-[#A3A09A] hover:text-[#EAE8E1] truncate transition-colors"
+                              >
+                                {source.label || source.url}
+                              </a>
+                            ) : null
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {!hasSocialData(detailLead) && !detailLead.instagramLastPost && !detailLead.linkedinBio && detailLead.businessSignals.length === 0 && (
                       <div className="text-center p-8 border border-dashed border-white/[0.1] rounded-2xl bg-white/[0.01]">
                         <Lock className="size-5 text-[#827E78] mx-auto mb-4" />
                         <h4 className="text-[14px] font-medium text-[#EAE8E1] mb-2">Brak rozszerzonych social danych</h4>
@@ -993,11 +1154,11 @@ export function ProspectingPage() {
 
               <div className="p-6 border-t border-white/[0.06] bg-[#0a0a0a] flex gap-3">
                 <button
-                  onClick={() => void saveLead(detailLead).then(() => setDetailLead(null)).catch(() => setError('Nie udało się zapisać leada.'))}
-                  disabled={Boolean(savedByGlobalId[detailLead.id])}
+                  onClick={() => void saveLead(detailLead).then(() => setDetailLead(null)).catch((err) => setError(err instanceof Error && err.message.includes('Insufficient credits') ? 'Masz za mało tokenów, żeby odblokować tego leada.' : 'Nie udało się zapisać leada.'))}
+                  disabled={Boolean(savedByGlobalId[detailLead.id]) || savingAction === 'save'}
                   className="px-4 py-3 border border-white/[0.08] hover:border-white/[0.15] hover:bg-white/[0.02] text-[#A3A09A] hover:text-[#EAE8E1] text-[13px] font-medium rounded-xl transition-all disabled:opacity-50"
                 >
-                  {savedByGlobalId[detailLead.id] ? 'Zapisany' : 'Zapisz'}
+                  {savedByGlobalId[detailLead.id] ? 'Zapisany' : detailLead.isUnlocked ? 'Zapisz' : 'Odblokuj i zapisz'}
                 </button>
                 <button
                   onClick={() => void openCampaignWithLeads([detailLead], 'single-campaign')}
@@ -1025,7 +1186,12 @@ export function ProspectingPage() {
               <div className="flex items-center justify-center size-6 rounded-full bg-white/[0.08] text-[12px] font-mono text-[#EAE8E1]">
                 {selectedIds.size}
               </div>
-              <span className="text-[14px] text-[#A3A09A]">Wybrano leadów</span>
+              <div>
+                <span className="text-[14px] text-[#A3A09A]">Wybrano leadów</span>
+                {selectedUnlockCost > 0 && (
+                  <p className="text-[11px] text-[#827E78] font-mono">{selectedUnlockCost} tok. do odblokowania</p>
+                )}
+              </div>
             </div>
             <div className="flex items-center gap-3">
               <button
